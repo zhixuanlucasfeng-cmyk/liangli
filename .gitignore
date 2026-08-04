@@ -1,0 +1,25 @@
+# 系统垃圾文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*~
+
+# 依赖（现在用不到，以后加了 npm 就有用）
+node_modules/
+
+# 密钥 —— 绝对不要提交任何含 API key 的文件
+.env
+.env.*
+!.env.example
+secrets.json
+
+# 构建产物
+dist/
+build/
+.netlify/
+.vercel/
