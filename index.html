@@ -50,7 +50,7 @@ main{flex:1;overflow-y:auto;padding:4px 14px calc(96px + var(--safe-b));-webkit-
 .delta.state-idle .eyes-idle,.delta.state-idle .mouth-idle{opacity:1}
 .delta.state-content .eyes-content,.delta.state-content .mouth-content{opacity:1}
 .delta.state-tired .eyes-tired,.delta.state-tired .mouth-tired{opacity:1}
-.delta .ear-l,.delta .ear-r{transform-origin:center bottom;transition:transform .4s}
+.delta .ear-l,.delta .ear-r{transform-box:fill-box;transform-origin:center bottom;transition:transform .4s}
 .delta.state-tired .ear-l{transform:rotate(-20deg)}
 .delta.state-tired .ear-r{transform:rotate(20deg)}
 .delta.state-idle .ear-l{transform:rotate(-8deg)}
@@ -138,7 +138,7 @@ nav button.active{color:var(--accent)}
               <path d="M120 36 A40 40 0 0 1 138 66 A40 40 0 0 1 118 100 A44 46 0 0 0 120 36Z" fill="var(--catpatch)" opacity=".55"/>
               <g class="ear-l"><path d="M68 38 L52 4 L86 28 Z" fill="var(--catbody)" stroke="var(--catline)" stroke-width="3" stroke-linejoin="round"/><path d="M69 31 L60 12 L79 26 Z" fill="var(--catpatch)"/></g>
               <g class="ear-r"><path d="M132 38 L148 4 L114 28 Z" fill="var(--catbody)" stroke="var(--catline)" stroke-width="3" stroke-linejoin="round"/><path d="M131 31 L140 12 L121 26 Z" fill="var(--catpatch)"/></g>
-              <g stroke="var(--catline)" stroke-width="2" stroke-linecap="round" opacity=".5">
+              <g stroke="var(--catpatch)" stroke-width="2" stroke-linecap="round" opacity=".7">
                 <path d="M62 70 L38 66"/><path d="M62 76 L38 78"/>
                 <path d="M138 70 L162 66"/><path d="M138 76 L162 78"/>
               </g>
@@ -160,13 +160,13 @@ nav button.active{color:var(--accent)}
               <ellipse class="mouth-tired" cx="100" cy="83" rx="4.5" ry="3.5" fill="var(--catline)"/>
             </g>
             <g class="pose-lie">
-              <path d="M155 132 Q120 148 90 140" fill="none" stroke="var(--catpatch)" stroke-width="13" stroke-linecap="round"/>
               <ellipse cx="105" cy="128" rx="70" ry="26" fill="var(--catbody)" stroke="var(--catline)" stroke-width="3"/>
               <ellipse cx="105" cy="136" rx="42" ry="14" fill="#fffaf3"/>
+              <path d="M155 132 Q120 148 90 140" fill="none" stroke="var(--catpatch)" stroke-width="13" stroke-linecap="round"/>
               <circle cx="55" cy="112" r="30" fill="var(--catbody)" stroke="var(--catline)" stroke-width="3"/>
               <path d="M70 92 A30 30 0 0 1 82 112 A30 30 0 0 1 68 136 A33 34 0 0 0 70 92Z" fill="var(--catpatch)" opacity=".55"/>
-              <path d="M38 98 L28 78 L52 92 Z" fill="var(--catbody)" stroke="var(--catline)" stroke-width="2.5" stroke-linejoin="round"/>
-              <path d="M70 98 L84 82 L60 92 Z" fill="var(--catbody)" stroke="var(--catline)" stroke-width="2.5" stroke-linejoin="round"/>
+              <path d="M38 80 L28 60 L52 74 Z" fill="var(--catbody)" stroke="var(--catline)" stroke-width="2.5" stroke-linejoin="round"/>
+              <path d="M70 80 L84 64 L60 74 Z" fill="var(--catbody)" stroke="var(--catline)" stroke-width="2.5" stroke-linejoin="round"/>
               <path d="M42 110 Q47 106 52 110" fill="none" stroke="var(--catline)" stroke-width="2.6" stroke-linecap="round"/>
               <path d="M58 110 Q63 106 68 110" fill="none" stroke="var(--catline)" stroke-width="2.6" stroke-linecap="round"/>
               <path d="M50 120 L60 120" fill="none" stroke="var(--catline)" stroke-width="2" stroke-linecap="round"/>
