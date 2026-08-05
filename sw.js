@@ -1,6 +1,6 @@
 /* 量力 Liangli — service worker
    改了 index.html 之后，把下面的版本号 +1，用户下次打开就会拿到新版本。 */
-const VERSION = 'liangli-v1';
+const VERSION = 'liangli-v3';
 const ASSETS = [
   './',
   './index.html',
