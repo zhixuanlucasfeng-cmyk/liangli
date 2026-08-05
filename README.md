@@ -9,6 +9,8 @@ liangli/
 ├── index.html              # 整个应用（唯一需要改的文件）
 ├── manifest.json           # PWA 配置：应用名、图标、主题色
 ├── sw.js                   # Service Worker：离线可用
+├── assets/power-cat/       # Power 猫伙伴 idle/content/tired/exhausted 四态视频
+├── assets/power-human/     # 粉发人形 Power 伙伴 idle/content/tired/exhausted 四态视频
 ├── icon-192.png            # 图标
 ├── icon-512.png
 └── icon-maskable-512.png   # 安卓自适应图标
@@ -18,7 +20,7 @@ liangli/
 
 | 模块 | 说明 |
 |---|---|
-| **今日** | 负荷系统。加任务时估精力值，进度条实时变色（绿→黄→红），超载时提醒但不阻止 |
+| **今日** | 负荷系统。加任务时估精力值，进度条实时变色（绿→黄→红），超载时提醒但不阻止；伴随负荷状态切换的 Power 猫 / 人形 Power 视频伙伴，可自由选择，选择本地保存 |
 | **成长池** | 想法暂存区，不占负荷。一键「转为任务」 |
 | **目标** | 长期目标 + 进度条，用 +/− 手动推进 |
 | **专注** | 25 分钟番茄钟 + 数据看板（今日专注/番茄数/完成任务 + 近 7 天趋势柱状图） |

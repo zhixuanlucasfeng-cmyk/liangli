@@ -1,12 +1,20 @@
 /* 量力 Liangli — service worker
    改了 index.html 之后，把下面的版本号 +1，用户下次打开就会拿到新版本。 */
-const VERSION = 'liangli-v3';
+const VERSION = 'liangli-v4';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './assets/power-cat/idle.mp4',
+  './assets/power-cat/content.mp4',
+  './assets/power-cat/tired.mp4',
+  './assets/power-cat/exhausted.mp4',
+  './assets/power-human/idle.mp4',
+  './assets/power-human/content.mp4',
+  './assets/power-human/tired.mp4',
+  './assets/power-human/exhausted.mp4'
 ];
 
 self.addEventListener('install', e => {

@@ -43,6 +43,8 @@ liangli/
 ├── index.html              # 整个应用都在这一个文件里（style + body + script 三段）
 ├── manifest.json           # PWA 配置
 ├── sw.js                   # Service Worker，网络优先 + 离线回落
+├── assets/power-cat/       # Power 猫伙伴 idle/content/tired/exhausted 四态视频
+├── assets/power-human/     # 粉发人形 Power 伙伴 idle/content/tired/exhausted 四态视频
 ├── icon-192.png / icon-512.png / icon-maskable-512.png
 ├── README.md               # 部署说明
 └── CLAUDE.md               # 本文件
@@ -50,7 +52,7 @@ liangli/
 
 ### 关键技术约定
 
-- **单文件架构是刻意的**，不要拆成多文件框架项目。用户是初学者，单文件他能看懂全貌。除非他明确要求，否则不要引入 React/Vue/构建工具/npm
+- **单文件代码架构是刻意的**，不要拆成多文件框架项目。视频等二进制素材可以放在 `assets/`，但应用代码仍保持在 `index.html` 一个文件里。用户是初学者，单文件他能看懂全貌。除非他明确要求，否则不要引入 React/Vue/构建工具/npm
 - **中英双语**：`I18N` 对象里 `zh` 和 `en` 两份词条**必须一一对应**。加任何新文案都要两边都加，改完请检查两边 key 数量一致
 - **改了 `index.html` 就要把 `sw.js` 里的 `VERSION` 号 +1**，否则用户拿到的是缓存旧版。这是最容易忘的一步，请每次主动提醒
 - 数据读写统一走 `DB.get/DB.set` 封装，不要直接调 `localStorage`
