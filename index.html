@@ -13,8 +13,8 @@
 <style>
 :root{
   --bg:#0f1115;--card:#191c22;--card2:#22262e;--line:#2c313b;
-  --txt:#e8ebf0;--sub:#9aa3b2;--accent:#4f8cff;--accent2:#7c5cff;
-  --ok:#37c07a;--warn:#ffb020;--danger:#ff5c5c;--r:14px;
+  --txt:#e8ebf0;--sub:#9aa3b2;--accent:#ff8a5c;--accent2:#ffb26b;
+  --ok:#37c07a;--warn:#ffb020;--danger:#ff5c5c;--r:18px;
   --safe-b:env(safe-area-inset-bottom,0px);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -56,7 +56,7 @@ textarea{resize:vertical;min-height:76px;line-height:1.5}
 .btn.full{width:100%}
 .pick{display:flex;gap:6px;margin-top:8px}
 .pick div{flex:1;text-align:center;padding:8px 0;background:var(--card2);border:1px solid var(--line);border-radius:10px;font-size:11.5px;cursor:pointer}
-.pick div.sel{border-color:var(--accent);background:rgba(79,140,255,.15);color:#bcd3ff}
+.pick div.sel{border-color:var(--accent);background:rgba(255,138,92,.15);color:#ffdcc2}
 .ring{width:180px;height:180px;margin:4px auto 12px;position:relative}
 .ring svg{transform:rotate(-90deg)}
 .ring .tm{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
@@ -86,7 +86,7 @@ textarea{resize:vertical;min-height:76px;line-height:1.5}
 .log p{margin:0;font-size:13.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
 .moodpick{display:flex;gap:6px;margin-top:9px}
 .moodpick div{flex:1;text-align:center;padding:7px 0;background:var(--card2);border:1px solid var(--line);border-radius:10px;font-size:17px;cursor:pointer}
-.moodpick div.sel{border-color:var(--accent);background:rgba(79,140,255,.15)}
+.moodpick div.sel{border-color:var(--accent);background:rgba(255,138,92,.15)}
 .empty{color:var(--sub);font-size:12.5px;text-align:center;padding:16px 0;line-height:1.6}
 nav{position:absolute;bottom:0;left:0;right:0;background:rgba(15,17,21,.94);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;padding:7px 4px calc(9px + var(--safe-b))}
 nav button{flex:1;background:none;border:none;color:var(--sub);font-size:10px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:3px 0;font-family:inherit}
@@ -94,7 +94,7 @@ nav button svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width
 nav button.active{color:var(--accent)}
 .toast{position:fixed;bottom:calc(100px + var(--safe-b));left:50%;transform:translateX(-50%) translateY(12px);background:var(--card2);border:1px solid var(--line);color:var(--txt);padding:10px 18px;border-radius:22px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:99}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-.hint{background:rgba(79,140,255,.08);border:1px solid rgba(79,140,255,.25);color:#bcd3ff;padding:10px 12px;border-radius:11px;font-size:12px;line-height:1.55;margin-bottom:12px}
+.hint{background:rgba(255,138,92,.08);border:1px solid rgba(255,138,92,.25);color:#ffdcc2;padding:10px 12px;border-radius:11px;font-size:12px;line-height:1.55;margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -179,7 +179,7 @@ nav button.active{color:var(--accent)}
               <circle id="ringFg" cx="90" cy="90" r="80" stroke="url(#gr)" stroke-width="11" fill="none"
                       stroke-linecap="round" stroke-dasharray="502.4" stroke-dashoffset="0"/>
               <defs><linearGradient id="gr" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stop-color="#4f8cff"/><stop offset="1" stop-color="#7c5cff"/>
+                <stop offset="0" stop-color="#ff8a5c"/><stop offset="1" stop-color="#ffb26b"/>
               </linearGradient></defs>
             </svg>
             <div class="tm"><b id="clock">25:00</b><small id="clabel" data-i="ready">准备开始</small></div>
