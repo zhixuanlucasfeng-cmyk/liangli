@@ -423,6 +423,9 @@ function renderLoad(){
   bar.style.width=pct+'%';
   bar.style.background = used>max?'var(--danger)':used>max*0.8?'var(--warn)':'var(--ok)';
   document.getElementById('loadWarn').classList.toggle('show',used>max);
+
+  const state = used===0 ? 'idle' : used>max ? 'exhausted' : used>max*0.8 ? 'tired' : 'content';
+  document.getElementById('delta').className = 'delta state-'+state;
 }
 function renderTasks(){
   const box=document.getElementById('taskList');
