@@ -15,6 +15,7 @@
   --bg:#0f1115;--card:#191c22;--card2:#22262e;--line:#2c313b;
   --txt:#e8ebf0;--sub:#9aa3b2;--accent:#ff8a5c;--accent2:#ffb26b;
   --ok:#37c07a;--warn:#ffb020;--danger:#ff5c5c;--r:18px;
+  --catbody:#fff3e6;--catpatch:#ffb37a;--catline:#3a2c22;
   --safe-b:env(safe-area-inset-bottom,0px);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -38,6 +39,24 @@ main{flex:1;overflow-y:auto;padding:4px 14px calc(96px + var(--safe-b));-webkit-
 .gh b{font-size:25px}
 .warnbox{margin-top:10px;background:rgba(255,92,92,.12);border:1px solid rgba(255,92,92,.35);color:#ffb3b3;padding:9px 12px;border-radius:11px;font-size:12.5px;line-height:1.5;display:none}
 .warnbox.show{display:block}
+.delta{width:100%;display:flex;justify-content:center;margin-bottom:6px}
+.delta svg{width:170px;height:145px;overflow:visible}
+.delta .pose-sit,.delta .pose-lie{transition:opacity .4s}
+.delta .pose-lie{opacity:0}
+.delta.state-exhausted .pose-sit{opacity:0}
+.delta.state-exhausted .pose-lie{opacity:1}
+.delta .eyes-idle,.delta .eyes-content,.delta .eyes-tired,
+.delta .mouth-idle,.delta .mouth-content,.delta .mouth-tired{opacity:0;transition:opacity .4s}
+.delta.state-idle .eyes-idle,.delta.state-idle .mouth-idle{opacity:1}
+.delta.state-content .eyes-content,.delta.state-content .mouth-content{opacity:1}
+.delta.state-tired .eyes-tired,.delta.state-tired .mouth-tired{opacity:1}
+.delta .ear-l,.delta .ear-r{transform-origin:center bottom;transition:transform .4s}
+.delta.state-tired .ear-l{transform:rotate(-20deg)}
+.delta.state-tired .ear-r{transform:rotate(20deg)}
+.delta.state-idle .ear-l{transform:rotate(-8deg)}
+.delta.state-idle .ear-r{transform:rotate(8deg)}
+.delta.state-idle .pose-sit{animation:breathe 3.2s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(2px)}}
 .item{display:flex;align-items:center;gap:9px;padding:10px 11px;background:var(--card2);border-radius:11px;margin-bottom:7px}
 .item:last-child{margin-bottom:0}
 .chk{width:21px;height:21px;border-radius:7px;border:2px solid var(--line);flex:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff}
@@ -109,6 +128,53 @@ nav button.active{color:var(--accent)}
     <!-- ========== 今日 ========== -->
     <section class="view active" id="v-today">
       <div class="card">
+        <div class="delta state-idle" id="delta" aria-hidden="true">
+          <svg viewBox="0 0 200 170">
+            <g class="pose-sit">
+              <path d="M148 128 Q184 118 178 88 Q176 74 162 78" fill="none" stroke="var(--catpatch)" stroke-width="14" stroke-linecap="round"/>
+              <ellipse cx="100" cy="122" rx="54" ry="40" fill="var(--catbody)" stroke="var(--catline)" stroke-width="3"/>
+              <ellipse cx="100" cy="134" rx="30" ry="22" fill="#fffaf3"/>
+              <circle cx="100" cy="66" r="40" fill="var(--catbody)" stroke="var(--catline)" stroke-width="3"/>
+              <path d="M120 36 A40 40 0 0 1 138 66 A40 40 0 0 1 118 100 A44 46 0 0 0 120 36Z" fill="var(--catpatch)" opacity=".55"/>
+              <g class="ear-l"><path d="M68 38 L52 4 L86 28 Z" fill="var(--catbody)" stroke="var(--catline)" stroke-width="3" stroke-linejoin="round"/><path d="M69 31 L60 12 L79 26 Z" fill="var(--catpatch)"/></g>
+              <g class="ear-r"><path d="M132 38 L148 4 L114 28 Z" fill="var(--catbody)" stroke="var(--catline)" stroke-width="3" stroke-linejoin="round"/><path d="M131 31 L140 12 L121 26 Z" fill="var(--catpatch)"/></g>
+              <g stroke="var(--catline)" stroke-width="2" stroke-linecap="round" opacity=".5">
+                <path d="M62 70 L38 66"/><path d="M62 76 L38 78"/>
+                <path d="M138 70 L162 66"/><path d="M138 76 L162 78"/>
+              </g>
+              <g class="eyes-idle">
+                <path d="M78 64 Q85 59 92 64" fill="none" stroke="var(--catline)" stroke-width="3" stroke-linecap="round"/>
+                <path d="M108 64 Q115 59 122 64" fill="none" stroke="var(--catline)" stroke-width="3" stroke-linecap="round"/>
+              </g>
+              <g class="eyes-content">
+                <circle cx="85" cy="64" r="6" fill="var(--catline)"/><circle cx="87" cy="61" r="1.6" fill="#fff"/>
+                <circle cx="115" cy="64" r="6" fill="var(--catline)"/><circle cx="117" cy="61" r="1.6" fill="#fff"/>
+              </g>
+              <g class="eyes-tired">
+                <path d="M78 64 A7 7 0 0 0 92 64 Z" fill="var(--catline)"/>
+                <path d="M108 64 A7 7 0 0 0 122 64 Z" fill="var(--catline)"/>
+              </g>
+              <path d="M97 74 L103 74 L100 78 Z" fill="var(--catpatch)"/>
+              <path class="mouth-idle" d="M96 82 L104 82" fill="none" stroke="var(--catline)" stroke-width="2.4" stroke-linecap="round"/>
+              <path class="mouth-content" d="M90 80 Q100 88 110 80" fill="none" stroke="var(--catline)" stroke-width="2.4" stroke-linecap="round"/>
+              <ellipse class="mouth-tired" cx="100" cy="83" rx="4.5" ry="3.5" fill="var(--catline)"/>
+            </g>
+            <g class="pose-lie">
+              <path d="M155 132 Q120 148 90 140" fill="none" stroke="var(--catpatch)" stroke-width="13" stroke-linecap="round"/>
+              <ellipse cx="105" cy="128" rx="70" ry="26" fill="var(--catbody)" stroke="var(--catline)" stroke-width="3"/>
+              <ellipse cx="105" cy="136" rx="42" ry="14" fill="#fffaf3"/>
+              <circle cx="55" cy="112" r="30" fill="var(--catbody)" stroke="var(--catline)" stroke-width="3"/>
+              <path d="M70 92 A30 30 0 0 1 82 112 A30 30 0 0 1 68 136 A33 34 0 0 0 70 92Z" fill="var(--catpatch)" opacity=".55"/>
+              <path d="M38 98 L28 78 L52 92 Z" fill="var(--catbody)" stroke="var(--catline)" stroke-width="2.5" stroke-linejoin="round"/>
+              <path d="M70 98 L84 82 L60 92 Z" fill="var(--catbody)" stroke="var(--catline)" stroke-width="2.5" stroke-linejoin="round"/>
+              <path d="M42 110 Q47 106 52 110" fill="none" stroke="var(--catline)" stroke-width="2.6" stroke-linecap="round"/>
+              <path d="M58 110 Q63 106 68 110" fill="none" stroke="var(--catline)" stroke-width="2.6" stroke-linecap="round"/>
+              <path d="M50 120 L60 120" fill="none" stroke="var(--catline)" stroke-width="2" stroke-linecap="round"/>
+              <text x="95" y="80" font-size="16" fill="var(--catpatch)" opacity=".9">z</text>
+              <text x="112" y="66" font-size="12" fill="var(--catpatch)" opacity=".7">z</text>
+            </g>
+          </svg>
+        </div>
         <div class="gh">
           <span class="muted" data-i="loadTitle">今日精力负荷</span>
           <b><span id="loadUsed">0</span><span class="muted" style="font-size:13px"> / <span id="loadMax">100</span></span></b>
