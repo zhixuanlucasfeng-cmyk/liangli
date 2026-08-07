@@ -74,6 +74,13 @@ textarea{resize:vertical;min-height:76px;line-height:1.5}
 .pick{display:flex;gap:6px;margin-top:8px}
 .pick button{flex:1;text-align:center;padding:8px 0;background:var(--card2);border:1px solid var(--line);border-radius:10px;color:var(--txt);font:inherit;font-size:11.5px;cursor:pointer}
 .pick button.sel{border-color:var(--accent);background:rgba(255,138,92,.15);color:#ffdcc2}
+.task-more{width:100%;margin-top:10px}
+.task-schedule{margin-top:10px;padding:12px;background:#fff8e8;border:2px dashed var(--line)}
+.task-schedule[hidden]{display:none}
+.task-time-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.task-field label{display:block;margin-bottom:4px;color:#5f5a54;font-size:11px;font-weight:900}
+.task-field+.task-field{margin-top:9px}
+.task-time-row .task-field+.task-field{margin-top:0}
 .ring{width:180px;height:180px;margin:4px auto 12px;position:relative}
 .ring svg{transform:rotate(-90deg)}
 .ring .tm{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
@@ -289,6 +296,29 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
           <button type="button" role="radio" aria-checked="true" data-e="25" class="sel" data-i="eMid">中 25</button>
           <button type="button" role="radio" aria-checked="false" data-e="45" data-i="eHeavy">重 45</button>
         </div>
+        <button type="button" class="btn ghost task-more" id="taskMore" aria-expanded="false" aria-controls="taskSchedule" onclick="toggleTaskMore()" data-i="taskMore">更多安排</button>
+        <div class="task-schedule" id="taskSchedule" hidden>
+          <div class="task-time-row">
+            <div class="task-field">
+              <label for="taskStartTime" data-i="startTime">开始时间</label>
+              <input id="taskStartTime" type="time">
+            </div>
+            <div class="task-field">
+              <label for="taskEndTime" data-i="endTime">结束时间</label>
+              <input id="taskEndTime" type="time">
+            </div>
+          </div>
+          <div class="task-field">
+            <label for="taskHelper" data-i="studyHelper">学习助手</label>
+            <select id="taskHelper">
+              <option value="none" data-i="helperNone">不需要</option>
+              <option value="pomodoro" data-i="helperPomodoro">番茄钟</option>
+              <option value="flashcards" data-i="helperFlashcards">Flashcards</option>
+              <option value="quiz" data-i="helperQuiz">自测模式</option>
+              <option value="checklist" data-i="helperChecklist">分步清单</option>
+            </select>
+          </div>
+        </div>
         <div class="row"><button class="btn full" onclick="addTask()" data-i="addToday">加入今日</button></div>
       </div>
 
@@ -419,7 +449,8 @@ const I18N={
  zh:{tagline:"反假性自律",loadTitle:"今日精力负荷",companionCat:'Power 猫',companionHuman:'人形 Power',
    companionIdle:'待命',companionContent:'状态良好',companionTired:'有些疲惫',companionExhausted:'精力耗尽',
    loadWarn:"⚠️ 已超出今日承载范围。别急着加 —— 把非必要的任务放进成长池吧。",
-   addTask:"添加任务",taskPh:"今天想完成什么？",energyLabel:"预估精力消耗",
+   addTask:"添加任务",taskPh:"今天想完成什么？",energyLabel:"预估精力消耗",taskMore:"更多安排",taskLess:"收起安排",
+   startTime:"开始时间",endTime:"结束时间",studyHelper:"学习助手",helperNone:"不需要",helperPomodoro:"番茄钟",helperFlashcards:"Flashcards",helperQuiz:"自测模式",helperChecklist:"分步清单",timeOrderError:"结束时间要晚于开始时间",
    eLight:"轻 10",eMid:"中 25",eHeavy:"重 45",addToday:"加入今日",todayTasks:"今日任务",
    poolTitle:"成长池",poolDesc:"突然冒出来的想法先存这儿，不逼自己马上做。等状态好、精力有富余时，再一键转成今日任务。",
    ideaPh:"比如：想学一点心理学…",save:"存起来",myIdeas:"我的想法",toTask:"转为任务",
@@ -441,7 +472,8 @@ const I18N={
  en:{tagline:"Anti-fake-productivity",loadTitle:"Today's energy load",companionCat:'Power Cat',companionHuman:'Human Power',
    companionIdle:'Idle',companionContent:'Feeling good',companionTired:'Getting tired',companionExhausted:'Exhausted',
    loadWarn:"⚠️ You're over today's capacity. Don't push — move the non-essential ones to your Growth Pool.",
-   addTask:"Add a task",taskPh:"What do you want to get done today?",energyLabel:"Estimated energy cost",
+   addTask:"Add a task",taskPh:"What do you want to get done today?",energyLabel:"Estimated energy cost",taskMore:"More options",taskLess:"Hide options",
+   startTime:"Start time",endTime:"End time",studyHelper:"Study helper",helperNone:"None",helperPomodoro:"Pomodoro",helperFlashcards:"Flashcards",helperQuiz:"Self quiz",helperChecklist:"Step checklist",timeOrderError:"End time must be later than start time",
    eLight:"Light 10",eMid:"Medium 25",eHeavy:"Heavy 45",addToday:"Add to today",todayTasks:"Today's tasks",
    poolTitle:"Growth pool",poolDesc:"Park sudden ideas here without forcing yourself to act now. Turn them into tasks when you actually have energy to spare.",
    ideaPh:"e.g. I want to learn some psychology…",save:"Save",myIdeas:"My ideas",toTask:"Make a task",
@@ -761,11 +793,30 @@ function renderTasks(){
     : `<div class="empty">${T('emptyTask')}</div>`;
   renderLoad(); renderStats();
 }
+function toggleTaskMore(){
+  const button=document.getElementById('taskMore');
+  const panel=document.getElementById('taskSchedule');
+  const expanded=button.getAttribute('aria-expanded')==='true';
+  button.setAttribute('aria-expanded',String(!expanded));
+  button.textContent=T(expanded?'taskMore':'taskLess');
+  panel.hidden=expanded;
+}
 function addTask(){
   const el=document.getElementById('taskName'), name=el.value.trim();
   if(!name) return;
-  S.tasks.push({id:Date.now(),name,energy:pickedEnergy,done:false,dayKey:currentDayKey});
-  el.value=''; DB.set('tasks',S.tasks); renderTasks();
+  const startTime=document.getElementById('taskStartTime').value;
+  const endTime=document.getElementById('taskEndTime').value;
+  const helper=document.getElementById('taskHelper').value;
+  if(!validateTaskTimes(startTime,endTime)){toast(T('timeOrderError'));return;}
+  S.tasks.push(normalizeTask({
+    id:Date.now(),name,energy:pickedEnergy,done:false,dayKey:currentDayKey,
+    startTime:startTime||null,endTime:endTime||null,helper,helperRef:null,pomodoroCount:0
+  },currentDayKey));
+  el.value='';
+  document.getElementById('taskStartTime').value='';
+  document.getElementById('taskEndTime').value='';
+  document.getElementById('taskHelper').value='none';
+  DB.set('tasks',S.tasks); renderTasks();
 }
 function toggleTask(id){
   const t=S.tasks.find(x=>x.id===id); if(!t)return;

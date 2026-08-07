@@ -58,6 +58,16 @@ class MangaUIContractTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_task_entry_has_optional_time_and_study_helpers(self):
+        self.assertIn('id="taskMore"', HTML)
+        self.assertIn('aria-controls="taskSchedule"', HTML)
+        self.assertIn('id="taskSchedule"', HTML)
+        self.assertRegex(HTML, r'<input\b[^>]*id="taskStartTime"[^>]*type="time"')
+        self.assertRegex(HTML, r'<input\b[^>]*id="taskEndTime"[^>]*type="time"')
+        self.assertIn('id="taskHelper"', HTML)
+        for helper in ("none", "pomodoro", "flashcards", "quiz", "checklist"):
+            self.assertIn(f'value="{helper}"', HTML)
+
     def test_all_five_views_have_manga_identity(self):
         for view in ("today", "pool", "goals", "focus", "journal"):
             self.assertRegex(HTML, rf'<section class="view manga-view [^"]*" id="v-{view}"')
