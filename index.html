@@ -12,9 +12,13 @@
 <title>量力 Liangli</title>
 <style>
 :root{
-  --bg:#0f1115;--card:#191c22;--card2:#22262e;--line:#2c313b;
-  --txt:#e8ebf0;--sub:#9aa3b2;--accent:#ff8a5c;--accent2:#ffb26b;
-  --ok:#37c07a;--warn:#ffb020;--danger:#ff5c5c;--r:18px;
+  --ink:#0b0c0f;--ink-soft:#17181d;--panel:#202127;
+  --paper:#ede6d8;--paper-dim:#c9c0b1;--muted:#9f988e;
+  --blood:#d92d45;--power-pink:#ff5f8f;--warning:#f1c84b;
+  --line:#050608;--focus:#ffd769;
+  --bg:var(--ink);--card:var(--ink-soft);--card2:var(--panel);
+  --txt:var(--paper);--sub:var(--muted);--accent:var(--blood);--accent2:var(--power-pink);
+  --ok:#2f9c68;--warn:var(--warning);--danger:var(--blood);--r:0;
   --safe-b:env(safe-area-inset-bottom,0px);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -100,6 +104,132 @@ nav button.active{color:var(--accent)}
 .toast{position:fixed;bottom:calc(100px + var(--safe-b));left:50%;transform:translateX(-50%) translateY(12px);background:var(--card2);border:1px solid var(--line);color:var(--txt);padding:10px 18px;border-radius:22px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:99}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .hint{background:rgba(255,138,92,.08);border:1px solid rgba(255,138,92,.25);color:#ffdcc2;padding:10px 12px;border-radius:11px;font-size:12px;line-height:1.55;margin-bottom:12px}
+
+/* ============ cinematic manga visual system ============ */
+body{
+  background:
+    radial-gradient(circle at 18% 12%,rgba(255,95,143,.13),transparent 24%),
+    repeating-linear-gradient(118deg,#050608 0 3px,#0b0c0f 3px 13px);
+}
+.app{background:var(--ink);box-shadow:0 0 0 3px var(--line),0 0 70px rgba(217,45,69,.16)}
+header{position:relative;border-bottom:3px solid var(--line);background:var(--paper);color:var(--ink);overflow:hidden}
+header::after{content:"";position:absolute;right:-22px;top:-46px;width:120px;height:150px;background:repeating-radial-gradient(circle,var(--line) 0 1px,transparent 1px 5px);opacity:.16;transform:rotate(-16deg);pointer-events:none}
+.logo{border:3px solid var(--line);border-radius:50% 44% 48% 38%;background:var(--blood);color:#fff;box-shadow:3px 3px 0 var(--line);transform:rotate(-5deg)}
+header h1{font-family:"Kaiti SC","STKaiti","Segoe Print",cursive;font-weight:900;letter-spacing:.08em}
+header .sl{color:#4c4a48;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.langbtn{position:relative;z-index:1;min-height:44px;background:var(--warning);border:3px solid var(--line);border-radius:0;color:var(--ink);font-weight:900;box-shadow:3px 3px 0 var(--line)}
+main{padding:14px 12px calc(104px + var(--safe-b));background:linear-gradient(90deg,transparent 49%,rgba(237,230,216,.035) 50%,transparent 51%)}
+.view.active{animation:panelCut .24s steps(3,end)}
+@keyframes panelCut{from{opacity:.15;clip-path:polygon(0 18%,100% 0,89% 100%,8% 82%)}to{opacity:1;clip-path:polygon(0 0,100% 0,100% 100%,0 100%)}}
+
+.manga-panel{
+  position:relative;background:var(--paper);color:var(--ink);
+  border:3px solid var(--line);box-shadow:5px 6px 0 var(--line);
+  padding:16px;margin:0 4px 18px;overflow:hidden;border-radius:0;
+}
+.manga-panel:nth-of-type(even){transform:rotate(.55deg)}
+.manga-title{font-family:"Kaiti SC","STKaiti","Segoe Print",cursive;font-size:18px;font-weight:900;line-height:1.15;letter-spacing:.04em;text-transform:uppercase}
+.card h2.manga-title{font-size:18px;font-weight:900}
+.manga-title::after{content:"";display:block;width:42px;height:5px;margin-top:6px;background:var(--blood);clip-path:polygon(0 20%,100% 0,92% 100%,4% 72%)}
+.manga-decor{pointer-events:none;position:absolute;inset:0;z-index:0}
+.manga-panel>*:not(.manga-decor){position:relative;z-index:1}
+.manga-view .muted{color:#5f5a54;font-weight:600}
+.manga-view input,.manga-view textarea,.manga-view select{background:#fffdf6;border:2px solid var(--line);border-radius:0;color:var(--ink);box-shadow:inset 3px 3px 0 rgba(11,12,15,.08)}
+.manga-view input:focus,.manga-view textarea:focus{border-color:var(--blood)}
+button,input,textarea,select{min-height:44px}
+:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+.btn{min-height:44px;background:var(--blood);border:3px solid var(--line);border-radius:0;color:#fff;font-weight:900;box-shadow:3px 3px 0 var(--line);transition:transform .12s,box-shadow .12s}
+.btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--line)}
+.btn.ghost{background:var(--paper);border:2px solid var(--line);color:var(--ink);box-shadow:2px 2px 0 var(--line)}
+.btn.sm{min-height:44px}
+.row{align-items:stretch}
+.manga-view .row>*{min-width:0}
+.item{background:#fffdf6;border:2px solid var(--line);border-radius:0;box-shadow:2px 2px 0 rgba(11,12,15,.22)}
+.chk{width:44px;height:44px;border:2px solid var(--line);border-radius:50% 42% 47% 39%;color:#fff;font-weight:900}
+.item.done .chk{background:var(--blood);border-color:var(--line)}
+.tag{background:var(--warning);border:1px solid var(--line);border-radius:0;color:var(--ink);font-weight:900}
+.x{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;color:var(--ink);font-weight:900}
+.empty{color:#5f5a54;border:2px dashed #6a655e;background:rgba(255,255,255,.3)}
+
+/* Today: close-up hero, warning tape gauge, overload impact burst. */
+.today-view .hero-panel{padding:0 0 16px;background:var(--ink-soft);color:var(--paper)}
+.today-view .hero-panel>*:not(.manga-decor){margin-left:16px;margin-right:16px}
+.today-view .hero-panel .companion-stage{margin-left:0;margin-right:0}
+.hero-rays{background:repeating-conic-gradient(from 12deg at 50% 35%,transparent 0 7deg,rgba(255,255,255,.08) 7deg 9deg);opacity:.7}
+.companion-stage{height:218px;background:linear-gradient(145deg,#2b2c33,var(--ink));border:0;border-bottom:3px solid var(--line);border-radius:0;margin-bottom:10px}
+.companion-stage video{width:218px;height:218px;background:transparent;filter:contrast(1.1) saturate(.88)}
+.companion-picker{background:var(--paper);border:2px solid var(--line);border-radius:0}
+.companion-picker button{min-height:44px;border-radius:0;color:var(--ink);font-weight:900}
+.companion-picker button[aria-pressed="true"]{background:var(--power-pink);color:var(--ink);box-shadow:inset 0 0 0 2px var(--line)}
+.today-view .gh .muted{color:var(--paper-dim)}
+.gauge{height:20px;border:3px solid var(--line);border-radius:0;background:repeating-linear-gradient(135deg,var(--warning) 0 12px,var(--ink) 12px 18px);padding:2px}
+.gauge>span{border-radius:0;mix-blend-mode:screen}
+.warnbox{position:relative;background:var(--warning);border:3px solid var(--line);border-radius:0;color:var(--ink);font-weight:900;box-shadow:4px 4px 0 var(--blood)}
+.warnbox.show{animation:overloadHit .38s steps(2,end) 1}
+.warnbox.show::before{content:"!";position:absolute;right:-3px;top:-34px;width:52px;height:52px;display:grid;place-items:center;background:var(--blood);color:#fff;border:3px solid var(--line);clip-path:polygon(50% 0,62% 25%,86% 8%,80% 36%,100% 44%,76% 57%,93% 82%,64% 74%,52% 100%,42% 74%,12% 92%,20% 61%,0 50%,25% 39%,9% 13%,39% 27%);font-size:25px}
+@keyframes overloadHit{0%{transform:scale(.82) rotate(-2deg)}55%{transform:scale(1.04) rotate(1deg)}100%{transform:scale(1)}}
+.task-entry-panel::after{content:"";position:absolute;right:-28px;bottom:-36px;width:110px;height:110px;border:18px double rgba(217,45,69,.12);border-radius:50%;pointer-events:none}
+.pick div,.moodpick div{min-height:44px;display:grid;place-items:center;background:#fffdf6;border:2px solid var(--line);border-radius:0;color:var(--ink);font-weight:800}
+.pick div.sel,.moodpick div.sel{border-color:var(--line);background:var(--warning);color:var(--ink);box-shadow:3px 3px 0 var(--line)}
+
+/* Pool: a deterministic wall of torn notes. */
+.pool-grid{background:repeating-linear-gradient(0deg,transparent 0 18px,rgba(11,12,15,.08) 18px 19px)}
+.pool-view #ideaList{padding:10px 4px}
+.pool-view .torn-note{position:relative;padding:16px 10px;background:#fff9c9;clip-path:polygon(0 3%,8% 0,19% 3%,31% 0,46% 2%,61% 0,74% 3%,88% 0,100% 3%,98% 96%,87% 100%,72% 97%,58% 100%,43% 97%,29% 100%,14% 97%,1% 100%);transform-origin:center;box-shadow:none}
+.pool-view .torn-note:nth-child(3n+1){transform:rotate(-1.4deg);background:#fff3a8}
+.pool-view .torn-note:nth-child(3n+2){transform:rotate(.9deg);background:#f8dce5}
+.pool-view .torn-note:nth-child(3n+3){transform:rotate(-.35deg);background:#dce9e5}
+
+/* Goals: chapter cards with segmented ink progress. */
+.chapter-decor{background:linear-gradient(135deg,rgba(11,12,15,.06) 25%,transparent 25% 75%,rgba(217,45,69,.06) 75%)}
+.goals-view .chapter-card{position:relative;background:#fffdf6;border:3px solid var(--line);border-radius:0;padding:28px 12px 12px;box-shadow:4px 4px 0 var(--blood)}
+.goals-view .chapter-card::before{content:"CHAPTER";position:absolute;left:-3px;top:-3px;padding:4px 9px;background:var(--ink);color:var(--paper);font-size:9px;font-weight:900;letter-spacing:.18em}
+.goal-entry-panel .row{flex-wrap:wrap}
+.goal-entry-panel #goalTarget,.goal-entry-panel #goalUnit{flex:1 1 calc(50% - 4px)!important}
+.goal-entry-panel .row .btn{width:100%}
+.gbar{height:14px;border:2px solid var(--line);border-radius:0;background:repeating-linear-gradient(90deg,var(--paper-dim) 0 16px,var(--line) 16px 18px);padding:2px}
+.gbar>span{border-radius:0;background:repeating-linear-gradient(90deg,var(--ink) 0 14px,var(--blood) 14px 16px)}
+.step{width:44px;height:44px;border:2px solid var(--line);border-radius:0;background:var(--warning);color:var(--ink);font-weight:900;box-shadow:2px 2px 0 var(--line)}
+
+/* Focus: title-card timer and clapperboard controls. */
+.focus-view .timer-panel{background:var(--ink-soft);color:var(--paper);padding-top:18px}
+.focus-view .timer-panel .manga-title::after{background:var(--power-pink)}
+.focus-view .ring{width:100%;height:190px;margin:0 auto 14px;border:3px solid var(--paper);background:repeating-linear-gradient(135deg,rgba(237,230,216,.08) 0 7px,transparent 7px 16px)}
+.focus-view .ring svg{position:absolute;inset:5px;margin:auto;opacity:.18}
+.focus-view .ring .tm b{font-family:"Arial Narrow","Roboto Condensed",Impact,sans-serif;font-size:64px;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.04em;text-shadow:4px 4px 0 var(--blood)}
+.focus-view .ring .tm small{color:var(--paper-dim);font-weight:900;letter-spacing:.16em;text-transform:uppercase}
+.clapper-controls{gap:4px;padding:8px;background:repeating-linear-gradient(135deg,var(--paper) 0 15px,var(--ink) 15px 29px);border:3px solid var(--line)}
+.clapper-controls .btn{flex:1}
+.stats{gap:5px}
+.stat{background:var(--ink);border:2px solid var(--line);border-radius:0;color:var(--paper);padding:13px 4px}
+.stat b{font-family:Impact,"Arial Black",sans-serif;color:var(--warning)}
+.stat small{color:var(--paper-dim)}
+.bars .b i{border:2px solid var(--line);border-bottom:0;border-radius:0;background:repeating-linear-gradient(135deg,var(--blood) 0 7px,var(--power-pink) 7px 11px)}
+.bars .b span{color:var(--ink);font-weight:900}
+
+/* Journal: level film frames; the written copy never tilts. */
+.film-decor{background:radial-gradient(circle at 8px 8px,var(--ink) 0 3px,transparent 4px) 0 0/24px 24px;opacity:.08}
+.journal-view .log{position:relative;margin:12px 4px;padding:18px 16px 18px 26px;background:#fffdf6;border:3px solid var(--line);border-radius:0;box-shadow:4px 4px 0 var(--line);transform:none}
+.journal-view .log::before{content:"";position:absolute;left:5px;top:4px;bottom:4px;width:9px;background:repeating-linear-gradient(180deg,var(--ink) 0 7px,transparent 7px 14px)}
+.journal-view .log::after{content:"";position:absolute;right:5px;top:4px;bottom:4px;width:9px;background:repeating-linear-gradient(180deg,var(--ink) 0 7px,transparent 7px 14px)}
+.journal-view .log p,.journal-view .log .lh{position:relative;z-index:1;transform:none;color:var(--ink)}
+.journal-view .journal-list-panel{transform:none}
+.hint{background:var(--warning);border:2px solid var(--line);border-radius:0;color:var(--ink);font-weight:700}
+
+nav{background:var(--paper);border-top:3px solid var(--line);padding-top:5px}
+nav button{min-height:54px;color:#4a4742;font-weight:800;transition:transform .12s,background .12s}
+nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) rotate(-1deg);border:2px solid var(--line);box-shadow:3px 3px 0 var(--line)}
+.toast{background:var(--warning);border:3px solid var(--line);border-radius:0;color:var(--ink);font-weight:900;box-shadow:4px 4px 0 var(--line)}
+
+@media (min-width:390px){
+  .focus-view .ring .tm b{font-size:72px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  .manga-panel{transform:none}
+  .pool-view .torn-note{transform:none}
+  nav button.active{transform:none}
+}
 </style>
 </head>
 <body>
@@ -112,8 +242,9 @@ nav button.active{color:var(--accent)}
 
   <main>
     <!-- ========== 今日 ========== -->
-    <section class="view active" id="v-today">
-      <div class="card">
+    <section class="view manga-view today-view active" id="v-today">
+      <div class="card manga-panel hero-panel">
+        <div class="manga-decor hero-rays" aria-hidden="true"></div>
         <div class="companion-stage">
           <video id="companionVideo" autoplay muted loop playsinline aria-hidden="true"></video>
         </div>
@@ -129,8 +260,8 @@ nav button.active{color:var(--accent)}
         <div class="warnbox" id="loadWarn" data-i="loadWarn"></div>
       </div>
 
-      <div class="card">
-        <h2 data-i="addTask">添加任务</h2>
+      <div class="card manga-panel task-entry-panel">
+        <h2 class="manga-title" data-i="addTask">添加任务</h2>
         <input id="taskName" data-ph="taskPh" placeholder="今天想完成什么？">
         <div class="muted" style="margin-top:11px" data-i="energyLabel">预估精力消耗</div>
         <div class="pick" id="energyPick">
@@ -141,32 +272,34 @@ nav button.active{color:var(--accent)}
         <div class="row"><button class="btn full" onclick="addTask()" data-i="addToday">加入今日</button></div>
       </div>
 
-      <div class="card">
-        <h2 data-i="todayTasks">今日任务</h2>
+      <div class="card manga-panel task-list-panel">
+        <h2 class="manga-title" data-i="todayTasks">今日任务</h2>
         <div id="taskList"></div>
       </div>
     </section>
 
     <!-- ========== 成长池 ========== -->
-    <section class="view" id="v-pool">
-      <div class="card">
-        <h2 data-i="poolTitle">成长池</h2>
+    <section class="view manga-view pool-view" id="v-pool">
+      <div class="card manga-panel pool-entry-panel">
+        <div class="manga-decor pool-grid" aria-hidden="true"></div>
+        <h2 class="manga-title" data-i="poolTitle">成长池</h2>
         <p class="muted" data-i="poolDesc">突然冒出来的想法先存这儿，不逼自己马上做。等状态好、精力有富余时，再一键转成今日任务。</p>
         <div class="row">
           <input id="ideaName" data-ph="ideaPh" placeholder="比如：想学一点心理学…">
           <button class="btn" onclick="addIdea()" data-i="save">存起来</button>
         </div>
       </div>
-      <div class="card">
-        <h2 data-i="myIdeas">我的想法</h2>
+      <div class="card manga-panel pool-list-panel">
+        <h2 class="manga-title" data-i="myIdeas">我的想法</h2>
         <div id="ideaList"></div>
       </div>
     </section>
 
     <!-- ========== 目标 ========== -->
-    <section class="view" id="v-goals">
-      <div class="card">
-        <h2 data-i="addGoal">新目标</h2>
+    <section class="view manga-view goals-view" id="v-goals">
+      <div class="card manga-panel goal-entry-panel">
+        <div class="manga-decor chapter-decor" aria-hidden="true"></div>
+        <h2 class="manga-title" data-i="addGoal">新目标</h2>
         <input id="goalName" data-ph="goalPh" placeholder="比如：读完 12 本书">
         <div class="row">
           <input id="goalTarget" type="number" min="1" value="10" style="flex:1" inputmode="numeric">
@@ -174,16 +307,17 @@ nav button.active{color:var(--accent)}
           <button class="btn" onclick="addGoal()" data-i="create">创建</button>
         </div>
       </div>
-      <div class="card">
-        <h2 data-i="myGoals">我的目标</h2>
+      <div class="card manga-panel goal-list-panel">
+        <h2 class="manga-title" data-i="myGoals">我的目标</h2>
         <div id="goalList"></div>
       </div>
     </section>
 
     <!-- ========== 专注 ========== -->
-    <section class="view" id="v-focus">
-      <div class="card">
-        <h2 data-i="pomo">番茄钟</h2>
+    <section class="view manga-view focus-view" id="v-focus">
+      <div class="card manga-panel timer-panel">
+        <div class="manga-decor timer-decor" aria-hidden="true"></div>
+        <h2 class="manga-title" data-i="pomo">番茄钟</h2>
         <div style="text-align:center">
           <div class="ring">
             <svg width="180" height="180" viewBox="0 0 180 180">
@@ -196,14 +330,14 @@ nav button.active{color:var(--accent)}
             </svg>
             <div class="tm"><b id="clock">25:00</b><small id="clabel" data-i="ready">准备开始</small></div>
           </div>
-          <div class="tctl">
+          <div class="tctl clapper-controls">
             <button class="btn" id="startBtn" onclick="toggleTimer()" data-i="start">开始专注</button>
             <button class="btn ghost" onclick="resetTimer()" data-i="reset">重置</button>
           </div>
         </div>
       </div>
-      <div class="card">
-        <h2 data-i="dash">数据看板</h2>
+      <div class="card manga-panel dashboard-panel">
+        <h2 class="manga-title" data-i="dash">数据看板</h2>
         <div class="stats">
           <div class="stat"><b id="stFocus">0</b><small data-i="sFocus">今日专注(分)</small></div>
           <div class="stat"><b id="stPomo">0</b><small data-i="sPomo">番茄数</small></div>
@@ -215,10 +349,11 @@ nav button.active{color:var(--accent)}
     </section>
 
     <!-- ========== 记录 ========== -->
-    <section class="view" id="v-journal">
-      <div class="card">
+    <section class="view manga-view journal-view" id="v-journal">
+      <div class="card manga-panel journal-entry-panel">
+        <div class="manga-decor film-decor" aria-hidden="true"></div>
         <div class="hint" data-i="jHint">这些记录只存在你自己的手机上，没有人能看到。诚实地写，才对你有用。</div>
-        <h2 data-i="jTitle">今天做了什么</h2>
+        <h2 class="manga-title" data-i="jTitle">今天做了什么</h2>
         <textarea id="logText" data-ph="logPh" placeholder="不用写得漂亮。做了什么、什么感觉，随便记两句就行…"></textarea>
         <div class="muted" style="margin-top:10px" data-i="moodLabel">今天状态如何</div>
         <div class="moodpick" id="moodPick">
@@ -227,8 +362,8 @@ nav button.active{color:var(--accent)}
         </div>
         <div class="row"><button class="btn full" onclick="addLog()" data-i="saveLog">保存记录</button></div>
       </div>
-      <div class="card">
-        <h2 data-i="history">历史记录</h2>
+      <div class="card manga-panel journal-list-panel">
+        <h2 class="manga-title" data-i="history">历史记录</h2>
         <div id="logList"></div>
       </div>
     </section>
@@ -394,7 +529,7 @@ function renderLoad(){
 function renderTasks(){
   const box=document.getElementById('taskList');
   box.innerHTML = S.tasks.length
-    ? S.tasks.map(t=>`<div class="item ${t.done?'done':''}">
+    ? S.tasks.map(t=>`<div class="item manga-task ${t.done?'done':''}">
         <div class="chk" onclick="toggleTask(${t.id})">${t.done?'✓':''}</div>
         <div class="t">${esc(t.name)}</div>
         <div class="tag">⚡${t.energy}</div>
@@ -424,7 +559,7 @@ document.getElementById('energyPick').addEventListener('click',e=>{
 function renderIdeas(){
   const box=document.getElementById('ideaList');
   box.innerHTML = S.ideas.length
-    ? S.ideas.map(i=>`<div class="item">
+    ? S.ideas.map(i=>`<div class="item torn-note">
         <div class="t">${esc(i.name)}</div>
         <button class="btn ghost sm" onclick="promote(${i.id})">${T('toTask')}</button>
         <div class="x" onclick="delIdea(${i.id})">×</div></div>`).join('')
@@ -452,7 +587,7 @@ function renderGoals(){
   box.innerHTML = S.goals.length
     ? S.goals.map(g=>{
         const pct=Math.min(100,Math.round(g.cur/g.target*100));
-        return `<div class="goal">
+        return `<div class="goal chapter-card">
           <div class="gt"><b>${esc(g.name)}</b><div class="x" onclick="delGoal(${g.id})">×</div></div>
           <div class="gbar"><span style="width:${pct}%"></span></div>
           <div class="gfoot">
@@ -527,7 +662,7 @@ function renderStats(){
 function renderLogs(){
   const box=document.getElementById('logList');
   box.innerHTML = S.logs.length
-    ? S.logs.slice().reverse().map(l=>`<div class="log">
+    ? S.logs.slice().reverse().map(l=>`<div class="log film-frame">
         <div class="lh"><span class="mood">${l.mood}</span><b>${l.date}</b>
         <div class="x" style="margin-left:auto" onclick="delLog(${l.id})">×</div></div>
         <p>${esc(l.text)}</p></div>`).join('')
