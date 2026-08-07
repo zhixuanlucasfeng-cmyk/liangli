@@ -1,5 +1,6 @@
 from pathlib import Path
 import re
+import subprocess
 import unittest
 
 
@@ -8,6 +9,16 @@ HTML = (ROOT / "index.html").read_text(encoding="utf-8")
 
 
 class MangaUIContractTests(unittest.TestCase):
+    def test_companion_playback_behavior(self):
+        result = subprocess.run(
+            ["node", str(ROOT / "tests" / "test_companion_playback.js")],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=5,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_load_thresholds_are_unchanged(self):
         self.assertIn(
             "used===0 ? 'idle' : used>max ? 'exhausted' : used>max*0.8 ? 'tired' : 'content'",
@@ -65,10 +76,12 @@ class MangaUIContractTests(unittest.TestCase):
         self.assertIn("T(companion==='human'?'companionHuman':'companionCat')", compact)
         self.assertIn("T(companionStateKeys[state])", compact)
 
-    def test_playback_reuses_current_source_and_protects_new_layer_owner(self):
+    def test_playback_invalidates_before_active_source_fast_path(self):
         compact = HTML.replace(" ", "")
         for fragment in (
-            "pendingCompanionSrc===videoSrc",
+            "functioncancelCompanionTransition()",
+            "constrequestId=++companionRequestId",
+            "cancelCompanionTransition()",
             "next._companionRequestId!==requestId",
             "catch(e)",
             "pendingCompanionSrc=''",
