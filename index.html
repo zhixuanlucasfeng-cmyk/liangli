@@ -81,6 +81,7 @@ textarea{resize:vertical;min-height:76px;line-height:1.5}
 .task-field label{display:block;margin-bottom:4px;color:#5f5a54;font-size:11px;font-weight:900}
 .task-field+.task-field{margin-top:9px}
 .task-time-row .task-field+.task-field{margin-top:0}
+.task-meta{display:block;margin-top:4px;color:#625d55;font-size:10px;font-weight:800;line-height:1.35}
 .ring{width:180px;height:180px;margin:4px auto 12px;position:relative}
 .ring svg{transform:rotate(-90deg)}
 .ring .tm{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
@@ -450,7 +451,7 @@ const I18N={
    companionIdle:'待命',companionContent:'状态良好',companionTired:'有些疲惫',companionExhausted:'精力耗尽',
    loadWarn:"⚠️ 已超出今日承载范围。别急着加 —— 把非必要的任务放进成长池吧。",
    addTask:"添加任务",taskPh:"今天想完成什么？",energyLabel:"预估精力消耗",taskMore:"更多安排",taskLess:"收起安排",
-   startTime:"开始时间",endTime:"结束时间",studyHelper:"学习助手",helperNone:"不需要",helperPomodoro:"番茄钟",helperFlashcards:"Flashcards",helperQuiz:"自测模式",helperChecklist:"分步清单",timeOrderError:"结束时间要晚于开始时间",
+   startTime:"开始时间",endTime:"结束时间",studyHelper:"学习助手",helperNone:"不需要",helperPomodoro:"番茄钟",helperFlashcards:"Flashcards",helperQuiz:"自测模式",helperChecklist:"分步清单",timeOrderError:"结束时间要晚于开始时间",openHelper:"打开学习助手",taskPomos:"个番茄",helperComing:"这个学习助手正在接入",
    eLight:"轻 10",eMid:"中 25",eHeavy:"重 45",addToday:"加入今日",todayTasks:"今日任务",
    poolTitle:"成长池",poolDesc:"突然冒出来的想法先存这儿，不逼自己马上做。等状态好、精力有富余时，再一键转成今日任务。",
    ideaPh:"比如：想学一点心理学…",save:"存起来",myIdeas:"我的想法",toTask:"转为任务",
@@ -473,7 +474,7 @@ const I18N={
    companionIdle:'Idle',companionContent:'Feeling good',companionTired:'Getting tired',companionExhausted:'Exhausted',
    loadWarn:"⚠️ You're over today's capacity. Don't push — move the non-essential ones to your Growth Pool.",
    addTask:"Add a task",taskPh:"What do you want to get done today?",energyLabel:"Estimated energy cost",taskMore:"More options",taskLess:"Hide options",
-   startTime:"Start time",endTime:"End time",studyHelper:"Study helper",helperNone:"None",helperPomodoro:"Pomodoro",helperFlashcards:"Flashcards",helperQuiz:"Self quiz",helperChecklist:"Step checklist",timeOrderError:"End time must be later than start time",
+   startTime:"Start time",endTime:"End time",studyHelper:"Study helper",helperNone:"None",helperPomodoro:"Pomodoro",helperFlashcards:"Flashcards",helperQuiz:"Self quiz",helperChecklist:"Step checklist",timeOrderError:"End time must be later than start time",openHelper:"Open study helper",taskPomos:"pomodoros",helperComing:"This study helper is being connected",
    eLight:"Light 10",eMid:"Medium 25",eHeavy:"Heavy 45",addToday:"Add to today",todayTasks:"Today's tasks",
    poolTitle:"Growth pool",poolDesc:"Park sudden ideas here without forcing yourself to act now. Turn them into tasks when you actually have energy to spare.",
    ideaPh:"e.g. I want to learn some psychology…",save:"Save",myIdeas:"My ideas",toTask:"Make a task",
@@ -541,6 +542,17 @@ function validateTaskTimes(startTime,endTime){
   const valid=time=>time===''||/^([01]\d|2[0-3]):[0-5]\d$/.test(time);
   if(!valid(startTime)||!valid(endTime))return false;
   return !startTime||!endTime||endTime>startTime;
+}
+function taskHelperRoute(task){
+  return ['pomodoro','flashcards','quiz','checklist'].includes(task.helper)?task.helper==='pomodoro'?'focus':task.helper:'none';
+}
+function recordPomodoroCompletion(state,taskId){
+  const week=[...state.week];
+  week[6]=(week[6]||0)+25;
+  const tasks=state.tasks.map(task=>task.id===taskId
+    ?{...task,pomodoroCount:(task.pomodoroCount||0)+1}
+    :task);
+  return {...state,tasks,week,pomo:state.pomo+1,focusMin:state.focusMin+25};
 }
 function normalizeTaskDays(tasks,fallbackDay){
   return tasks.map(task=>normalizeTask(task,fallbackDay));
@@ -785,11 +797,18 @@ function renderTasks(){
   const box=document.getElementById('taskList');
   const todaysTasks=S.tasks.filter(task=>task.dayKey===currentDayKey);
   box.innerHTML = todaysTasks.length
-    ? todaysTasks.map(t=>`<div class="item manga-task ${t.done?'done':''}">
+    ? todaysTasks.map(t=>{
+      const helperKey={pomodoro:'helperPomodoro',flashcards:'helperFlashcards',quiz:'helperQuiz',checklist:'helperChecklist'}[t.helper];
+      const timeLabel=t.startTime||t.endTime?`${t.startTime||'…'}–${t.endTime||'…'}`:'';
+      const helperLabel=helperKey?T(helperKey):'';
+      const meta=[timeLabel,helperLabel,t.pomodoroCount?`${t.pomodoroCount} ${T('taskPomos')}`:''].filter(Boolean).join(' · ');
+      return `<div class="item manga-task ${t.done?'done':''}">
         <button type="button" class="chk" aria-pressed="${t.done}" aria-label="${esc(T(t.done?'taskUndo':'taskDone'))}" onclick="toggleTask(${t.id})">${t.done?'✓':''}</button>
-        <div class="t">${esc(t.name)}</div>
+        <div class="t">${esc(t.name)}${meta?`<small class="task-meta">${esc(meta)}</small>`:''}</div>
         <div class="tag">⚡${t.energy}</div>
-        <button type="button" class="x" aria-label="${esc(T('deleteTask'))}" onclick="delTask(${t.id})">×</button></div>`).join('')
+        ${t.helper!=='none'?`<button type="button" class="btn ghost sm" aria-label="${esc(T('openHelper'))}" onclick="openTaskHelper(${t.id})">▶</button>`:''}
+        <button type="button" class="x" aria-label="${esc(T('deleteTask'))}" onclick="delTask(${t.id})">×</button></div>`;
+    }).join('')
     : `<div class="empty">${T('emptyTask')}</div>`;
   renderLoad(); renderStats();
 }
@@ -823,6 +842,21 @@ function toggleTask(id){
   t.done=!t.done; DB.set('tasks',S.tasks); renderTasks();
 }
 function delTask(id){ S.tasks=S.tasks.filter(x=>x.id!==id); DB.set('tasks',S.tasks); renderTasks(); }
+let activeTaskId=null;
+function openTaskHelper(taskId){
+  const task=S.tasks.find(item=>item.id===taskId);
+  if(!task)return;
+  const route=taskHelperRoute(task);
+  if(route==='focus'){
+    activeTaskId=taskId;
+    go('focus',document.querySelector('nav button[data-v=focus]'));
+    return;
+  }
+  if(route==='flashcards'&&typeof openFlashcards==='function'){openFlashcards(task.helperRef);return;}
+  if(route==='quiz'&&typeof openQuiz==='function'){openQuiz(task.helperRef);return;}
+  if(route==='checklist'&&typeof openChecklist==='function'){openChecklist(task.helperRef);return;}
+  toast(T(route==='none'?'helperNone':'helperComing'));
+}
 document.getElementById('energyPick').addEventListener('click',e=>{
   const d=e.target.closest('[data-e]'); if(!d)return;
   pickedEnergy=+d.dataset.e;
@@ -928,8 +962,8 @@ function triggerPomoBurst(){
 }
 function finishPomo(){
   clearInterval(timer); running=false;
-  S.pomo++; S.focusMin+=25; S.week[6]+=25;
-  DB.set('pomo',S.pomo); DB.set('focusMin',S.focusMin); DB.set('week',S.week);
+  S=recordPomodoroCompletion(S,activeTaskId);
+  DB.set('pomo',S.pomo); DB.set('focusMin',S.focusMin); DB.set('week',S.week);DB.set('tasks',S.tasks);
   document.getElementById('clabel').textContent=T('doneOne');
   document.getElementById('startBtn').textContent=T('again');
   left=TOTAL; drawRing(); renderStats();
