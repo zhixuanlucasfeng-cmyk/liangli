@@ -436,7 +436,7 @@ const I18N={
    navToday:"今日",navPool:"成长池",navGoals:"目标",navFocus:"专注",navJournal:"记录",
    emptyTask:"还没有任务，加一个吧",emptyIdea:"成长池是空的～想法随手记这里",
    emptyGoal:"还没有目标。目标是方向，不是压力。",emptyLog:"还没有记录。从今天开始吧。",
-   savedLog:"记录已保存",movedTask:"已移到今日任务",days:["一","二","三","四","五","六","日"],
+   savedLog:"记录已保存",movedTask:"已移到今日任务",newDayReset:"新的一天，精力已经重新归零。昨天没做完的事放回成长池了。",days:["一","二","三","四","五","六","日"],
    overload:"负荷已超载，这条先进成长池了"},
  en:{tagline:"Anti-fake-productivity",loadTitle:"Today's energy load",companionCat:'Power Cat',companionHuman:'Human Power',
    companionIdle:'Idle',companionContent:'Feeling good',companionTired:'Getting tired',companionExhausted:'Exhausted',
@@ -458,7 +458,7 @@ const I18N={
    navToday:"Today",navPool:"Pool",navGoals:"Goals",navFocus:"Focus",navJournal:"Journal",
    emptyTask:"No tasks yet. Add one.",emptyIdea:"Your growth pool is empty — jot ideas here.",
    emptyGoal:"No goals yet. A goal is a direction, not pressure.",emptyLog:"No entries yet. Start today.",
-   savedLog:"Entry saved",movedTask:"Moved to today's tasks",days:["M","T","W","T","F","S","S"],
+   savedLog:"Entry saved",movedTask:"Moved to today's tasks",newDayReset:"A new day starts with fresh energy. Yesterday's unfinished tasks are back in your Growth Pool.",days:["M","T","W","T","F","S","S"],
    overload:"You're overloaded — parked it in the pool instead"}
 };
 let lang = localStorage.getItem('ll_lang') || 'zh';
@@ -483,33 +483,83 @@ const DB={
   get(k,d){try{const v=localStorage.getItem('ll_'+k);return v===null?d:JSON.parse(v)}catch(e){return d}},
   set(k,v){try{localStorage.setItem('ll_'+k,JSON.stringify(v))}catch(e){}}
 };
-const today = () => new Date().toISOString().slice(0,10);
+function localDayKey(date=new Date()){
+  const year=date.getFullYear();
+  const month=String(date.getMonth()+1).padStart(2,'0');
+  const day=String(date.getDate()).padStart(2,'0');
+  return `${year}-${month}-${day}`;
+}
+function dayOrdinal(dayKey){
+  const [year,month,day]=String(dayKey).split('-').map(Number);
+  return Number.isFinite(year+month+day)?Math.floor(Date.UTC(year,month-1,day)/864e5):NaN;
+}
+function normalizeTaskDays(tasks,fallbackDay){
+  return tasks.map(task=>task.dayKey?task:{...task,dayKey:fallbackDay});
+}
+function migrateDailyState(state,nextDay){
+  if(state.lastDay===nextDay)return {...state,changed:false};
+  const previousOrdinal=dayOrdinal(state.lastDay);
+  const nextOrdinal=dayOrdinal(nextDay);
+  const rawGap=nextOrdinal-previousOrdinal;
+  const gap=Math.min(7,Math.max(1,Number.isFinite(rawGap)?rawGap:1));
+  const week=[...state.week];
+  for(let i=0;i<gap;i++){week.shift();week.push(0);}
+  const ideas=[...state.ideas];
+  const migratedIds=new Set(ideas.map(idea=>String(idea.rolloverSourceId||'')));
+  state.tasks.forEach((task,index)=>{
+    if(task.done||task.dayKey===nextDay||migratedIds.has(String(task.id)))return;
+    ideas.push({
+      id:nextOrdinal*1000000+index,
+      name:task.name,
+      energy:task.energy,
+      rolloverSourceId:task.id,
+      rolloverDay:task.dayKey
+    });
+    migratedIds.add(String(task.id));
+  });
+  return {...state,ideas,week,focusMin:0,pomo:0,lastDay:nextDay,changed:true};
+}
+const today=()=>localDayKey();
+let currentDayKey=localDayKey();
+const storedLastDay=DB.get('lastDay',currentDayKey);
 
 let S={
   companion:DB.get('companion', 'cat')==='human'?'human':'cat',
   loadMax:DB.get('loadMax',100),
-  tasks:DB.get('tasks',[]),
+  tasks:normalizeTaskDays(DB.get('tasks',[]),storedLastDay),
   ideas:DB.get('ideas',[]),
   goals:DB.get('goals',[]),
   logs:DB.get('logs',[]),
   focusMin:DB.get('focusMin',0),
   pomo:DB.get('pomo',0),
   week:DB.get('week',[0,0,0,0,0,0,0]),
-  lastDay:DB.get('lastDay',today())
+  lastDay:storedLastDay
 };
 
-/* 跨天重置：把今日专注归零，趋势数组左移 */
-(function rollover(){
-  const t=today();
-  if(S.lastDay!==t){
-    const gap=Math.min(7,Math.max(1,Math.round((new Date(t)-new Date(S.lastDay))/864e5)));
-    for(let i=0;i<gap;i++){ S.week.shift(); S.week.push(0); }
-    S.focusMin=0; S.pomo=0; S.lastDay=t;
-    S.tasks=S.tasks.filter(x=>!x.done);
-    DB.set('week',S.week);DB.set('focusMin',0);DB.set('pomo',0);
-    DB.set('lastDay',t);DB.set('tasks',S.tasks);
-  }
-})();
+/* 跨天重置：使用设备本地日历日，未完成任务回到成长池 */
+function rolloverIfNeeded(render=true){
+  const nextDay=localDayKey();
+  const migrated=migrateDailyState(S,nextDay);
+  currentDayKey=nextDay;
+  if(!migrated.changed)return false;
+  S=migrated;
+  DB.set('tasks',S.tasks);DB.set('ideas',S.ideas);DB.set('week',S.week);
+  DB.set('focusMin',S.focusMin);DB.set('pomo',S.pomo);DB.set('lastDay',S.lastDay);
+  if(render){renderAll();toast(T('newDayReset'));}
+  return true;
+}
+let rolloverTimer=null;
+function scheduleNextRollover(){
+  clearTimeout(rolloverTimer);
+  const now=new Date();
+  const midnight=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1,0,0,0,50);
+  rolloverTimer=setTimeout(()=>{
+    rolloverIfNeeded(true);
+    scheduleNextRollover();
+  },midnight-now);
+}
+const rolledOverAtStartup=rolloverIfNeeded(false);
+DB.set('tasks',S.tasks);
 
 let pickedEnergy=25, pickedMood='😐';
 
@@ -661,7 +711,7 @@ function setCompanion(companion){
   renderLoad();
 }
 function renderLoad(){
-  const used=S.tasks.filter(t=>!t.done).reduce((s,t)=>s+t.energy,0);
+  const used=S.tasks.filter(t=>t.dayKey===currentDayKey&&!t.done).reduce((s,t)=>s+t.energy,0);
   const max=S.loadMax, pct=Math.min(100,used/max*100);
   document.getElementById('loadUsed').textContent=used;
   document.getElementById('loadMax').textContent=max;
@@ -684,8 +734,9 @@ document.getElementById('loadWarn').addEventListener('animationend',e=>{
 });
 function renderTasks(){
   const box=document.getElementById('taskList');
-  box.innerHTML = S.tasks.length
-    ? S.tasks.map(t=>`<div class="item manga-task ${t.done?'done':''}">
+  const todaysTasks=S.tasks.filter(task=>task.dayKey===currentDayKey);
+  box.innerHTML = todaysTasks.length
+    ? todaysTasks.map(t=>`<div class="item manga-task ${t.done?'done':''}">
         <button type="button" class="chk" aria-pressed="${t.done}" aria-label="${esc(T(t.done?'taskUndo':'taskDone'))}" onclick="toggleTask(${t.id})">${t.done?'✓':''}</button>
         <div class="t">${esc(t.name)}</div>
         <div class="tag">⚡${t.energy}</div>
@@ -696,7 +747,7 @@ function renderTasks(){
 function addTask(){
   const el=document.getElementById('taskName'), name=el.value.trim();
   if(!name) return;
-  S.tasks.push({id:Date.now(),name,energy:pickedEnergy,done:false});
+  S.tasks.push({id:Date.now(),name,energy:pickedEnergy,done:false,dayKey:currentDayKey});
   el.value=''; DB.set('tasks',S.tasks); renderTasks();
 }
 function toggleTask(id){
@@ -733,7 +784,7 @@ function addIdea(){
 function delIdea(id){ S.ideas=S.ideas.filter(x=>x.id!==id); DB.set('ideas',S.ideas); renderIdeas(); }
 function promote(id){
   const i=S.ideas.find(x=>x.id===id); if(!i)return;
-  S.tasks.push({id:Date.now(),name:i.name,energy:25,done:false});
+  S.tasks.push({id:Date.now(),name:i.name,energy:i.energy||25,done:false,dayKey:currentDayKey});
   S.ideas=S.ideas.filter(x=>x.id!==id);
   DB.set('tasks',S.tasks); DB.set('ideas',S.ideas);
   renderIdeas(); renderTasks(); toast(T('movedTask'));
@@ -822,7 +873,7 @@ function finishPomo(){
 function renderStats(){
   document.getElementById('stFocus').textContent=S.focusMin;
   document.getElementById('stPomo').textContent=S.pomo;
-  document.getElementById('stDone').textContent=S.tasks.filter(t=>t.done).length;
+  document.getElementById('stDone').textContent=S.tasks.filter(t=>t.dayKey===currentDayKey&&t.done).length;
   const max=Math.max(...S.week,1), days=T('days');
   document.getElementById('bars').innerHTML=S.week.map((v,i)=>
     `<div class="b"><i style="height:${Math.round(v/max*100)}%"></i><span>${days[i]}</span></div>`).join('');
@@ -864,6 +915,12 @@ document.getElementById('goalName').addEventListener('keydown',e=>{if(e.key==='E
 
 /* ============ init ============ */
 applyLang(); drawRing();
+if(rolledOverAtStartup)toast(T('newDayReset'));
+scheduleNextRollover();
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'){rolloverIfNeeded(true);scheduleNextRollover();}
+});
+window.addEventListener('focus',()=>{rolloverIfNeeded(true);scheduleNextRollover();});
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }

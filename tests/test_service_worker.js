@@ -117,7 +117,7 @@ async function testActivationDeletesOnlyOwnedStaleCaches() {
     ],
   });
   await dispatch(harness, 'activate');
-  assert.deepEqual(harness.deleted.sort(), ['liangli-v4', 'liangli-video-v0']);
+  assert.deepEqual(harness.deleted.sort(), ['liangli-v4', 'liangli-v5', 'liangli-video-v0']);
   assert.equal(harness.claimCalls(), 1);
 }
 

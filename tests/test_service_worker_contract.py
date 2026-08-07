@@ -10,6 +10,9 @@ MANIFEST = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
 
 
 class ServiceWorkerContractTests(unittest.TestCase):
+    def test_shell_cache_version_tracks_daily_rollover_release(self):
+        self.assertIn("const VERSION = 'liangli-v6'", SW)
+
     def test_posters_are_precached(self):
         for character in ("cat", "human"):
             for state in ("idle", "content", "tired", "exhausted"):

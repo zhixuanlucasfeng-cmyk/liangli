@@ -35,6 +35,29 @@ class MangaUIContractTests(unittest.TestCase):
             HTML,
         )
 
+    def test_daily_energy_uses_local_calendar_and_lifecycle_checks(self):
+        compact = HTML.replace(" ", "")
+        self.assertNotIn("newDate().toISOString().slice(0,10)", compact)
+        for fragment in (
+            "functionlocalDayKey",
+            "functionrolloverIfNeeded",
+            "functionscheduleNextRollover",
+            "visibilitychange",
+            "addEventListener('focus'",
+            "dayKey:currentDayKey",
+        ):
+            self.assertIn(fragment, compact)
+
+    def test_daily_rollover_behavior(self):
+        result = subprocess.run(
+            ["node", str(ROOT / "tests" / "test_daily_rollover.js")],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=5,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_all_five_views_have_manga_identity(self):
         for view in ("today", "pool", "goals", "focus", "journal"):
             self.assertRegex(HTML, rf'<section class="view manga-view [^"]*" id="v-{view}"')
