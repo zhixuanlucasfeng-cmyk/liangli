@@ -39,6 +39,12 @@ class MangaUIContractTests(unittest.TestCase):
         for view in ("today", "pool", "goals", "focus", "journal"):
             self.assertRegex(HTML, rf'<section class="view manga-view [^"]*" id="v-{view}"')
 
+    def test_growth_pool_entry_stacks_without_shrinking_touch_targets(self):
+        compact = HTML.replace(" ", "")
+        self.assertIn(".pool-entry-panel.row{flex-direction:column}", compact)
+        self.assertIn(".pool-entry-panel.row.btn{width:100%}", compact)
+        self.assertIn("button,input,textarea,select{min-height:44px}", compact)
+
     def test_visual_tokens_exist(self):
         compact = HTML.replace(" ", "")
         for token in (
