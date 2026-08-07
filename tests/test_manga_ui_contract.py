@@ -28,12 +28,22 @@ class MangaUIContractTests(unittest.TestCase):
 
     def test_accessible_companion_stage_contract(self):
         companion_videos = re.findall(
-            r'<video\\b[^>]*\\bclass="[^"]*\\bcompanion-video\\b[^"]*"', HTML
+            r'<video\b[^>]*\bclass="[^"]*\bcompanion-video\b[^"]*"', HTML
         )
         self.assertEqual(len(companion_videos), 2)
         self.assertIn('id="companionPoster"', HTML)
         self.assertIn('id="companionStatus"', HTML)
         self.assertIn('aria-live="polite"', HTML)
+
+    def test_companion_video_matcher_allows_additional_classes(self):
+        fixture = (
+            '<video class="companion-video"></video>'
+            '<video class="companion-video is-active"></video>'
+        )
+        companion_videos = re.findall(
+            r'<video\b[^>]*\bclass="[^"]*\bcompanion-video\b[^"]*"', fixture
+        )
+        self.assertEqual(len(companion_videos), 2)
 
     def test_reduced_motion_contract(self):
         self.assertIn("@media(prefers-reduced-motion:reduce)", HTML.replace(" ", ""))
