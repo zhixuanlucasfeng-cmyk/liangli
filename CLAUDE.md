@@ -42,9 +42,11 @@
 liangli/
 ├── index.html              # 整个应用都在这一个文件里（style + body + script 三段）
 ├── manifest.json           # PWA 配置
-├── sw.js                   # Service Worker，网络优先 + 离线回落
-├── assets/power-cat/       # Power 猫伙伴 idle/content/tired/exhausted 四态视频
-├── assets/power-human/     # 粉发人形 Power 伙伴 idle/content/tired/exhausted 四态视频
+├── sw.js                   # Service Worker：壳/poster 预缓存 + MP4 按需 Range 缓存
+├── assets/power-cat/       # Power 猫四态同名 MP4 + WebP poster
+├── assets/power-human/     # 粉发人形 Power 四态同名 MP4 + WebP poster
+├── scripts/                # 伙伴动画生成器与媒体验收器
+├── tests/                  # UI、播放控制器、Service Worker 合同/行为测试
 ├── icon-192.png / icon-512.png / icon-maskable-512.png
 ├── README.md               # 部署说明
 └── CLAUDE.md               # 本文件
@@ -58,6 +60,39 @@ liangli/
 - 数据读写统一走 `DB.get/DB.set` 封装，不要直接调 `localStorage`
 - 跨天重置逻辑在 `rollover()` 里，改动时注意别破坏 `week` 数组左移的行为
 - 所有用户输入渲染前必须过 `esc()` 转义
+
+### 荒诞电影漫画 UI 约定
+
+- 视觉 token 集中在 `index.html` 顶部 `:root`：墨黑 `--ink`、旧纸 `--paper`、重点红 `--blood`、Power 粉 `--power-pink`、警示黄 `--warning`。不要在新组件里另建一套主题色。
+- 五页必须保留 `.manga-view` + 页面类（`.today-view`、`.pool-view`、`.goals-view`、`.focus-view`、`.journal-view`）。分镜使用 `.manga-panel`，手写标题使用 `.manga-title`，装饰使用 `.manga-decor`。
+- 不规则感只能来自固定 CSS 规则；不要用随机旋转或随机位置。装饰必须 `pointer-events:none` 且 `aria-hidden="true"`，不能盖住正文或操作。
+- 动画只改变 `transform`/`opacity`；爆发效果是短促的一次性反馈。`prefers-reduced-motion: reduce` 下禁用视频与装饰动画，显示 poster。
+- 负荷状态阈值不得改变：`used===0` 为 idle，超过上限为 exhausted，超过上限 80% 为 tired，其余为 content。
+
+### Power 伙伴播放与素材约定
+
+- 稳定路径为 `assets/power-{cat|human}/{idle|content|tired|exhausted}.{mp4|webp}`，共 8 段 MP4 和 8 张 poster。改名会同时破坏运行时、测试和离线缓存。
+- 舞台保留两层 `.companion-video`，由 `requestCompanion()` 做最后请求优先的预加载与约 150ms 交叉淡入。不要退回单 video 换 `src`，也不要让 8 段素材同时后台播放。
+- `stopLayer()` 必须暂停、移除 `src`、调用 `load()` 并清理请求标记，防止过期 `canplay` 抢回画面。
+- 自动播放失败、初始加载和 reduced motion 使用 `#companionPoster`；`#companionStatus` 提供本地化的角色/状态播报。
+- `scripts/generate_companion_media.py` 从确认过的 WebP poster 生成确定性 512×512、90 帧、30fps、3 秒、H.264/yuv420p、无音轨循环。
+- 修改任何伙伴素材后必须运行 `python3 scripts/verify_companion_media.py`。它检查编码、尺寸、时长、帧率、体积、五次解码、黑帧、首尾连续性、动作幅度与局部动作，并生成仅供审查的 motion contact sheet。
+
+### 离线缓存约定
+
+- `sw.js` 当前应用壳缓存为 `liangli-v5`，安装阶段预缓存页面、manifest、图标和 8 张 WebP poster，不预缓存 MP4。
+- MP4 首次请求后写入独立的 `liangli-video-v1`；`serveVideo()` 将 Range 请求归一化为整段缓存，再返回正确的 206/416 响应。不要直接把带 Range 的 206 响应作为完整视频缓存。
+- 激活时只清理本项目旧的 `liangli-vN` / `liangli-video-vN`，不能删除同源的其他缓存。
+- 修改 Service Worker 后运行 Python 合同测试和 `node tests/test_service_worker.js` 行为测试。
+
+### 发布前完整检查
+
+```bash
+python3 -m unittest discover -s tests -v
+python3 scripts/verify_companion_media.py
+node -e 'const fs=require("fs");const h=fs.readFileSync("index.html","utf8");const a=h.indexOf("<script>")+8;const b=h.lastIndexOf("</script>");new Function(h.slice(a,b));console.log("JS syntax OK")'
+git diff --check
+```
 
 ## 绝对不做的事（伦理红线）
 

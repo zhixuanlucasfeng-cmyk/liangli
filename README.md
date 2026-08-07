@@ -1,4 +1,4 @@
-# 量力 Liangli · PWA v1
+# 量力 Liangli · 荒诞电影漫画 PWA
 
 反假性自律的个人成长工具。纯前端、零后端、数据只存在用户自己的设备上。
 
@@ -6,11 +6,15 @@
 
 ```
 liangli/
-├── index.html              # 整个应用（唯一需要改的文件）
+├── index.html              # 整个应用（样式、页面与业务逻辑仍保持单文件）
 ├── manifest.json           # PWA 配置：应用名、图标、主题色
-├── sw.js                   # Service Worker：离线可用
-├── assets/power-cat/       # Power 猫伙伴 idle/content/tired/exhausted 四态视频
-├── assets/power-human/     # 粉发人形 Power 伙伴 idle/content/tired/exhausted 四态视频
+├── sw.js                   # Service Worker：应用壳/poster 预缓存、MP4 按需缓存
+├── assets/power-cat/       # Power 猫四态：同名 MP4 循环 + WebP poster
+├── assets/power-human/     # 粉发人形 Power 四态：同名 MP4 循环 + WebP poster
+├── scripts/
+│   ├── generate_companion_media.py  # 从已确认 poster 生成确定性循环动画
+│   └── verify_companion_media.py    # 检查格式、体积、黑帧、循环和局部动作
+├── tests/                  # UI、播放控制器和 Service Worker 合同/行为测试
 ├── icon-192.png            # 图标
 ├── icon-512.png
 └── icon-maskable-512.png   # 安卓自适应图标
@@ -29,6 +33,47 @@ liangli/
 其他：中英文一键切换（右上角按钮）、跨天自动重置、番茄完成震动反馈。
 
 > **刻意没做的功能**：老师查看学生数据、算法推断心理健康。原因见下方「设计决策」。
+
+---
+
+## 视觉与播放架构
+
+五个页面共用一套原创“荒诞电影漫画”视觉语言，但不改变原有功能和数据结构：
+
+- CSS 颜色由 `:root` 的 `--ink`、`--paper`、`--blood`、`--power-pink`、`--warning` 等 token 统一控制。
+- 五个 `<section>` 分别带 `.manga-view` 和页面语义类；纸张分镜使用 `.manga-panel`，手写标题使用 `.manga-title`，纯装饰使用 `.manga-decor`。
+- 不规则布局是固定的轻微错位，不使用运行时随机位置；正文、输入框和主要操作始终稳定可读。
+- Power 舞台同时保留两层 `.companion-video`。新状态在隐藏层完成加载和播放后，以约 150ms 交叉淡入，再释放旧层，避免切换时出现黑帧。
+- 每个状态都有同名 WebP poster。首次加载、自动播放失败和 `prefers-reduced-motion: reduce` 时均可显示静态图。
+- 播放请求使用递增 request id；快速切换角色或负荷状态时，只有最后一次请求可以完成换层。
+
+素材路径固定为：
+
+```text
+assets/power-{cat|human}/{idle|content|tired|exhausted}.{mp4|webp}
+```
+
+Service Worker 的应用壳缓存当前为 `liangli-v5`。安装时只预缓存 HTML、manifest、图标和 8 张 WebP poster；MP4 第一次播放后写入 `liangli-video-v1`，并正确响应浏览器的 Range 请求。这样既保留已播放视频的离线能力，也避免首次安装同时下载全部视频。
+
+### 素材生成与验收
+
+需要 Python、Pillow、NumPy、FFmpeg 和 ffprobe：
+
+```bash
+python3 scripts/generate_companion_media.py
+python3 scripts/verify_companion_media.py
+```
+
+生成器从现有 512×512 WebP poster 创建 90 帧、30fps、3 秒、H.264/yuv420p、无音轨的循环 MP4。验收脚本逐个检查 8 段 MP4 和 8 张 poster，包括尺寸、编码、帧率、体积、五次连续解码、黑帧、首尾连续性、动作幅度和局部关节动作；同时在 `.superpowers/` 下生成五帧动作审查图，该目录不进入发布包。
+
+### 完整本地验证
+
+```bash
+python3 -m unittest discover -s tests -v
+python3 scripts/verify_companion_media.py
+node -e 'const fs=require("fs");const h=fs.readFileSync("index.html","utf8");const a=h.indexOf("<script>")+8;const b=h.lastIndexOf("</script>");new Function(h.slice(a,b));console.log("JS syntax OK")'
+git diff --check
+```
 
 ---
 
@@ -79,13 +124,13 @@ gh repo create liangli --public --source=. --push
 
 ## 改代码
 
-**所有东西都在 `index.html` 一个文件里**，分三段：
+**应用代码仍全部在 `index.html` 一个文件里**，分三段：
 
 1. `<style>` — 样式。改配色只需改最上面 `:root` 里的 CSS 变量
 2. `<body>` — 页面结构，五个 `<section class="view">` 对应五个 tab
 3. `<script>` — 逻辑，按 `/* ===== 模块名 ===== */` 注释分好了段
 
-**改完之后记得把 `sw.js` 里的 `VERSION = 'liangli-v1'` 改成 `v2`**，否则用户浏览器会继续用缓存的旧版本。
+**改完 `index.html` 或预缓存资源后，记得把 `sw.js` 里的 `VERSION` 加一**，否则用户浏览器可能继续用缓存的旧版本。`VIDEO_CACHE` 只在视频缓存策略或格式不兼容时才需要升级。
 
 ### 常见改动
 
