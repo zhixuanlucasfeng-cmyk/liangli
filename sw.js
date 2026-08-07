@@ -43,10 +43,13 @@ self.addEventListener('fetch', e => {
 
   const url = new URL(e.request.url);
   if (url.pathname.endsWith('.mp4')) {
+    // Normalize Range requests so the cache stores a reusable 200 response,
+    // not an uncacheable 206 fragment.
+    const videoRequest = new Request(e.request.url);
     e.respondWith(
       caches.open(VIDEO_CACHE).then(cache =>
-        cache.match(e.request).then(cached => cached || fetch(e.request).then(res => {
-          if (res.ok && res.status === 200) cache.put(e.request, res.clone()).catch(() => {});
+        cache.match(videoRequest).then(cached => cached || fetch(videoRequest).then(res => {
+          if (res.ok && res.status === 200) cache.put(videoRequest, res.clone()).catch(() => {});
           return res;
         }))
       )

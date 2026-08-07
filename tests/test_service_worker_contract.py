@@ -22,6 +22,12 @@ class ServiceWorkerContractTests(unittest.TestCase):
         self.assertIn("VIDEO_CACHE", SW)
         self.assertIn("endsWith('.mp4')", SW)
 
+    def test_runtime_video_cache_normalizes_range_requests(self):
+        self.assertIn("const videoRequest = new Request(e.request.url)", SW)
+        self.assertIn("cache.match(videoRequest)", SW)
+        self.assertIn("fetch(videoRequest)", SW)
+        self.assertIn("cache.put(videoRequest", SW)
+
     def test_current_caches_survive_activation(self):
         self.assertIn("k !== VERSION && k !== VIDEO_CACHE", SW)
 
