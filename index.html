@@ -493,8 +493,25 @@ function dayOrdinal(dayKey){
   const [year,month,day]=String(dayKey).split('-').map(Number);
   return Number.isFinite(year+month+day)?Math.floor(Date.UTC(year,month-1,day)/864e5):NaN;
 }
+function normalizeTask(task,fallbackDay){
+  const helpers=new Set(['none','pomodoro','flashcards','quiz','checklist']);
+  return {
+    ...task,
+    dayKey:task.dayKey||fallbackDay,
+    startTime:task.startTime||null,
+    endTime:task.endTime||null,
+    helper:helpers.has(task.helper)?task.helper:'none',
+    helperRef:task.helperRef||null,
+    pomodoroCount:Number.isInteger(task.pomodoroCount)&&task.pomodoroCount>=0?task.pomodoroCount:0
+  };
+}
+function validateTaskTimes(startTime,endTime){
+  const valid=time=>time===''||/^([01]\d|2[0-3]):[0-5]\d$/.test(time);
+  if(!valid(startTime)||!valid(endTime))return false;
+  return !startTime||!endTime||endTime>startTime;
+}
 function normalizeTaskDays(tasks,fallbackDay){
-  return tasks.map(task=>task.dayKey?task:{...task,dayKey:fallbackDay});
+  return tasks.map(task=>normalizeTask(task,fallbackDay));
 }
 function migrateDailyState(state,nextDay){
   if(state.lastDay===nextDay)return {...state,changed:false};
