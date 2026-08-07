@@ -45,6 +45,54 @@ class MangaUIContractTests(unittest.TestCase):
         )
         self.assertEqual(len(companion_videos), 2)
 
+    def test_playback_controller_is_race_safe(self):
+        compact = HTML.replace(" ", "")
+        for fragment in (
+            "letcompanionRequestId=0",
+            "constrequestId=++companionRequestId",
+            "if(requestId!==companionRequestId)return",
+            "canplay", "150", "stopLayer",
+        ):
+            self.assertIn(fragment, compact)
+
+    def test_media_paths_keep_stable_names(self):
+        self.assertIn("assets/power-${companion}/${state}.${extension}", HTML)
+
+    def test_companion_status_localizes_character_and_state(self):
+        compact = HTML.replace(" ", "")
+        for key in ("companionIdle", "companionContent", "companionTired", "companionExhausted"):
+            self.assertEqual(len(re.findall(rf"\b{key}:", HTML)), 2)
+        self.assertIn("T(companion==='human'?'companionHuman':'companionCat')", compact)
+        self.assertIn("T(companionStateKeys[state])", compact)
+
+    def test_playback_reuses_current_source_and_protects_new_layer_owner(self):
+        compact = HTML.replace(" ", "")
+        for fragment in (
+            "pendingCompanionSrc===videoSrc",
+            "next._companionRequestId!==requestId",
+            "catch(e)",
+            "pendingCompanionSrc=''",
+            "stopLayer(next)",
+        ):
+            self.assertIn(fragment, compact)
+        self.assertNotIn(
+            "if(requestId!==companionRequestId)returnstopLayer(next)", compact
+        )
+
+    def test_overload_animation_runs_only_on_state_entry(self):
+        compact = HTML.replace(" ", "")
+        for fragment in (
+            "letpreviousCompanionState=null",
+            "previousCompanionState!=='exhausted'",
+            "classList.add('bursting')",
+            "animationend",
+            "classList.remove('bursting')",
+        ):
+            self.assertIn(fragment, compact)
+        self.assertIn(
+            "if(state!=='exhausted')warning.classList.remove('bursting')", compact
+        )
+
     def test_reduced_motion_css_contract(self):
         self.assertIn("@media(prefers-reduced-motion:reduce)", HTML.replace(" ", ""))
 

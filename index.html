@@ -23,6 +23,7 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 body{background:#05060a;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft Yahei",sans-serif;color:var(--txt);display:flex;justify-content:center;min-height:100dvh}
 .app{width:100%;max-width:440px;min-height:100dvh;background:var(--bg);display:flex;flex-direction:column;position:relative;box-shadow:0 0 60px rgba(0,0,0,.6)}
 header{padding:calc(16px + env(safe-area-inset-top,0px)) 16px 10px;display:flex;align-items:center;gap:10px}
@@ -42,8 +43,12 @@ main{flex:1;overflow-y:auto;padding:4px 14px calc(96px + var(--safe-b));-webkit-
 .gh b{font-size:25px}
 .warnbox{margin-top:10px;background:rgba(255,92,92,.12);border:1px solid rgba(255,92,92,.35);color:#ffb3b3;padding:9px 12px;border-radius:11px;font-size:12.5px;line-height:1.5;display:none}
 .warnbox.show{display:block}
-.companion-stage{height:170px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--card2);border-radius:11px;margin-bottom:6px}
-.companion-stage video{width:170px;height:170px;display:block;object-fit:contain;background:var(--card2);transition:opacity .25s ease}
+.companion-stage{height:170px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--card2);border-radius:11px;margin-bottom:6px;position:relative}
+.companion-poster,.companion-video{position:absolute;inset:0;margin:auto;width:170px;height:170px;display:block;object-fit:contain;background:transparent}
+.companion-poster{z-index:0}
+.companion-video{z-index:1;opacity:0;transition:opacity .15s ease}
+.companion-video.is-active{opacity:1}
+.companion-stage .manga-decor{z-index:2}
 .companion-picker{display:flex;gap:6px;max-width:260px;margin:0 auto 12px;padding:3px;background:var(--card2);border:1px solid var(--line);border-radius:12px}
 .companion-picker button{min-height:36px;flex:1;border:0;border-radius:9px;background:transparent;color:var(--sub);font:inherit;font-size:12px;cursor:pointer;padding:7px 9px}
 .companion-picker button[aria-pressed="true"]{background:rgba(255,138,92,.18);color:#ffdcc2;box-shadow:inset 0 0 0 1px rgba(255,138,92,.45)}
@@ -154,7 +159,7 @@ button,input,textarea,select{min-height:44px}
 .today-view .hero-panel .companion-stage{margin-left:0;margin-right:0}
 .hero-rays{background:repeating-conic-gradient(from 12deg at 50% 35%,transparent 0 7deg,rgba(255,255,255,.08) 7deg 9deg);opacity:.7}
 .companion-stage{height:218px;background:linear-gradient(145deg,#2b2c33,var(--ink));border:0;border-bottom:3px solid var(--line);border-radius:0;margin-bottom:10px}
-.companion-stage video{width:218px;height:218px;background:transparent;filter:contrast(1.1) saturate(.88)}
+.companion-stage .companion-poster,.companion-stage .companion-video{width:218px;height:218px;filter:contrast(1.1) saturate(.88)}
 .companion-picker{background:var(--paper);border:2px solid var(--line);border-radius:0}
 .companion-picker button{min-height:44px;border-radius:0;color:var(--ink);font-weight:900}
 .companion-picker button[aria-pressed="true"]{background:var(--power-pink);color:var(--ink);box-shadow:inset 0 0 0 2px var(--line)}
@@ -162,7 +167,7 @@ button,input,textarea,select{min-height:44px}
 .gauge{height:20px;border:3px solid var(--line);border-radius:0;background:repeating-linear-gradient(135deg,var(--warning) 0 12px,var(--ink) 12px 18px);padding:2px}
 .gauge>span{border-radius:0;mix-blend-mode:screen}
 .warnbox{position:relative;background:var(--warning);border:3px solid var(--line);border-radius:0;color:var(--ink);font-weight:900;box-shadow:4px 4px 0 var(--blood)}
-.warnbox.show{animation:overloadHit .38s steps(2,end) 1}
+.warnbox.bursting{animation:overloadHit .38s steps(2,end) 1}
 .warnbox.show::before{content:"!";position:absolute;right:-3px;top:-34px;width:52px;height:52px;display:grid;place-items:center;background:var(--blood);color:#fff;border:3px solid var(--line);clip-path:polygon(50% 0,62% 25%,86% 8%,80% 36%,100% 44%,76% 57%,93% 82%,64% 74%,52% 100%,42% 74%,12% 92%,20% 61%,0 50%,25% 39%,9% 13%,39% 27%);font-size:25px}
 @keyframes overloadHit{0%{transform:scale(.82) rotate(-2deg)}55%{transform:scale(1.04) rotate(1deg)}100%{transform:scale(1)}}
 .task-entry-panel::after{content:"";position:absolute;right:-28px;bottom:-36px;width:110px;height:110px;border:18px double rgba(217,45,69,.12);border-radius:50%;pointer-events:none}
@@ -242,9 +247,13 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
     <section class="view manga-view today-view active" id="v-today">
       <div class="card manga-panel hero-panel">
         <div class="manga-decor hero-rays" aria-hidden="true"></div>
-        <div class="companion-stage">
-          <video id="companionVideo" autoplay muted loop playsinline aria-hidden="true"></video>
+        <div class="companion-stage manga-stage">
+          <img id="companionPoster" class="companion-poster" alt="">
+          <video class="companion-video is-active" muted loop playsinline aria-hidden="true"></video>
+          <video class="companion-video" muted loop playsinline aria-hidden="true"></video>
+          <div class="manga-decor" aria-hidden="true"></div>
         </div>
+        <span id="companionStatus" class="sr-only" aria-live="polite"></span>
         <div class="companion-picker" id="companionPicker" role="group" aria-label="Companion">
           <button type="button" data-companion="cat" aria-pressed="true" onclick="setCompanion('cat')"><span data-i="companionCat">Power 猫</span></button>
           <button type="button" data-companion="human" aria-pressed="false" onclick="setCompanion('human')"><span data-i="companionHuman">人形 Power</span></button>
@@ -390,6 +399,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
 /* ============ i18n ============ */
 const I18N={
  zh:{tagline:"反假性自律",loadTitle:"今日精力负荷",companionCat:'Power 猫',companionHuman:'人形 Power',
+   companionIdle:'待命',companionContent:'状态良好',companionTired:'有些疲惫',companionExhausted:'精力耗尽',
    loadWarn:"⚠️ 已超出今日承载范围。别急着加 —— 把非必要的任务放进成长池吧。",
    addTask:"添加任务",taskPh:"今天想完成什么？",energyLabel:"预估精力消耗",
    eLight:"轻 10",eMid:"中 25",eHeavy:"重 45",addToday:"加入今日",todayTasks:"今日任务",
@@ -408,6 +418,7 @@ const I18N={
    savedLog:"记录已保存",movedTask:"已移到今日任务",days:["一","二","三","四","五","六","日"],
    overload:"负荷已超载，这条先进成长池了"},
  en:{tagline:"Anti-fake-productivity",loadTitle:"Today's energy load",companionCat:'Power Cat',companionHuman:'Human Power',
+   companionIdle:'Idle',companionContent:'Feeling good',companionTired:'Getting tired',companionExhausted:'Exhausted',
    loadWarn:"⚠️ You're over today's capacity. Don't push — move the non-essential ones to your Growth Pool.",
    addTask:"Add a task",taskPh:"What do you want to get done today?",energyLabel:"Estimated energy cost",
    eLight:"Light 10",eMid:"Medium 25",eHeavy:"Heavy 45",addToday:"Add to today",todayTasks:"Today's tasks",
@@ -493,15 +504,95 @@ function toast(msg){
 }
 
 /* ============ 负荷 + 任务 ============ */
-function companionVideoSrc(companion,state){
-  return `assets/power-${companion}/${state}.mp4`;
+let companionRequestId=0;
+const companionLayers=[...document.querySelectorAll('.companion-video')];
+let activeCompanionLayer=0;
+let pendingCompanionSrc='';
+let companionSwapTimer=null;
+let previousCompanionState=null;
+const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
+const companionStateKeys={
+  idle:'companionIdle',content:'companionContent',
+  tired:'companionTired',exhausted:'companionExhausted'
+};
+
+function companionMediaSrc(companion,state,extension){
+  return `assets/power-${companion}/${state}.${extension}`;
+}
+function stopLayer(layer){
+  layer.pause();
+  if(layer.hasAttribute('src')){
+    layer.removeAttribute('src');
+    layer.load();
+  }
+  layer.classList.remove('is-active');
+  delete layer.dataset.companionSrc;
+  delete layer._companionRequestId;
+}
+function requestCompanion(companion,state){
+  const poster=document.getElementById('companionPoster');
+  const posterSrc=companionMediaSrc(companion,state,'webp');
+  if(poster.getAttribute('src')!==posterSrc)poster.src=posterSrc;
+  document.getElementById('companionStatus').textContent=
+    `${T(companion==='human'?'companionHuman':'companionCat')} · ${T(companionStateKeys[state])}`;
+
+  if(reducedMotion.matches){
+    const hasPlayback=companionLayers.some(layer=>
+      layer.hasAttribute('src')||layer.classList.contains('is-active'));
+    if(hasPlayback){
+      ++companionRequestId;
+      clearTimeout(companionSwapTimer);
+      companionSwapTimer=null;
+      companionLayers.forEach(stopLayer);
+    }
+    pendingCompanionSrc='';
+    return;
+  }
+
+  const videoSrc=companionMediaSrc(companion,state,'mp4');
+  const active=companionLayers[activeCompanionLayer];
+  if(active.dataset.companionSrc===videoSrc&&active.classList.contains('is-active'))return;
+  if(pendingCompanionSrc===videoSrc)return;
+
+  const requestId=++companionRequestId;
+  clearTimeout(companionSwapTimer);
+  companionSwapTimer=null;
+  pendingCompanionSrc=videoSrc;
+  const nextIndex=activeCompanionLayer===0?1:0;
+  const next=companionLayers[nextIndex];
+  stopLayer(next);
+  next._companionRequestId=requestId;
+  next.dataset.companionSrc=videoSrc;
+  next.src=videoSrc;
+  next.load();
+  next.addEventListener('canplay',async()=>{
+    if(requestId!==companionRequestId)return;
+    if(next._companionRequestId!==requestId)return;
+    try{
+      await next.play();
+    }catch(e){
+      if(requestId!==companionRequestId)return;
+      if(next._companionRequestId!==requestId)return;
+      pendingCompanionSrc='';
+      stopLayer(next);
+      return;
+    }
+    if(requestId!==companionRequestId)return;
+    if(next._companionRequestId!==requestId)return;
+    next.classList.add('is-active');
+    const old=companionLayers[activeCompanionLayer];
+    companionSwapTimer=setTimeout(()=>{
+      if(requestId!==companionRequestId)return;
+      if(next._companionRequestId!==requestId)return;
+      stopLayer(old);
+      activeCompanionLayer=nextIndex;
+      pendingCompanionSrc='';
+      companionSwapTimer=null;
+    },150);
+  },{once:true});
 }
 function renderCompanion(state){
-  const video=document.getElementById('companionVideo');
-  const src=companionVideoSrc(S.companion,state);
-  if(video.getAttribute('src')!==src){
-    video.src=src; video.load(); video.play().catch(()=>{});
-  }
+  requestCompanion(S.companion,state);
   document.querySelectorAll('[data-companion]').forEach(btn=>
     btn.setAttribute('aria-pressed',String(btn.dataset.companion===S.companion)));
 }
@@ -518,11 +609,19 @@ function renderLoad(){
   const bar=document.getElementById('loadBar');
   bar.style.width=pct+'%';
   bar.style.background = used>max?'var(--danger)':used>max*0.8?'var(--warn)':'var(--ok)';
-  document.getElementById('loadWarn').classList.toggle('show',used>max);
-
   const state = used===0 ? 'idle' : used>max ? 'exhausted' : used>max*0.8 ? 'tired' : 'content';
+  const warning=document.getElementById('loadWarn');
+  warning.classList.toggle('show',state==='exhausted');
+  if(state==='exhausted'&&previousCompanionState!=='exhausted'){
+    warning.classList.add('bursting');
+  }
+  if(state!=='exhausted')warning.classList.remove('bursting');
+  previousCompanionState=state;
   renderCompanion(state);
 }
+document.getElementById('loadWarn').addEventListener('animationend',e=>{
+  if(e.animationName==='overloadHit')e.currentTarget.classList.remove('bursting');
+});
 function renderTasks(){
   const box=document.getElementById('taskList');
   box.innerHTML = S.tasks.length
