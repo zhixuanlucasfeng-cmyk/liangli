@@ -9,6 +9,16 @@ HTML = (ROOT / "index.html").read_text(encoding="utf-8")
 
 
 class MangaUIContractTests(unittest.TestCase):
+    def test_document_declares_a_favicon(self):
+        self.assertRegex(
+            HTML,
+            r'<link\s+rel="icon"\s+href="icon-192\.png">',
+        )
+
+    def test_standalone_mode_has_standard_and_apple_metadata(self):
+        self.assertIn('<meta name="mobile-web-app-capable" content="yes">', HTML)
+        self.assertIn('<meta name="apple-mobile-web-app-capable" content="yes">', HTML)
+
     def test_companion_playback_behavior(self):
         result = subprocess.run(
             ["node", str(ROOT / "tests" / "test_companion_playback.js")],
