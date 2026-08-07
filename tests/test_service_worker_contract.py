@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import subprocess
 import unittest
 
 
@@ -23,13 +24,20 @@ class ServiceWorkerContractTests(unittest.TestCase):
         self.assertIn("endsWith('.mp4')", SW)
 
     def test_runtime_video_cache_normalizes_range_requests(self):
-        self.assertIn("const videoRequest = new Request(e.request.url)", SW)
+        self.assertIn("const videoRequest = new Request(request.url)", SW)
         self.assertIn("cache.match(videoRequest)", SW)
         self.assertIn("fetch(videoRequest)", SW)
         self.assertIn("cache.put(videoRequest", SW)
 
-    def test_current_caches_survive_activation(self):
-        self.assertIn("k !== VERSION && k !== VIDEO_CACHE", SW)
+    def test_service_worker_behavior(self):
+        result = subprocess.run(
+            ["node", str(ROOT / "tests" / "test_service_worker.js")],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_manifest_uses_ink_palette(self):
         self.assertEqual(MANIFEST["background_color"], "#0b0c0f")
