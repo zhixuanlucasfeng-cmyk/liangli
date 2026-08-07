@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0f1115">
+<meta name="theme-color" content="#0b0c0f">
 <meta name="description" content="量力 · 反假性自律的个人成长工具">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
@@ -57,12 +57,12 @@ main{flex:1;overflow-y:auto;padding:4px 14px calc(96px + var(--safe-b));-webkit-
 .companion-picker button[aria-pressed="true"]{background:rgba(255,138,92,.18);color:#ffdcc2;box-shadow:inset 0 0 0 1px rgba(255,138,92,.45)}
 .item{display:flex;align-items:center;gap:9px;padding:10px 11px;background:var(--card2);border-radius:11px;margin-bottom:7px}
 .item:last-child{margin-bottom:0}
-.chk{width:21px;height:21px;border-radius:7px;border:2px solid var(--line);flex:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff}
+.chk{width:21px;height:21px;border-radius:7px;border:2px solid var(--line);background:transparent;flex:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff}
 .item.done .chk{background:var(--ok);border-color:var(--ok)}
 .item.done .t{text-decoration:line-through;color:var(--sub)}
 .t{flex:1;font-size:13.5px;word-break:break-word;line-height:1.4}
 .tag{font-size:10.5px;color:var(--sub);background:rgba(255,255,255,.06);padding:2px 7px;border-radius:20px;flex:none}
-.x{color:var(--sub);cursor:pointer;font-size:17px;padding:0 3px;flex:none;line-height:1}
+.x{border:0;background:transparent;color:var(--sub);cursor:pointer;font:inherit;font-size:17px;padding:0 3px;flex:none;line-height:1}
 .row{display:flex;gap:8px;margin-top:10px}
 input,textarea,select{background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:10px 11px;font-size:14px;width:100%;outline:none;font-family:inherit}
 input:focus,textarea:focus{border-color:var(--accent)}
@@ -72,8 +72,8 @@ textarea{resize:vertical;min-height:76px;line-height:1.5}
 .btn.sm{padding:6px 11px;font-size:11.5px}
 .btn.full{width:100%}
 .pick{display:flex;gap:6px;margin-top:8px}
-.pick div{flex:1;text-align:center;padding:8px 0;background:var(--card2);border:1px solid var(--line);border-radius:10px;font-size:11.5px;cursor:pointer}
-.pick div.sel{border-color:var(--accent);background:rgba(255,138,92,.15);color:#ffdcc2}
+.pick button{flex:1;text-align:center;padding:8px 0;background:var(--card2);border:1px solid var(--line);border-radius:10px;color:var(--txt);font:inherit;font-size:11.5px;cursor:pointer}
+.pick button.sel{border-color:var(--accent);background:rgba(255,138,92,.15);color:#ffdcc2}
 .ring{width:180px;height:180px;margin:4px auto 12px;position:relative}
 .ring svg{transform:rotate(-90deg)}
 .ring .tm{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
@@ -102,8 +102,9 @@ textarea{resize:vertical;min-height:76px;line-height:1.5}
 .mood{font-size:15px}
 .log p{margin:0;font-size:13.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
 .moodpick{display:flex;gap:6px;margin-top:9px}
-.moodpick div{flex:1;text-align:center;padding:7px 0;background:var(--card2);border:1px solid var(--line);border-radius:10px;font-size:17px;cursor:pointer}
-.moodpick div.sel{border-color:var(--accent);background:rgba(255,138,92,.15)}
+.moodpick button{flex:1;text-align:center;padding:7px 2px;background:var(--card2);border:1px solid var(--line);border-radius:10px;color:var(--txt);font:inherit;font-size:17px;cursor:pointer}
+.moodpick button span{display:block;font-size:9px;line-height:1.2;margin-top:2px}
+.moodpick button.sel{border-color:var(--accent);background:rgba(255,138,92,.15)}
 .empty{color:var(--sub);font-size:12.5px;text-align:center;padding:16px 0;line-height:1.6}
 nav{position:absolute;bottom:0;left:0;right:0;background:rgba(15,17,21,.94);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;padding:7px 4px calc(9px + var(--safe-b))}
 nav button{flex:1;background:none;border:none;color:var(--sub);font-size:10px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:3px 0;font-family:inherit}
@@ -174,8 +175,10 @@ button,input,textarea,select{min-height:44px}
 .warnbox.show::before{content:"!";position:absolute;right:-3px;top:-34px;width:52px;height:52px;display:grid;place-items:center;background:var(--blood);color:#fff;border:3px solid var(--line);clip-path:polygon(50% 0,62% 25%,86% 8%,80% 36%,100% 44%,76% 57%,93% 82%,64% 74%,52% 100%,42% 74%,12% 92%,20% 61%,0 50%,25% 39%,9% 13%,39% 27%);font-size:25px}
 @keyframes overloadHit{0%{transform:scale(.82) rotate(-2deg)}55%{transform:scale(1.04) rotate(1deg)}100%{transform:scale(1)}}
 .task-entry-panel::after{content:"";position:absolute;right:-28px;bottom:-36px;width:110px;height:110px;border:18px double rgba(217,45,69,.12);border-radius:50%;pointer-events:none}
-.pick div,.moodpick div{min-height:44px;display:grid;place-items:center;background:#fffdf6;border:2px solid var(--line);border-radius:0;color:var(--ink);font-weight:800}
-.pick div.sel,.moodpick div.sel{border-color:var(--line);background:var(--warning);color:var(--ink);box-shadow:3px 3px 0 var(--line)}
+.pick button,.moodpick button{min-height:44px;display:grid;place-items:center;background:#fffdf6;border:2px solid var(--line);border-radius:0;color:var(--ink);font-weight:800}
+.pick button.sel,.moodpick button.sel{border-color:var(--line);background:var(--warning);color:var(--ink);box-shadow:3px 3px 0 var(--line)}
+.pick button,.moodpick button{position:relative}
+.pick button.sel::after,.moodpick button.sel::after{content:"✓";position:absolute;right:3px;top:1px;font-size:11px;font-weight:1000}
 
 /* Pool: a deterministic wall of torn notes. */
 .pool-grid{background:repeating-linear-gradient(0deg,transparent 0 18px,rgba(11,12,15,.08) 18px 19px)}
@@ -201,6 +204,12 @@ button,input,textarea,select{min-height:44px}
 /* Focus: title-card timer and clapperboard controls. */
 .focus-view .timer-panel{background:var(--ink-soft);color:var(--paper);padding-top:18px}
 .focus-view .timer-panel .manga-title::after{background:var(--power-pink)}
+.timer-panel{isolation:isolate}
+.pomo-burst{position:absolute;inset:22% 4% auto;z-index:4;display:grid;place-items:center;min-height:92px;background:var(--warning);border:4px solid var(--line);color:var(--ink);font-family:"Kaiti SC","STKaiti","Segoe Print",cursive;font-size:38px;font-weight:900;letter-spacing:.1em;opacity:0;pointer-events:none;transform:scale(.3) rotate(-8deg)}
+.pomo-burst.is-bursting{animation:pomoInkBurst .45s steps(4,end) both}
+@keyframes pomoInkBurst{0%{opacity:0;transform:scale(.3) rotate(-8deg)}28%{opacity:1;transform:scale(1.12) rotate(3deg)}72%{opacity:1;transform:scale(.98) rotate(-1deg)}100%{opacity:0;transform:scale(1.08) rotate(0)}}
+.chapter-number{position:absolute;right:10px;top:6px;font-size:18px;font-weight:1000;letter-spacing:.08em}
+.load-state{display:inline-block;margin-left:7px;padding:2px 7px;background:var(--warning);border:1px solid var(--line);color:var(--ink);font-size:11px;font-weight:900;vertical-align:middle}
 .focus-view .ring{width:100%;height:190px;margin:0 auto 14px;border:3px solid var(--paper);background:repeating-linear-gradient(135deg,rgba(237,230,216,.08) 0 7px,transparent 7px 16px)}
 .focus-view .ring svg{position:absolute;inset:5px;margin:auto;opacity:.18}
 .focus-view .ring .tm b{font-family:"Arial Narrow","Roboto Condensed",Impact,sans-serif;font-size:64px;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.04em;text-shadow:4px 4px 0 var(--blood)}
@@ -265,7 +274,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
         </div>
         <div class="gh">
           <span class="muted" data-i="loadTitle">今日精力负荷</span>
-          <b><span id="loadUsed">0</span><span class="muted" style="font-size:13px"> / <span id="loadMax">100</span></span></b>
+          <b><span id="loadUsed">0</span><span class="muted" style="font-size:13px"> / <span id="loadMax">100</span></span><span id="loadState" class="load-state">待命</span></b>
         </div>
         <div class="gauge"><span id="loadBar" style="width:0%;background:var(--ok)"></span></div>
         <div class="warnbox" id="loadWarn" data-i="loadWarn"></div>
@@ -274,11 +283,11 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
       <div class="card manga-panel task-entry-panel">
         <h2 class="manga-title" data-i="addTask">添加任务</h2>
         <input id="taskName" data-ph="taskPh" placeholder="今天想完成什么？">
-        <div class="muted" style="margin-top:11px" data-i="energyLabel">预估精力消耗</div>
-        <div class="pick" id="energyPick">
-          <div data-e="10" data-i="eLight">轻 10</div>
-          <div data-e="25" class="sel" data-i="eMid">中 25</div>
-          <div data-e="45" data-i="eHeavy">重 45</div>
+        <div class="muted" id="energyLabel" style="margin-top:11px" data-i="energyLabel">预估精力消耗</div>
+        <div class="pick" id="energyPick" role="radiogroup" aria-labelledby="energyLabel">
+          <button type="button" role="radio" aria-checked="false" data-e="10" data-i="eLight">轻 10</button>
+          <button type="button" role="radio" aria-checked="true" data-e="25" class="sel" data-i="eMid">中 25</button>
+          <button type="button" role="radio" aria-checked="false" data-e="45" data-i="eHeavy">重 45</button>
         </div>
         <div class="row"><button class="btn full" onclick="addTask()" data-i="addToday">加入今日</button></div>
       </div>
@@ -328,6 +337,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
     <section class="view manga-view focus-view" id="v-focus">
       <div class="card manga-panel timer-panel">
         <div class="manga-decor timer-decor" aria-hidden="true"></div>
+        <div class="pomo-burst" id="pomoBurst" aria-live="polite"><span data-i="pomoBurst">啪！完成</span></div>
         <h2 class="manga-title" data-i="pomo">番茄钟</h2>
         <div style="text-align:center">
           <div class="ring">
@@ -366,10 +376,13 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
         <div class="hint" data-i="jHint">这些记录只存在你自己的手机上，没有人能看到。诚实地写，才对你有用。</div>
         <h2 class="manga-title" data-i="jTitle">今天做了什么</h2>
         <textarea id="logText" data-ph="logPh" placeholder="不用写得漂亮。做了什么、什么感觉，随便记两句就行…"></textarea>
-        <div class="muted" style="margin-top:10px" data-i="moodLabel">今天状态如何</div>
-        <div class="moodpick" id="moodPick">
-          <div data-m="😖">😖</div><div data-m="😕">😕</div>
-          <div data-m="😐" class="sel">😐</div><div data-m="🙂">🙂</div><div data-m="😄">😄</div>
+        <div class="muted" id="moodLabel" style="margin-top:10px" data-i="moodLabel">今天状态如何</div>
+        <div class="moodpick" id="moodPick" role="radiogroup" aria-labelledby="moodLabel">
+          <button type="button" role="radio" aria-checked="false" data-m="😖">😖<span data-i="moodAwful">很糟</span></button>
+          <button type="button" role="radio" aria-checked="false" data-m="😕">😕<span data-i="moodLow">低落</span></button>
+          <button type="button" role="radio" aria-checked="true" data-m="😐" class="sel">😐<span data-i="moodNeutral">一般</span></button>
+          <button type="button" role="radio" aria-checked="false" data-m="🙂">🙂<span data-i="moodGood">不错</span></button>
+          <button type="button" role="radio" aria-checked="false" data-m="😄">😄<span data-i="moodGreat">很好</span></button>
         </div>
         <div class="row"><button class="btn full" onclick="addLog()" data-i="saveLog">保存记录</button></div>
       </div>
@@ -413,9 +426,12 @@ const I18N={
    addGoal:"新目标",goalPh:"比如：读完 12 本书",unitPh:"单位",create:"创建",myGoals:"我的目标",
    pomo:"番茄钟",ready:"准备开始",start:"开始专注",pause:"暂停",resume:"继续",
    focusing:"专注中…",paused:"已暂停",doneOne:"完成一个番茄 🎉",again:"再来一个",reset:"重置",
+   pomoBurst:"啪！完成",chapter:"章节",taskDone:"标记任务完成",taskUndo:"恢复任务",deleteTask:"删除任务",
+   deleteIdea:"删除想法",deleteGoal:"删除目标",deleteLog:"删除记录",goalDecrease:"减少目标进度",goalIncrease:"增加目标进度",
    dash:"数据看板",sFocus:"今日专注(分)",sPomo:"番茄数",sDone:"完成任务",trend:"近 7 天专注趋势",
    jTitle:"今天做了什么",jHint:"这些记录只存在你自己的手机上，没有人能看到。诚实地写，才对你有用。",
    logPh:"不用写得漂亮。做了什么、什么感觉，随便记两句就行…",moodLabel:"今天状态如何",
+   moodAwful:"很糟",moodLow:"低落",moodNeutral:"一般",moodGood:"不错",moodGreat:"很好",
    saveLog:"保存记录",history:"历史记录",
    navToday:"今日",navPool:"成长池",navGoals:"目标",navFocus:"专注",navJournal:"记录",
    emptyTask:"还没有任务，加一个吧",emptyIdea:"成长池是空的～想法随手记这里",
@@ -432,9 +448,12 @@ const I18N={
    addGoal:"New goal",goalPh:"e.g. Read 12 books",unitPh:"unit",create:"Create",myGoals:"My goals",
    pomo:"Pomodoro",ready:"Ready",start:"Start focus",pause:"Pause",resume:"Resume",
    focusing:"Focusing…",paused:"Paused",doneOne:"One pomodoro done 🎉",again:"One more",reset:"Reset",
+   pomoBurst:"BAM! DONE",chapter:"Chapter",taskDone:"Mark task complete",taskUndo:"Restore task",deleteTask:"Delete task",
+   deleteIdea:"Delete idea",deleteGoal:"Delete goal",deleteLog:"Delete entry",goalDecrease:"Decrease goal progress",goalIncrease:"Increase goal progress",
    dash:"Dashboard",sFocus:"Focus (min)",sPomo:"Pomodoros",sDone:"Tasks done",trend:"Last 7 days",
    jTitle:"What did you do today?",jHint:"These entries stay on your own device. Nobody else can see them. Be honest — that's the point.",
    logPh:"No need to make it pretty. What you did, how it felt. Two lines is enough…",moodLabel:"How was today?",
+   moodAwful:"Awful",moodLow:"Low",moodNeutral:"Okay",moodGood:"Good",moodGreat:"Great",
    saveLog:"Save entry",history:"Past entries",
    navToday:"Today",navPool:"Pool",navGoals:"Goals",navFocus:"Focus",navJournal:"Journal",
    emptyTask:"No tasks yet. Add one.",emptyIdea:"Your growth pool is empty — jot ideas here.",
@@ -501,6 +520,7 @@ function go(v,el){
   document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
   document.querySelector('main').scrollTop=0;
+  setTodayMediaActive(v==='today');
 }
 function toast(msg){
   const el=document.getElementById('toast');
@@ -515,6 +535,9 @@ let activeCompanionLayer=0;
 let pendingCompanionSrc='';
 let companionSwapTimer=null;
 let previousCompanionState=null;
+let companionMediaActive=true;
+let currentCompanion='cat';
+let currentCompanionState='idle';
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 const companionStateKeys={
   idle:'companionIdle',content:'companionContent',
@@ -546,6 +569,8 @@ function cancelCompanionTransition(){
   }
 }
 function requestCompanion(companion,state){
+  currentCompanion=companion;
+  currentCompanionState=state;
   const requestId=++companionRequestId;
   cancelCompanionTransition();
   const poster=document.getElementById('companionPoster');
@@ -553,6 +578,13 @@ function requestCompanion(companion,state){
   if(poster.getAttribute('src')!==posterSrc)poster.src=posterSrc;
   document.getElementById('companionStatus').textContent=
     `${T(companion==='human'?'companionHuman':'companionCat')} · ${T(companionStateKeys[state])}`;
+
+  if(!companionMediaActive){
+    poster.classList.add('is-visible');
+    companionLayers.forEach(stopLayer);
+    activeCompanionLayer=0;
+    return;
+  }
 
   if(reducedMotion.matches){
     poster.classList.add('is-visible');
@@ -605,6 +637,19 @@ function requestCompanion(companion,state){
     },150);
   },{once:true});
 }
+function setTodayMediaActive(active){
+  if(companionMediaActive===active)return;
+  companionMediaActive=active;
+  if(!active){
+    companionRequestId++;
+    cancelCompanionTransition();
+    companionLayers.forEach(stopLayer);
+    activeCompanionLayer=0;
+    document.getElementById('companionPoster').classList.add('is-visible');
+    return;
+  }
+  requestCompanion(currentCompanion,currentCompanionState);
+}
 function renderCompanion(state){
   requestCompanion(S.companion,state);
   document.querySelectorAll('[data-companion]').forEach(btn=>
@@ -624,6 +669,7 @@ function renderLoad(){
   bar.style.width=pct+'%';
   bar.style.background = used>max?'var(--danger)':used>max*0.8?'var(--warn)':'var(--ok)';
   const state = used===0 ? 'idle' : used>max ? 'exhausted' : used>max*0.8 ? 'tired' : 'content';
+  document.getElementById('loadState').textContent=T(companionStateKeys[state]);
   const warning=document.getElementById('loadWarn');
   warning.classList.toggle('show',state==='exhausted');
   if(state==='exhausted'&&previousCompanionState!=='exhausted'){
@@ -640,10 +686,10 @@ function renderTasks(){
   const box=document.getElementById('taskList');
   box.innerHTML = S.tasks.length
     ? S.tasks.map(t=>`<div class="item manga-task ${t.done?'done':''}">
-        <div class="chk" onclick="toggleTask(${t.id})">${t.done?'✓':''}</div>
+        <button type="button" class="chk" aria-pressed="${t.done}" aria-label="${esc(T(t.done?'taskUndo':'taskDone'))}" onclick="toggleTask(${t.id})">${t.done?'✓':''}</button>
         <div class="t">${esc(t.name)}</div>
         <div class="tag">⚡${t.energy}</div>
-        <div class="x" onclick="delTask(${t.id})">×</div></div>`).join('')
+        <button type="button" class="x" aria-label="${esc(T('deleteTask'))}" onclick="delTask(${t.id})">×</button></div>`).join('')
     : `<div class="empty">${T('emptyTask')}</div>`;
   renderLoad(); renderStats();
 }
@@ -661,8 +707,11 @@ function delTask(id){ S.tasks=S.tasks.filter(x=>x.id!==id); DB.set('tasks',S.tas
 document.getElementById('energyPick').addEventListener('click',e=>{
   const d=e.target.closest('[data-e]'); if(!d)return;
   pickedEnergy=+d.dataset.e;
-  document.querySelectorAll('#energyPick div').forEach(x=>x.classList.remove('sel'));
+  document.querySelectorAll('#energyPick [data-e]').forEach(x=>{
+    x.classList.remove('sel'); x.setAttribute('aria-checked','false');
+  });
   d.classList.add('sel');
+  d.setAttribute('aria-checked','true');
 });
 
 /* ============ 成长池 ============ */
@@ -672,7 +721,7 @@ function renderIdeas(){
     ? S.ideas.map(i=>`<div class="item torn-note">
         <div class="t">${esc(i.name)}</div>
         <button class="btn ghost sm" onclick="promote(${i.id})">${T('toTask')}</button>
-        <div class="x" onclick="delIdea(${i.id})">×</div></div>`).join('')
+        <button type="button" class="x" aria-label="${esc(T('deleteIdea'))}" onclick="delIdea(${i.id})">×</button></div>`).join('')
     : `<div class="empty">${T('emptyIdea')}</div>`;
 }
 function addIdea(){
@@ -695,15 +744,16 @@ function promote(id){
 function renderGoals(){
   const box=document.getElementById('goalList');
   box.innerHTML = S.goals.length
-    ? S.goals.map(g=>{
+    ? S.goals.map((g,index)=>{
         const pct=Math.min(100,Math.round(g.cur/g.target*100));
         return `<div class="goal chapter-card">
-          <div class="gt"><b>${esc(g.name)}</b><div class="x" onclick="delGoal(${g.id})">×</div></div>
+          <span class="chapter-number">${esc(T('chapter'))} ${String(index+1).padStart(2,'0')}</span>
+          <div class="gt"><b>${esc(g.name)}</b><button type="button" class="x" aria-label="${esc(T('deleteGoal'))}" onclick="delGoal(${g.id})">×</button></div>
           <div class="gbar"><span style="width:${pct}%"></span></div>
           <div class="gfoot">
             <small>${g.cur} / ${g.target} ${esc(g.unit||'')} · ${pct}%</small>
-            <button class="step" onclick="stepGoal(${g.id},-1)">−</button>
-            <button class="step" onclick="stepGoal(${g.id},1)">+</button>
+            <button type="button" class="step" aria-label="${esc(T('goalDecrease'))}" onclick="stepGoal(${g.id},-1)">−</button>
+            <button type="button" class="step" aria-label="${esc(T('goalIncrease'))}" onclick="stepGoal(${g.id},1)">+</button>
           </div></div>`;
       }).join('')
     : `<div class="empty">${T('emptyGoal')}</div>`;
@@ -748,6 +798,15 @@ function resetTimer(){
   document.getElementById('startBtn').textContent=T('start');
   document.getElementById('clabel').textContent=T('ready');
 }
+function triggerPomoBurst(){
+  if(reducedMotion.matches)return;
+  const burst=document.getElementById('pomoBurst');
+  burst.classList.remove('is-bursting');
+  void burst.offsetWidth;
+  burst.classList.add('is-bursting');
+  clearTimeout(burst._timer);
+  burst._timer=setTimeout(()=>burst.classList.remove('is-bursting'),450);
+}
 function finishPomo(){
   clearInterval(timer); running=false;
   S.pomo++; S.focusMin+=25; S.week[6]+=25;
@@ -755,6 +814,7 @@ function finishPomo(){
   document.getElementById('clabel').textContent=T('doneOne');
   document.getElementById('startBtn').textContent=T('again');
   left=TOTAL; drawRing(); renderStats();
+  triggerPomoBurst();
   if(navigator.vibrate) navigator.vibrate([120,60,120]);
 }
 
@@ -774,7 +834,7 @@ function renderLogs(){
   box.innerHTML = S.logs.length
     ? S.logs.slice().reverse().map(l=>`<div class="log film-frame">
         <div class="lh"><span class="mood">${l.mood}</span><b>${l.date}</b>
-        <div class="x" style="margin-left:auto" onclick="delLog(${l.id})">×</div></div>
+        <button type="button" class="x" style="margin-left:auto" aria-label="${esc(T('deleteLog'))}" onclick="delLog(${l.id})">×</button></div>
         <p>${esc(l.text)}</p></div>`).join('')
     : `<div class="empty">${T('emptyLog')}</div>`;
 }
@@ -788,8 +848,11 @@ function delLog(id){ S.logs=S.logs.filter(x=>x.id!==id); DB.set('logs',S.logs); 
 document.getElementById('moodPick').addEventListener('click',e=>{
   const d=e.target.closest('[data-m]'); if(!d)return;
   pickedMood=d.dataset.m;
-  document.querySelectorAll('#moodPick div').forEach(x=>x.classList.remove('sel'));
+  document.querySelectorAll('#moodPick [data-m]').forEach(x=>{
+    x.classList.remove('sel'); x.setAttribute('aria-checked','false');
+  });
   d.classList.add('sel');
+  d.setAttribute('aria-checked','true');
 });
 
 /* ============ utils ============ */

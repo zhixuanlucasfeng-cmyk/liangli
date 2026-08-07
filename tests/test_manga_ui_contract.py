@@ -146,6 +146,40 @@ class MangaUIContractTests(unittest.TestCase):
         )
         self.assertEqual(len(view_transitions), 1)
 
+    def test_theme_color_matches_manga_ink(self):
+        self.assertIn('<meta name="theme-color" content="#0b0c0f">', HTML)
+
+    def test_interactive_choices_and_rendered_actions_are_semantic(self):
+        self.assertIn('id="energyPick" role="radiogroup" aria-labelledby="energyLabel"', HTML)
+        self.assertIn('id="moodPick" role="radiogroup" aria-labelledby="moodLabel"', HTML)
+        self.assertNotRegex(HTML, r'<div\b[^>]*\bdata-(?:e|m)=')
+        for marker in ('class="chk"', 'class="x"'):
+            self.assertNotIn(f'<div {marker}', HTML)
+            self.assertIn(f'<button type="button" {marker}', HTML)
+        self.assertIn("aria-checked", HTML)
+
+    def test_mood_choices_include_localized_visible_names(self):
+        for key in ('moodAwful', 'moodLow', 'moodNeutral', 'moodGood', 'moodGreat'):
+            self.assertEqual(len(re.findall(rf"\b{key}:", HTML)), 2)
+            self.assertIn(f'data-i="{key}"', HTML)
+
+    def test_load_state_is_visible_and_localized(self):
+        self.assertIn('id="loadState"', HTML)
+        compact = HTML.replace(' ', '')
+        self.assertIn("getElementById('loadState').textContent=T(companionStateKeys[state])", compact)
+
+    def test_pomodoro_completion_has_short_reduced_motion_safe_burst(self):
+        self.assertIn('id="pomoBurst"', HTML)
+        self.assertIn("functiontriggerPomoBurst()", HTML.replace(' ', ''))
+        self.assertRegex(HTML.replace(' ', ''), r"setTimeout\([^,]+,[1-4]\d\d\)")
+        self.assertIn("if(reducedMotion.matches)return", HTML.replace(' ', ''))
+
+    def test_goal_cards_have_deterministic_visible_chapters(self):
+        compact = HTML.replace(' ', '')
+        self.assertIn("S.goals.map((g,index)=>", compact)
+        self.assertIn("String(index+1).padStart(2,'0')", compact)
+        self.assertIn('class="chapter-number"', HTML)
+
 
 if __name__ == "__main__":
     unittest.main()

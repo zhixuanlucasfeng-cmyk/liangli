@@ -107,9 +107,10 @@ function createHarness() {
   vm.createContext(context);
   vm.runInContext(`${controller}\n;globalThis.playback={
     requestCompanion,
+    setTodayMediaActive,
     stopLayer,
     companionMediaSrc,
-    state:()=>({activeCompanionLayer,pendingCompanionSrc,companionRequestId})
+    state:()=>({activeCompanionLayer,pendingCompanionSrc,companionRequestId,companionMediaActive,currentCompanionState,currentCompanion})
   };`, context);
   return {
     ...context.playback,
@@ -205,10 +206,41 @@ async function testStableActiveSourceDoesNotReload() {
   assert.equal(harness.layers[0].classList.contains('is-active'), true);
 }
 
+async function testTodayVisibilityStopsAndRaceSafelyResumesDecode() {
+  const harness = createHarness();
+  const src = establishActive(harness, 'content');
+  harness.requestCompanion('cat', 'content');
+
+  harness.setTodayMediaActive(false);
+  assert.equal(harness.state().companionMediaActive, false);
+  assert.equal(harness.state().currentCompanionState, 'content');
+  assert.equal(harness.poster.classList.contains('is-visible'), true);
+  for (const layer of harness.layers) {
+    assert.equal(layer.hasAttribute('src'), false, 'hidden Today must release video source');
+    assert.equal(layer.classList.contains('is-active'), false);
+  }
+
+  harness.setTodayMediaActive(true);
+  assert.equal(harness.state().companionMediaActive, true);
+  const pending = harness.layers.find(layer => layer.getAttribute('src') === src);
+  assert.ok(pending, 'returning to Today must prepare the preserved state');
+  await pending.emit('canplay');
+  harness.runTimers();
+  assert.equal(pending.classList.contains('is-active'), true);
+
+  harness.requestCompanion('cat', 'tired');
+  const stale = harness.layers.find(layer => layer.dataset.companionSrc?.endsWith('/tired.mp4'));
+  harness.setTodayMediaActive(false);
+  await stale.emit('canplay');
+  harness.runTimers();
+  assert.equal(stale.playCount, 0, 'late canplay after leaving Today must stay invalidated');
+}
+
 (async () => {
   await testLatestActiveRequestWins();
   await testRejectedPlayShowsPosterAndClearsVideos();
   await testStableActiveSourceDoesNotReload();
+  await testTodayVisibilityStopsAndRaceSafelyResumesDecode();
   console.log('companion playback behavior: ok');
 })().catch(error => {
   console.error(error.stack || error);
