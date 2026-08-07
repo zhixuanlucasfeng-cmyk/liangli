@@ -45,13 +45,29 @@ class MangaUIContractTests(unittest.TestCase):
         )
         self.assertEqual(len(companion_videos), 2)
 
-    def test_reduced_motion_contract(self):
+    def test_reduced_motion_css_contract(self):
         self.assertIn("@media(prefers-reduced-motion:reduce)", HTML.replace(" ", ""))
+
+    def test_reduced_motion_playback_contract(self):
         self.assertIn("matchMedia('(prefers-reduced-motion: reduce)')", HTML)
 
     def test_manga_decorations_are_noninteractive(self):
         self.assertIn(".manga-decor{pointer-events:none", HTML.replace(" ", ""))
         self.assertIn('aria-hidden="true"', HTML)
+
+    def test_keyframes_do_not_animate_clip_path(self):
+        keyframe_bodies = re.findall(
+            r"@keyframes\s+[\w-]+\s*\{((?:[^{}]|\{[^{}]*\})*)\}", HTML
+        )
+        self.assertTrue(keyframe_bodies)
+        for body in keyframe_bodies:
+            self.assertNotIn("clip-path", body)
+
+    def test_view_has_one_transition_definition(self):
+        view_transitions = re.findall(
+            r"\.view\.active\s*\{[^}]*\banimation\s*:", HTML
+        )
+        self.assertEqual(len(view_transitions), 1)
 
 
 if __name__ == "__main__":
