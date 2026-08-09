@@ -1277,6 +1277,21 @@ function computeBudgetLedger(cycle,expenses,throughDay){
   }
   return ledger;
 }
+function normalizeBudgetCycle(raw){
+  if(!raw||typeof raw!=='object'||(typeof raw.id!=='string'&&typeof raw.id!=='number')||String(raw.id).trim()==='')return null;
+  const {id,startDay,endExclusive,totalCents}=raw;
+  const savingsBps=raw.savingsBps??2000,openingCarryCents=raw.openingCarryCents??0;
+  if(typeof startDay!=='string'||typeof endExclusive!=='string'||!Number.isSafeInteger(totalCents)||totalCents<0||!Number.isSafeInteger(savingsBps)||savingsBps<0||savingsBps>10000||!Number.isSafeInteger(openingCarryCents))return null;
+  try{budgetDayCount(startDay,endExclusive);}catch(error){return null;}
+  return {...raw,id,startDay,endExclusive,totalCents,savingsBps,openingCarryCents};
+}
+function normalizeExpense(raw){
+  if(!raw||typeof raw!=='object'||(typeof raw.id!=='string'&&typeof raw.id!=='number')||String(raw.id).trim()==='')return null;
+  const {id,amountCents,spentAt}=raw;
+  if(!Number.isSafeInteger(amountCents)||amountCents<0||typeof spentAt!=='string'||!Number.isFinite(Date.parse(spentAt)))return null;
+  if(raw.deletedAt!=null&&(typeof raw.deletedAt!=='string'||!Number.isFinite(Date.parse(raw.deletedAt))))return null;
+  return {...raw,id,amountCents,spentAt,deletedAt:raw.deletedAt??null};
+}
 function normalizeTaskDays(tasks,fallbackDay){
   return tasks.map(task=>normalizeTask(task,fallbackDay));
 }
@@ -1317,8 +1332,19 @@ let S={
   focusMin:DB.get('focusMin',0),
   pomo:DB.get('pomo',0),
   week:DB.get('week',[0,0,0,0,0,0,0]),
-  lastDay:storedLastDay
+  lastDay:storedLastDay,
+  calorieTarget:normalizedCalories(DB.get('calorieTarget',2000))||2000,
+  foodEntries:Array.isArray(DB.get('foodEntries',[]))?DB.get('foodEntries',[]).filter(entry=>entry&&typeof entry==='object').map(entry=>normalizeFoodEntry(entry,Date.now())):[],
+  favoriteFoods:Array.isArray(DB.get('favoriteFoods',[]))?DB.get('favoriteFoods',[]).filter(food=>typeof food==='string'):[],
+  budgetCycles:Array.isArray(DB.get('budgetCycles',[]))?DB.get('budgetCycles',[]).map(normalizeBudgetCycle).filter(Boolean):[],
+  expenses:Array.isArray(DB.get('expenses',[]))?DB.get('expenses',[]).map(normalizeExpense).filter(Boolean):[],
+  activeBudgetCycleId:null
 };
+const storedActiveBudgetCycleId=DB.get('activeBudgetCycleId',null);
+S.activeBudgetCycleId=S.budgetCycles.some(cycle=>cycle.id===storedActiveBudgetCycleId)?storedActiveBudgetCycleId:null;
+function saveLifeState(){
+  for(const key of ['calorieTarget','foodEntries','favoriteFoods','budgetCycles','expenses','activeBudgetCycleId'])DB.set(key,S[key]);
+}
 
 /* 跨天重置：使用设备本地日历日，未完成任务回到成长池 */
 function rolloverIfNeeded(render=true){
@@ -2107,7 +2133,7 @@ document.getElementById('moodPick').addEventListener('click',e=>{
 
 /* ============ utils ============ */
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-function renderAll(){ renderTasks(); renderIdeas(); renderGoals(); renderLogs(); renderStats(); }
+function renderAll(){ renderTasks(); renderIdeas(); renderGoals(); renderLogs(); renderStats(); saveLifeState(); }
 document.getElementById('taskName').addEventListener('keydown',e=>{if(e.key==='Enter')addTask()});
 document.getElementById('ideaName').addEventListener('keydown',e=>{if(e.key==='Enter')addIdea()});
 document.getElementById('goalName').addEventListener('keydown',e=>{if(e.key==='Enter')addGoal()});
