@@ -6,6 +6,82 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML = (ROOT / "index.html").read_text(encoding="utf-8")
+LIFE_TAB_HARNESS = r"""
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+
+const html = fs.readFileSync('index.html', 'utf8');
+const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+const start = script.indexOf('const LIFE_TABS=');
+const end = script.indexOf('function go(', start);
+assert.notEqual(start, -1, 'Life tab controller must exist');
+assert.notEqual(end, -1, 'Life tab controller must precede primary navigation');
+
+const names = ['nutrition', 'wallet', 'journal'];
+const elements = new Map();
+const focused = [];
+for (const name of names) {
+  const title = name[0].toUpperCase() + name.slice(1);
+  const button = {
+    id: `lifeTab${title}`,
+    attributes: {},
+    tabIndex: -1,
+    setAttribute(key, value) { this.attributes[key] = value; },
+    focus() { focused.push(this.id); },
+  };
+  const panel = {id: `life${title}`, hidden: true};
+  elements.set(button.id, button);
+  elements.set(panel.id, panel);
+}
+const document = {getElementById(id) { return elements.get(id); }};
+const context = {document};
+vm.createContext(context);
+vm.runInContext(
+  `${script.slice(start, end)}\n;globalThis.lifeTabs={setLifeTab,handleLifeTabKeydown};`,
+  context,
+);
+const controller = context.lifeTabs;
+
+function press(key) {
+  const event = {key, prevented: 0, preventDefault() { this.prevented += 1; }};
+  controller.handleLifeTabKeydown(event);
+  return event;
+}
+function selected(name) {
+  const title = name[0].toUpperCase() + name.slice(1);
+  return elements.get(`lifeTab${title}`).attributes['aria-selected'];
+}
+
+controller.setLifeTab('nutrition', false);
+let event = press('ArrowLeft');
+assert.equal(event.prevented, 1, 'handled arrows prevent page scrolling');
+assert.equal(selected('journal'), 'true', 'ArrowLeft wraps to the last tab');
+assert.equal(focused.at(-1), 'lifeTabJournal');
+assert.equal(elements.get('lifeJournal').hidden, false);
+
+event = press('ArrowRight');
+assert.equal(event.prevented, 1);
+assert.equal(selected('nutrition'), 'true', 'ArrowRight wraps to the first tab');
+assert.equal(focused.at(-1), 'lifeTabNutrition');
+
+controller.setLifeTab('wallet', false);
+event = press('End');
+assert.equal(event.prevented, 1);
+assert.equal(selected('journal'), 'true', 'End activates the last tab');
+assert.equal(focused.at(-1), 'lifeTabJournal');
+
+event = press('Home');
+assert.equal(event.prevented, 1);
+assert.equal(selected('nutrition'), 'true', 'Home activates the first tab');
+assert.equal(focused.at(-1), 'lifeTabNutrition');
+
+const focusCount = focused.length;
+event = press('Tab');
+assert.equal(event.prevented, 0, 'unhandled keys keep native behavior');
+assert.equal(focused.length, focusCount);
+assert.equal(selected('nutrition'), 'true');
+"""
 
 
 class MangaUIContractTests(unittest.TestCase):
@@ -112,6 +188,9 @@ class MangaUIContractTests(unittest.TestCase):
             '<section class="view manga-view life-view" id="v-life">',
             HTML,
         )
+        nav = re.search(r"<nav>([\s\S]*?)</nav>", HTML)
+        self.assertIsNotNone(nav)
+        self.assertEqual(len(re.findall(r"<button\b", nav.group(1))), 5)
         self.assertEqual(HTML.count('data-v="life"'), 1)
         self.assertNotIn('data-v="journal"', HTML)
 
@@ -125,12 +204,14 @@ class MangaUIContractTests(unittest.TestCase):
                 HTML,
                 rf'<button\b(?=[^>]*\bid="{tab_id}")(?=[^>]*\brole="tab")'
                 rf'(?=[^>]*\baria-selected="(?:true|false)")'
-                rf'(?=[^>]*\baria-controls="{panel_id}")[^>]*>',
+                rf'(?=[^>]*\baria-controls="{panel_id}")'
+                rf'(?=[^>]*\bonkeydown="handleLifeTabKeydown\(event\)")[^>]*>',
             )
             self.assertRegex(
                 HTML,
                 rf'<section\b(?=[^>]*\bid="{panel_id}")(?=[^>]*\brole="tabpanel")'
-                rf'(?=[^>]*\baria-labelledby="{tab_id}")[^>]*>',
+                rf'(?=[^>]*\baria-labelledby="{tab_id}")'
+                rf'(?=[^>]*\btabindex="0")[^>]*>',
             )
 
         for journal_id in ("logText", "moodPick", "logList"):
@@ -147,6 +228,17 @@ class MangaUIContractTests(unittest.TestCase):
             "if(v==='life')setLifeTab(activeLifeTab,false)",
         ):
             self.assertIn(fragment, compact)
+
+    def test_life_tab_keyboard_behavior(self):
+        result = subprocess.run(
+            ["node", "-e", LIFE_TAB_HARNESS],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=5,
+            cwd=ROOT,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_bilingual_catalogs_have_identical_keys(self):
         catalogs = re.search(

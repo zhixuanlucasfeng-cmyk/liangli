@@ -437,24 +437,24 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
     <section class="view manga-view life-view" id="v-life">
       <h2 class="sr-only" id="lifeHubTitle" data-i="navLife">生活</h2>
       <div class="life-tabs" role="tablist" aria-labelledby="lifeHubTitle">
-        <button type="button" class="life-tab" id="lifeTabNutrition" role="tab" aria-selected="true" aria-controls="lifeNutrition" tabindex="0" onclick="setLifeTab('nutrition')" data-i="nutritionTitle">营养</button>
-        <button type="button" class="life-tab" id="lifeTabWallet" role="tab" aria-selected="false" aria-controls="lifeWallet" tabindex="-1" onclick="setLifeTab('wallet')" data-i="walletTitle">钱包</button>
-        <button type="button" class="life-tab" id="lifeTabJournal" role="tab" aria-selected="false" aria-controls="lifeJournal" tabindex="-1" onclick="setLifeTab('journal')" data-i="journalTitle">记录</button>
+        <button type="button" class="life-tab" id="lifeTabNutrition" role="tab" aria-selected="true" aria-controls="lifeNutrition" tabindex="0" onclick="setLifeTab('nutrition')" onkeydown="handleLifeTabKeydown(event)" data-i="nutritionTitle">营养</button>
+        <button type="button" class="life-tab" id="lifeTabWallet" role="tab" aria-selected="false" aria-controls="lifeWallet" tabindex="-1" onclick="setLifeTab('wallet')" onkeydown="handleLifeTabKeydown(event)" data-i="walletTitle">钱包</button>
+        <button type="button" class="life-tab" id="lifeTabJournal" role="tab" aria-selected="false" aria-controls="lifeJournal" tabindex="-1" onclick="setLifeTab('journal')" onkeydown="handleLifeTabKeydown(event)" data-i="journalTitle">记录</button>
       </div>
 
-      <section class="life-panel" id="lifeNutrition" role="tabpanel" aria-labelledby="lifeTabNutrition">
+      <section class="life-panel" id="lifeNutrition" role="tabpanel" aria-labelledby="lifeTabNutrition" tabindex="0">
         <div class="card manga-panel life-shell-panel">
           <h2 class="manga-title" data-i="nutritionTitle">营养</h2>
         </div>
       </section>
 
-      <section class="life-panel" id="lifeWallet" role="tabpanel" aria-labelledby="lifeTabWallet" hidden>
+      <section class="life-panel" id="lifeWallet" role="tabpanel" aria-labelledby="lifeTabWallet" tabindex="0" hidden>
         <div class="card manga-panel life-shell-panel">
           <h2 class="manga-title" data-i="walletTitle">钱包</h2>
         </div>
       </section>
 
-      <section class="life-panel journal-view" id="lifeJournal" role="tabpanel" aria-labelledby="lifeTabJournal" hidden>
+      <section class="life-panel journal-view" id="lifeJournal" role="tabpanel" aria-labelledby="lifeTabJournal" tabindex="0" hidden>
         <div class="card manga-panel journal-entry-panel">
           <div class="manga-decor film-decor" aria-hidden="true"></div>
           <div class="hint" data-i="jHint">这些记录只存在你自己的手机上，没有人能看到。诚实地写，才对你有用。</div>
@@ -1419,6 +1419,17 @@ function setLifeTab(tab,focus=true){
     panel.hidden=!selected;
   });
   if(focus)document.getElementById(`lifeTab${tab[0].toUpperCase()}${tab.slice(1)}`).focus();
+}
+function handleLifeTabKeydown(event){
+  const currentIndex=LIFE_TABS.indexOf(activeLifeTab);
+  let nextIndex;
+  if(event.key==='ArrowLeft')nextIndex=(currentIndex+LIFE_TABS.length-1)%LIFE_TABS.length;
+  else if(event.key==='ArrowRight')nextIndex=(currentIndex+1)%LIFE_TABS.length;
+  else if(event.key==='Home')nextIndex=0;
+  else if(event.key==='End')nextIndex=LIFE_TABS.length-1;
+  else return;
+  event.preventDefault();
+  setLifeTab(LIFE_TABS[nextIndex]);
 }
 function go(v,el){
   document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));
