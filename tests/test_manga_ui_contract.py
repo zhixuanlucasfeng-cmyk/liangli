@@ -339,7 +339,7 @@ class MangaUIContractTests(unittest.TestCase):
             "walletSaved", "walletSpendable", "walletToday", "walletSpent",
             "expenseName", "expenseAmount", "expenseSpentAt", "expenseCategory",
             "expenseTimeline", "walletCycleEnd", "budgetCarryForward",
-            "budgetRechargeTotal", "walletFormStatus",
+            "budgetRechargeTotal", "walletFormStatus", "walletExpenseAvailability",
         ):
             self.assertIn(f'id="{element_id}"', HTML)
 
@@ -368,6 +368,19 @@ class MangaUIContractTests(unittest.TestCase):
             HTML,
             r'<section\b(?=[^>]*\bid="walletCycleEnd")(?=[^>]*\bhidden)[^>]*>',
         )
+        self.assertRegex(
+            HTML,
+            r'<[^>]+\bid="walletExpenseAvailability"[^>]+\brole="status"'
+            r'[^>]+\baria-live="polite"[^>]*>',
+        )
+        for element_id in (
+            "expenseName", "expenseAmount", "expenseSpentAt",
+            "expenseCategory", "saveExpenseButton",
+        ):
+            self.assertRegex(
+                HTML,
+                rf'<[^>]+\bid="{element_id}"[^>]+\baria-describedby="walletExpenseAvailability"[^>]*>',
+            )
         for mode in ("same", "recharge", "pause"):
             self.assertIn(f"renewBudgetCycle('{mode}'", HTML)
 
@@ -375,6 +388,7 @@ class MangaUIContractTests(unittest.TestCase):
         for function_name in (
             "createBudgetCycle", "renderWallet", "addExpense",
             "deleteExpense", "setExpenseForEdit", "renewBudgetCycle",
+            "setExpenseControlsDisabled", "budgetRenewalStartDay",
         ):
             self.assertIn(f"function{function_name}(", compact)
         self.assertIn("newIntl.NumberFormat(", compact)

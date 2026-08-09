@@ -265,7 +265,8 @@ button,input,textarea,select{min-height:44px}
 .wallet-stat.wallet-today{grid-column:1/-1;background:var(--warning)}
 .wallet-stat.wallet-today.is-negative{background:#ff8f83;color:var(--ink)}
 .wallet-negative-note{margin-top:8px;padding:9px;background:#ffe0d9;border-left:5px solid #ff6f61;color:#5f3c38;font-size:11px;font-weight:800;line-height:1.45}
-.wallet-form-status{min-height:1.5em;margin-top:8px;color:#5f5a54;font-size:11px;font-weight:800;line-height:1.45}
+.wallet-form-status,.wallet-expense-availability{min-height:1.5em;margin-top:8px;color:#5f5a54;font-size:11px;font-weight:800;line-height:1.45}
+.wallet-expense-panel :disabled{cursor:not-allowed;opacity:.58}
 .expense-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:11px;margin-bottom:8px;background:#fffdf6;border:2px solid var(--line)}
 .expense-entry-main{min-width:0}.expense-entry-name{font-size:13px;font-weight:900;overflow-wrap:anywhere}
 .expense-entry-meta{margin-top:4px;color:#5f5a54;font-size:11px;font-weight:700;overflow-wrap:anywhere}
@@ -599,13 +600,14 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
 
           <div class="card manga-panel wallet-expense-panel">
             <h2 class="manga-title" data-i="expenseTitle">记一笔消费</h2>
-            <div class="wallet-field"><label for="expenseName" data-i="expenseNameLabel">消费名称</label><input id="expenseName" data-ph="expenseNamePh" placeholder="例如：午餐"></div>
+            <p class="wallet-expense-availability" id="walletExpenseAvailability" role="status" aria-live="polite"></p>
+            <div class="wallet-field"><label for="expenseName" data-i="expenseNameLabel">消费名称</label><input id="expenseName" aria-describedby="walletExpenseAvailability" data-ph="expenseNamePh" placeholder="例如：午餐"></div>
             <div class="wallet-grid" style="margin-top:9px">
-              <div class="wallet-field"><label for="expenseAmount" data-i="expenseAmountLabel">金额</label><input id="expenseAmount" type="text" inputmode="decimal" data-ph="moneyAmountPh" placeholder="例如：25.00"></div>
-              <div class="wallet-field"><label for="expenseCategory" data-i="expenseCategoryLabel">分类（可选）</label><input id="expenseCategory" data-ph="expenseCategoryPh" placeholder="例如：餐饮"></div>
-              <div class="wallet-field wallet-wide"><label for="expenseSpentAt" data-i="expenseTimeLabel">消费时间</label><input id="expenseSpentAt" type="datetime-local"></div>
+              <div class="wallet-field"><label for="expenseAmount" data-i="expenseAmountLabel">金额</label><input id="expenseAmount" aria-describedby="walletExpenseAvailability" type="text" inputmode="decimal" data-ph="moneyAmountPh" placeholder="例如：25.00"></div>
+              <div class="wallet-field"><label for="expenseCategory" data-i="expenseCategoryLabel">分类（可选）</label><input id="expenseCategory" aria-describedby="walletExpenseAvailability" data-ph="expenseCategoryPh" placeholder="例如：餐饮"></div>
+              <div class="wallet-field wallet-wide"><label for="expenseSpentAt" data-i="expenseTimeLabel">消费时间</label><input id="expenseSpentAt" aria-describedby="walletExpenseAvailability" type="datetime-local"></div>
             </div>
-            <div class="row"><button type="button" class="btn full" id="saveExpenseButton" onclick="addExpense()" data-i="saveExpense">保存消费</button></div>
+            <div class="row"><button type="button" class="btn full" id="saveExpenseButton" aria-describedby="walletExpenseAvailability" onclick="addExpense()" data-i="saveExpense">保存消费</button></div>
           </div>
 
           <div class="card manga-panel wallet-timeline-panel">
@@ -763,7 +765,7 @@ const I18N={
    navToday:"今日",navPool:"成长池",navGoals:"目标",navFocus:"专注",navLife:"生活",
    nutritionTitle:"营养",walletTitle:"钱包",journalTitle:"记录",
    calorieTargetLabel:"每日热量目标",saveFavoriteFood:"收藏食物",foodNameLabel:"食物",foodNamePh:"例如：鸡蛋",foodPortionLabel:"份量",foodPortionPh:"例如：2 个",foodModeLabel:"热量录入方式",foodModeManual:"手动",foodModeEstimate:"估算",estimateCalories:"估算热量",foodCaloriesLabel:"热量 (kcal)",foodEatenAtLabel:"进食时间",saveFood:"保存食物",updateFood:"更新食物",previousDate:"前一天",nextDate:"后一天",editFood:"编辑食物",deleteFood:"删除食物",foodManualNeeded:"未找到可用估算，请手动填写热量。",foodNameNeeded:"请填写食物名称。",foodCaloriesInvalid:"请填写有效热量。",foodDateInvalid:"请选择有效进食时间。",foodStoreError:"保存失败，表单内容已保留。",foodSaved:"食物已保存。",foodUpdated:"食物已更新。",foodDeleted:"食物已删除。",foodFavoriteSaved:"已收藏这个食物。",foodEmptyDay:"这一天还没有饮食记录。",caloriesConsumed:"已摄入",caloriesRemaining:"剩余",calorieUnit:"千卡",
-   budgetTotalLabel:"周期总金额",budgetSavingsLabel:"建议储蓄比例 (%)",budgetStartLabel:"开始日期",budgetPeriodLabel:"周期单位",budgetPeriodCountLabel:"周期数量",budgetPeriodDay:"天",budgetPeriodWeek:"周",budgetPeriodMonth:"月",budgetPeriodYear:"年",moneyAmountPh:"例如：875.00",createBudget:"开始预算周期",walletNoCycle:"还没有进行中的预算周期。",walletSummaryTitle:"本周期",walletTotalLabel:"总额",walletSavedLabel:"建议储蓄",walletSpendableLabel:"可用零花钱",walletTodayLabel:"今日剩余",walletSpentLabel:"今日已花",walletNegativeNote:"今天暂时超出额度也没关系，这个差额会平静地结转到下一天。",walletCycleEndTitle:"这个周期已经结束",walletCycleEndDesc:"选择下一步前不会自动续期，也不会影响你继续使用其他页面。",walletCarryLabel:"把最终余额（包括负数）带到下一周期",walletRechargeLabel:"充值后的新总额",walletRenewSame:"沿用设置",walletRenewRecharge:"充值并续期",walletRenewPause:"暂停预算",expenseTitle:"记一笔消费",expenseNameLabel:"消费名称",expenseNamePh:"例如：午餐",expenseAmountLabel:"金额",expenseCategoryLabel:"分类（可选）",expenseCategoryPh:"例如：餐饮",expenseTimeLabel:"消费时间",saveExpense:"保存消费",updateExpense:"更新消费",expenseTimelineTitle:"消费时间线",editExpense:"编辑消费",deleteExpense:"删除消费",expenseEmpty:"这个周期还没有消费记录。",walletCycleDates:"周期",walletCycleInvalid:"请填写有效的金额、储蓄比例、开始日期和正数周期。",walletNoActiveCycle:"请先开始一个预算周期。",expenseNameNeeded:"请填写消费名称。",expenseAmountInvalid:"请填写有效金额。",expenseDateInvalid:"请选择有效消费时间。",expenseOutsideCycle:"消费时间需要在当前预算周期内。",walletRechargeInvalid:"请填写有效的新总额。",walletCycleNotEnded:"当前周期还没有结束。",walletStoreError:"保存失败，表单内容已保留。",walletCycleSaved:"预算周期已开始。",expenseSaved:"消费已保存。",expenseUpdated:"消费已更新。",expenseDeleted:"消费已删除。",walletRenewed:"新预算周期已开始。",walletPaused:"预算已暂停。",
+   budgetTotalLabel:"周期总金额",budgetSavingsLabel:"建议储蓄比例 (%)",budgetStartLabel:"开始日期",budgetPeriodLabel:"周期单位",budgetPeriodCountLabel:"周期数量",budgetPeriodDay:"天",budgetPeriodWeek:"周",budgetPeriodMonth:"月",budgetPeriodYear:"年",moneyAmountPh:"例如：875.00",createBudget:"开始预算周期",walletNoCycle:"还没有进行中的预算周期。",walletSummaryTitle:"本周期",walletTotalLabel:"总额",walletSavedLabel:"建议储蓄",walletSpendableLabel:"可用零花钱",walletTodayLabel:"今日剩余",walletSpentLabel:"今日已花",walletNegativeNote:"今天暂时超出额度也没关系，这个差额会平静地结转到下一天。",walletCycleEndTitle:"这个周期已经结束",walletCycleEndDesc:"选择下一步前不会自动续期，也不会影响你继续使用其他页面。",walletCarryLabel:"把最终余额（包括负数）带到下一周期",walletRechargeLabel:"充值后的新总额",walletRenewSame:"沿用设置",walletRenewRecharge:"充值并续期",walletRenewPause:"暂停预算",expenseTitle:"记一笔消费",expenseNameLabel:"消费名称",expenseNamePh:"例如：午餐",expenseAmountLabel:"金额",expenseCategoryLabel:"分类（可选）",expenseCategoryPh:"例如：餐饮",expenseTimeLabel:"消费时间",saveExpense:"保存消费",updateExpense:"更新消费",expenseTimelineTitle:"消费时间线",editExpense:"编辑消费",deleteExpense:"删除消费",expenseEmpty:"这个周期还没有消费记录。",expenseCycleEnded:"本周期已经结束。续期后即可继续记账。",walletCycleDates:"周期（含首尾）",walletCycleInvalid:"请填写有效的金额、储蓄比例、开始日期和正数周期。",walletNoActiveCycle:"请先开始一个预算周期。",expenseNameNeeded:"请填写消费名称。",expenseAmountInvalid:"请填写有效金额。",expenseDateInvalid:"请选择有效消费时间。",expenseOutsideCycle:"消费时间需要在当前预算周期内。",walletRechargeInvalid:"请填写有效的新总额。",walletCycleNotEnded:"当前周期还没有结束。",walletStoreError:"保存失败，表单内容已保留。",walletCycleSaved:"预算周期已开始。",expenseSaved:"消费已保存。",expenseUpdated:"消费已更新。",expenseDeleted:"消费已删除。",walletRenewed:"新预算周期已开始。",walletPaused:"预算已暂停。",
    emptyTask:"还没有任务，加一个吧",emptyIdea:"成长池是空的～想法随手记这里",
    emptyGoal:"还没有目标。目标是方向，不是压力。",emptyLog:"还没有记录。从今天开始吧。",
    savedLog:"记录已保存",movedTask:"已移到今日任务",newDayReset:"新的一天，精力已经重新归零。昨天没做完的事放回成长池了。",days:["一","二","三","四","五","六","日"],
@@ -790,7 +792,7 @@ const I18N={
    navToday:"Today",navPool:"Pool",navGoals:"Goals",navFocus:"Focus",navLife:"Life",
    nutritionTitle:"Nutrition",walletTitle:"Wallet",journalTitle:"Journal",
    calorieTargetLabel:"Daily calorie target",saveFavoriteFood:"Favorite food",foodNameLabel:"Food",foodNamePh:"e.g. Eggs",foodPortionLabel:"Portion",foodPortionPh:"e.g. 2 pieces",foodModeLabel:"Calorie entry mode",foodModeManual:"Manual",foodModeEstimate:"Estimate",estimateCalories:"Estimate calories",foodCaloriesLabel:"Calories (kcal)",foodEatenAtLabel:"Eaten at",saveFood:"Save food",updateFood:"Update food",previousDate:"Previous day",nextDate:"Next day",editFood:"Edit food",deleteFood:"Delete food",foodManualNeeded:"No estimate found. Enter calories manually.",foodNameNeeded:"Enter a food name.",foodCaloriesInvalid:"Enter valid calories.",foodDateInvalid:"Choose a valid time.",foodStoreError:"Could not save. Your form is unchanged.",foodSaved:"Food saved.",foodUpdated:"Food updated.",foodDeleted:"Food deleted.",foodFavoriteSaved:"Favorite saved.",foodEmptyDay:"No food logged for this day.",caloriesConsumed:"consumed",caloriesRemaining:"remaining",calorieUnit:"kcal",
-   budgetTotalLabel:"Cycle total",budgetSavingsLabel:"Suggested savings (%)",budgetStartLabel:"Start date",budgetPeriodLabel:"Period unit",budgetPeriodCountLabel:"Period count",budgetPeriodDay:"Day",budgetPeriodWeek:"Week",budgetPeriodMonth:"Month",budgetPeriodYear:"Year",moneyAmountPh:"e.g. 875.00",createBudget:"Start budget cycle",walletNoCycle:"No budget cycle is active yet.",walletSummaryTitle:"This cycle",walletTotalLabel:"Total",walletSavedLabel:"Suggested savings",walletSpendableLabel:"Spending allowance",walletTodayLabel:"Left today",walletSpentLabel:"Spent today",walletNegativeNote:"It is okay to be over today's amount. The difference will carry calmly into the next day.",walletCycleEndTitle:"This cycle has ended",walletCycleEndDesc:"Nothing renews until you choose. You can keep using every other page.",walletCarryLabel:"Carry the final balance (including a negative one) into the next cycle",walletRechargeLabel:"New total after recharge",walletRenewSame:"Use same settings",walletRenewRecharge:"Recharge and renew",walletRenewPause:"Pause budgeting",expenseTitle:"Log an expense",expenseNameLabel:"Expense name",expenseNamePh:"e.g. Lunch",expenseAmountLabel:"Amount",expenseCategoryLabel:"Category (optional)",expenseCategoryPh:"e.g. Food",expenseTimeLabel:"Spent at",saveExpense:"Save expense",updateExpense:"Update expense",expenseTimelineTitle:"Expense timeline",editExpense:"Edit expense",deleteExpense:"Delete expense",expenseEmpty:"No expenses in this cycle yet.",walletCycleDates:"Cycle",walletCycleInvalid:"Enter a valid amount, savings percentage, start date, and positive period.",walletNoActiveCycle:"Start a budget cycle first.",expenseNameNeeded:"Enter an expense name.",expenseAmountInvalid:"Enter a valid amount.",expenseDateInvalid:"Choose a valid expense time.",expenseOutsideCycle:"The expense time must be within the active budget cycle.",walletRechargeInvalid:"Enter a valid new total.",walletCycleNotEnded:"The current cycle has not ended yet.",walletStoreError:"Could not save. Your form is unchanged.",walletCycleSaved:"Budget cycle started.",expenseSaved:"Expense saved.",expenseUpdated:"Expense updated.",expenseDeleted:"Expense deleted.",walletRenewed:"New budget cycle started.",walletPaused:"Budgeting paused.",
+   budgetTotalLabel:"Cycle total",budgetSavingsLabel:"Suggested savings (%)",budgetStartLabel:"Start date",budgetPeriodLabel:"Period unit",budgetPeriodCountLabel:"Period count",budgetPeriodDay:"Day",budgetPeriodWeek:"Week",budgetPeriodMonth:"Month",budgetPeriodYear:"Year",moneyAmountPh:"e.g. 875.00",createBudget:"Start budget cycle",walletNoCycle:"No budget cycle is active yet.",walletSummaryTitle:"This cycle",walletTotalLabel:"Total",walletSavedLabel:"Suggested savings",walletSpendableLabel:"Spending allowance",walletTodayLabel:"Left today",walletSpentLabel:"Spent today",walletNegativeNote:"It is okay to be over today's amount. The difference will carry calmly into the next day.",walletCycleEndTitle:"This cycle has ended",walletCycleEndDesc:"Nothing renews until you choose. You can keep using every other page.",walletCarryLabel:"Carry the final balance (including a negative one) into the next cycle",walletRechargeLabel:"New total after recharge",walletRenewSame:"Use same settings",walletRenewRecharge:"Recharge and renew",walletRenewPause:"Pause budgeting",expenseTitle:"Log an expense",expenseNameLabel:"Expense name",expenseNamePh:"e.g. Lunch",expenseAmountLabel:"Amount",expenseCategoryLabel:"Category (optional)",expenseCategoryPh:"e.g. Food",expenseTimeLabel:"Spent at",saveExpense:"Save expense",updateExpense:"Update expense",expenseTimelineTitle:"Expense timeline",editExpense:"Edit expense",deleteExpense:"Delete expense",expenseEmpty:"No expenses in this cycle yet.",expenseCycleEnded:"This cycle has ended. Renew it to log more expenses.",walletCycleDates:"Cycle (inclusive)",walletCycleInvalid:"Enter a valid amount, savings percentage, start date, and positive period.",walletNoActiveCycle:"Start a budget cycle first.",expenseNameNeeded:"Enter an expense name.",expenseAmountInvalid:"Enter a valid amount.",expenseDateInvalid:"Choose a valid expense time.",expenseOutsideCycle:"The expense time must be within the active budget cycle.",walletRechargeInvalid:"Enter a valid new total.",walletCycleNotEnded:"The current cycle has not ended yet.",walletStoreError:"Could not save. Your form is unchanged.",walletCycleSaved:"Budget cycle started.",expenseSaved:"Expense saved.",expenseUpdated:"Expense updated.",expenseDeleted:"Expense deleted.",walletRenewed:"New budget cycle started.",walletPaused:"Budgeting paused.",
    emptyTask:"No tasks yet. Add one.",emptyIdea:"Your growth pool is empty — jot ideas here.",
    emptyGoal:"No goals yet. A goal is a direction, not pressure.",emptyLog:"No entries yet. Start today.",
    savedLog:"Entry saved",movedTask:"Moved to today's tasks",newDayReset:"A new day starts with fresh energy. Yesterday's unfinished tasks are back in your Growth Pool.",days:["M","T","W","T","F","S","S"],
@@ -924,7 +926,7 @@ function toggleLang(){ lang = lang==='zh'?'en':'zh'; localStorage.setItem('ll_la
 /* ============ storage ============ */
 const DB={
   get(k,d){try{const v=localStorage.getItem('ll_'+k);return v===null?d:JSON.parse(v)}catch(e){return d}},
-  set(k,v){try{localStorage.setItem('ll_'+k,JSON.stringify(v))}catch(e){}}
+  set(k,v){try{localStorage.setItem('ll_'+k,JSON.stringify(v));return true}catch(e){return false}}
 };
 function localDayKey(date=new Date()){
   const year=date.getFullYear();
@@ -1430,6 +1432,18 @@ function budgetDayCount(startDay,endExclusive){
   if(days<=0)throw new RangeError('Budget period must span at least one day');
   return days;
 }
+function inferBudgetPeriod(startDay,endExclusive){
+  const start=budgetDayDate(startDay),end=budgetDayDate(endExclusive);
+  const yearCount=end.getFullYear()-start.getFullYear();
+  if(yearCount>0&&budgetEndExclusive(startDay,'year',yearCount)===endExclusive){
+    return {periodUnit:'year',periodCount:yearCount};
+  }
+  const monthCount=(end.getFullYear()-start.getFullYear())*12+end.getMonth()-start.getMonth();
+  if(monthCount>0&&budgetEndExclusive(startDay,'month',monthCount)===endExclusive){
+    return {periodUnit:'month',periodCount:monthCount};
+  }
+  return {periodUnit:'day',periodCount:budgetDayCount(startDay,endExclusive)};
+}
 function allocateDailyCents(spendableCents,days){
   if(!Number.isSafeInteger(spendableCents))throw new TypeError('Spendable cents must be an integer');
   if(!Number.isInteger(days)||days<=0)throw new RangeError('Budget period must span at least one day');
@@ -1478,8 +1492,17 @@ function normalizeBudgetCycle(raw){
   const {id,startDay,endExclusive,totalCents}=raw;
   const savingsBps=raw.savingsBps??2000,openingCarryCents=raw.openingCarryCents??0;
   if(typeof startDay!=='string'||typeof endExclusive!=='string'||!Number.isSafeInteger(totalCents)||totalCents<0||!Number.isSafeInteger(savingsBps)||savingsBps<0||savingsBps>10000||!Number.isSafeInteger(openingCarryCents))return null;
-  try{budgetDayCount(startDay,endExclusive);}catch(error){return null;}
-  return {...raw,id,startDay,endExclusive,totalCents,savingsBps,openingCarryCents};
+  let period;
+  try{
+    budgetDayCount(startDay,endExclusive);
+    const hasReusablePeriod=['day','week','month','year'].includes(raw.periodUnit)
+      &&Number.isInteger(raw.periodCount)&&raw.periodCount>0
+      &&budgetEndExclusive(startDay,raw.periodUnit,raw.periodCount)===endExclusive;
+    period=hasReusablePeriod
+      ?{periodUnit:raw.periodUnit,periodCount:raw.periodCount}
+      :inferBudgetPeriod(startDay,endExclusive);
+  }catch(error){return null;}
+  return {...raw,id,startDay,endExclusive,totalCents,savingsBps,openingCarryCents,...period};
 }
 function normalizeExpense(raw){
   if(!raw||typeof raw!=='object'||(typeof raw.id!=='string'&&typeof raw.id!=='number')||String(raw.id).trim()==='')return null;
@@ -1487,6 +1510,24 @@ function normalizeExpense(raw){
   if(!Number.isSafeInteger(amountCents)||amountCents<0||typeof spentAt!=='string'||!Number.isFinite(Date.parse(spentAt)))return null;
   if(raw.deletedAt!=null&&(typeof raw.deletedAt!=='string'||!Number.isFinite(Date.parse(raw.deletedAt))))return null;
   return {...raw,id,amountCents,spentAt,deletedAt:raw.deletedAt??null};
+}
+function normalizeWalletStatePayload(raw){
+  if(!raw||typeof raw!=='object'||raw.version!==1||!Array.isArray(raw.budgetCycles)
+    ||!Array.isArray(raw.expenses)||!Object.hasOwn(raw,'activeBudgetCycleId'))return null;
+  const budgetCycles=raw.budgetCycles.map(normalizeBudgetCycle);
+  const expenses=raw.expenses.map(normalizeExpense);
+  if(budgetCycles.some(cycle=>cycle===null)||expenses.some(expense=>expense===null))return null;
+  const activeBudgetCycleId=raw.activeBudgetCycleId;
+  if(activeBudgetCycleId!=null&&!budgetCycles.some(cycle=>cycle.id===activeBudgetCycleId))return null;
+  return {version:1,budgetCycles,expenses,activeBudgetCycleId};
+}
+function walletStatePayload(state=S){
+  return {
+    version:1,
+    budgetCycles:state.budgetCycles,
+    expenses:state.expenses,
+    activeBudgetCycleId:state.activeBudgetCycleId
+  };
 }
 function normalizeTaskDays(tasks,fallbackDay){
   return tasks.map(task=>normalizeTask(task,fallbackDay));
@@ -1517,11 +1558,9 @@ function migrateDailyState(state,nextDay){
 const today=()=>localDayKey();
 let currentDayKey=localDayKey();
 const storedLastDay=DB.get('lastDay',currentDayKey);
-const storedWalletState=DB.get('walletState',null);
-const storedBudgetCycles=storedWalletState&&Array.isArray(storedWalletState.budgetCycles)
-  ?storedWalletState.budgetCycles:DB.get('budgetCycles',[]);
-const storedExpenses=storedWalletState&&Array.isArray(storedWalletState.expenses)
-  ?storedWalletState.expenses:DB.get('expenses',[]);
+const storedWalletState=normalizeWalletStatePayload(DB.get('walletState',null));
+const storedBudgetCycles=storedWalletState?storedWalletState.budgetCycles:DB.get('budgetCycles',[]);
+const storedExpenses=storedWalletState?storedWalletState.expenses:DB.get('expenses',[]);
 
 let S={
   companion:DB.get('companion', 'cat')==='human'?'human':'cat',
@@ -1545,7 +1584,12 @@ const storedActiveBudgetCycleId=storedWalletState&&Object.hasOwn(storedWalletSta
   ?storedWalletState.activeBudgetCycleId:DB.get('activeBudgetCycleId',null);
 S.activeBudgetCycleId=S.budgetCycles.some(cycle=>cycle.id===storedActiveBudgetCycleId)?storedActiveBudgetCycleId:null;
 function saveLifeState(){
-  for(const key of ['calorieTarget','foodEntries','favoriteFoods','budgetCycles','expenses','activeBudgetCycleId'])DB.set(key,S[key]);
+  let saved=true;
+  for(const key of ['calorieTarget','foodEntries','favoriteFoods']){
+    if(!DB.set(key,S[key]))saved=false;
+  }
+  if(!DB.set('walletState',walletStatePayload()))saved=false;
+  return saved;
 }
 
 /* 跨天重置：使用设备本地日历日，未完成任务回到成长池 */
@@ -2566,12 +2610,7 @@ function restoreWalletSnapshot(snapshot){
 }
 function persistWalletState(){
   try{
-    localStorage.setItem(`ll_${WALLET_STORAGE_KEY}`,JSON.stringify({
-      version:1,
-      budgetCycles:S.budgetCycles,
-      expenses:S.expenses,
-      activeBudgetCycleId:S.activeBudgetCycleId
-    }));
+    localStorage.setItem(`ll_${WALLET_STORAGE_KEY}`,JSON.stringify(walletStatePayload()));
     return true;
   }catch(error){
     return false;
@@ -2579,6 +2618,23 @@ function persistWalletState(){
 }
 function activeBudgetCycle(){
   return S.budgetCycles.find(cycle=>cycle.id===S.activeBudgetCycleId)||null;
+}
+function budgetCycleHasEnded(cycle,todayDay=localDayKey()){
+  return Boolean(cycle)&&budgetDayOrdinal(todayDay)>=budgetDayOrdinal(cycle.endExclusive);
+}
+function budgetRenewalStartDay(endExclusive,todayDay=localDayKey()){
+  return budgetDayOrdinal(todayDay)>budgetDayOrdinal(endExclusive)?todayDay:endExclusive;
+}
+function budgetInclusiveEndDay(endExclusive){
+  const lastDay=budgetDayDate(endExclusive);
+  lastDay.setDate(lastDay.getDate()-1);
+  return budgetDayKey(lastDay);
+}
+function setExpenseControlsDisabled(disabled,message=''){
+  for(const id of ['expenseName','expenseAmount','expenseSpentAt','expenseCategory','saveExpenseButton']){
+    document.getElementById(id).disabled=disabled;
+  }
+  document.getElementById('walletExpenseAvailability').textContent=message;
 }
 function expenseBelongsToCycle(expense,cycle){
   if(!expense||!cycle)return false;
@@ -2646,6 +2702,7 @@ function resetExpenseForm(){
 function addExpense(){
   const cycle=activeBudgetCycle();
   if(!cycle){showWalletStatus(T('walletNoActiveCycle'));return false;}
+  if(budgetCycleHasEnded(cycle)){showWalletStatus(T('expenseCycleEnded'));return false;}
   const result=expenseFromForm(cycle);
   if(result.error){showWalletStatus(result.error);return false;}
   const snapshot=walletSnapshot(),now=new Date().toISOString();
@@ -2733,6 +2790,7 @@ function renderWallet(){
   empty.hidden=Boolean(cycle);
   endCard.hidden=true;
   if(!cycle){
+    setExpenseControlsDisabled(false,'');
     document.getElementById('expenseTimeline').innerHTML=`<div class="empty">${esc(T('expenseEmpty'))}</div>`;
     return true;
   }
@@ -2740,12 +2798,12 @@ function renderWallet(){
   const cycleExpenses=expensesForBudgetCycle(cycle);
   const ledger=computeBudgetLedger(cycle,cycleExpenses,todayKey);
   const todayLedger=ledger.find(day=>day.dayKey===todayKey)||null;
-  const ended=budgetDayOrdinal(todayKey)>=budgetDayOrdinal(cycle.endExclusive);
+  const ended=budgetCycleHasEnded(cycle,todayKey);
   const latestLedger=ledger.length?ledger[ledger.length-1]:null;
   const todayBalance=todayLedger?todayLedger.carryCents:ended&&latestLedger?latestLedger.carryCents:0;
   const savedCents=Math.round(cycle.totalCents*cycle.savingsBps/10000);
   const spendableCents=cycle.totalCents-savedCents+cycle.openingCarryCents;
-  document.getElementById('walletCycleDates').textContent=`${T('walletCycleDates')}: ${cycle.startDay} → ${cycle.endExclusive}`;
+  document.getElementById('walletCycleDates').textContent=`${T('walletCycleDates')}: ${cycle.startDay} → ${budgetInclusiveEndDay(cycle.endExclusive)}`;
   document.getElementById('walletTotal').textContent=formatCny(cycle.totalCents);
   document.getElementById('walletSaved').textContent=formatCny(savedCents);
   document.getElementById('walletSpendable').textContent=formatCny(spendableCents);
@@ -2756,6 +2814,7 @@ function renderWallet(){
   const negativeNote=document.getElementById('walletNegativeNote');
   negativeNote.hidden=todayBalance>=0;
   endCard.hidden=!ended;
+  setExpenseControlsDisabled(ended,ended?T('expenseCycleEnded'):'');
   renderExpenseTimeline(cycle);
   return true;
 }
@@ -2778,7 +2837,7 @@ function renewBudgetCycle(mode,carry){
     const periodUnit=['day','week','month','year'].includes(cycle.periodUnit)?cycle.periodUnit:'day';
     const periodCount=Number.isInteger(cycle.periodCount)&&cycle.periodCount>0
       ?cycle.periodCount:budgetDayCount(cycle.startDay,cycle.endExclusive);
-    const startDay=cycle.endExclusive;
+    const startDay=budgetRenewalStartDay(cycle.endExclusive);
     let endExclusive;
     try{endExclusive=budgetEndExclusive(startDay,periodUnit,periodCount);}catch(error){return false;}
     const finalLedger=computeBudgetLedger(cycle,expensesForBudgetCycle(cycle),null);
@@ -2833,7 +2892,10 @@ document.getElementById('moodPick').addEventListener('click',e=>{
 
 /* ============ utils ============ */
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-function renderAll(){ renderTasks(); renderIdeas(); renderGoals(); renderLogs(); renderStats(); renderNutrition(); renderWallet(); saveLifeState(); }
+function renderAll(){
+  renderTasks();renderIdeas();renderGoals();renderLogs();renderStats();renderNutrition();renderWallet();
+  if(!saveLifeState())showWalletStatus(T('walletStoreError'));
+}
 document.getElementById('taskName').addEventListener('keydown',e=>{if(e.key==='Enter')addTask()});
 document.getElementById('ideaName').addEventListener('keydown',e=>{if(e.key==='Enter')addIdea()});
 document.getElementById('goalName').addEventListener('keydown',e=>{if(e.key==='Enter')addGoal()});

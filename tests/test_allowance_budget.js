@@ -16,8 +16,8 @@ assert.notEqual(end, -1, 'budget block end marker must exist');
 
 const context = {Date};
 vm.createContext(context);
-vm.runInContext(`${script.slice(localDayStart, localDayEnd)}\n${script.slice(start, end)}\n;globalThis.allowance={moneyToCents,budgetEndExclusive,budgetDayCount,allocateDailyCents,computeBudgetLedger};`, context);
-const {moneyToCents, budgetEndExclusive, budgetDayCount, allocateDailyCents, computeBudgetLedger} = context.allowance;
+vm.runInContext(`${script.slice(localDayStart, localDayEnd)}\n${script.slice(start, end)}\n;globalThis.allowance={moneyToCents,budgetEndExclusive,budgetDayCount,allocateDailyCents,computeBudgetLedger,normalizeBudgetCycle};`, context);
+const {moneyToCents, budgetEndExclusive, budgetDayCount, allocateDailyCents, computeBudgetLedger, normalizeBudgetCycle} = context.allowance;
 
 assert.equal(moneyToCents('12.34'), 1234);
 assert.equal(moneyToCents('-1'), null);
@@ -93,6 +93,22 @@ const timezoneLedger = computeBudgetLedger({
 assert.equal(timezoneLedger.find(day => day.dayKey === localOffsetDay).spentCents, 25);
 assert.equal(timezoneLedger.reduce((total, day) => total + day.spentCents, 0), 25);
 
+const legacyMonth = normalizeBudgetCycle({
+  id: 'legacy-month', startDay: '2026-01-01', endExclusive: '2026-02-01', totalCents: 10000,
+});
+assert.equal(legacyMonth.periodUnit, 'month');
+assert.equal(legacyMonth.periodCount, 1);
+const legacyLeapYear = normalizeBudgetCycle({
+  id: 'legacy-year', startDay: '2024-02-29', endExclusive: '2025-03-01', totalCents: 10000,
+});
+assert.equal(legacyLeapYear.periodUnit, 'year');
+assert.equal(legacyLeapYear.periodCount, 1);
+const legacyIrregular = normalizeBudgetCycle({
+  id: 'legacy-days', startDay: '2026-01-01', endExclusive: '2026-01-10', totalCents: 10000,
+});
+assert.equal(legacyIrregular.periodUnit, 'day');
+assert.equal(legacyIrregular.periodCount, 9);
+
 const walletStart = script.indexOf('/* ============ 钱包 ============ */');
 const walletEnd = script.indexOf('/* ============ 记录 ============ */', walletStart);
 assert.notEqual(walletStart, -1, 'Wallet timeline UI controller must exist');
@@ -105,6 +121,7 @@ function element(value = '') {
     innerHTML: '',
     hidden: false,
     checked: false,
+    disabled: false,
     focused: false,
     attributes: {},
     classList: {
@@ -126,7 +143,7 @@ const elements = Object.fromEntries([
   'walletSpent', 'walletNegativeNote', 'walletCycleDates', 'expenseName', 'expenseAmount',
   'expenseSpentAt', 'expenseCategory', 'expenseTimeline', 'walletCycleEnd',
   'budgetCarryForward', 'budgetRechargeTotal', 'walletFormStatus', 'saveExpenseButton',
-  'budgetCycleForm', 'walletActiveCycle', 'walletEmptyState',
+  'budgetCycleForm', 'walletActiveCycle', 'walletEmptyState', 'walletExpenseAvailability',
 ].map(id => [id, element()]));
 
 const storage = new Map();
@@ -166,7 +183,7 @@ context.currentLocalDateTimeValue = (date = new Date()) => {
   const pad = value => String(value).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
-vm.runInContext(`${script.slice(walletStart, walletEnd)}\n;globalThis.wallet={createBudgetCycle,renderWallet,addExpense,deleteExpense,setExpenseForEdit,renewBudgetCycle,formatCny};`, context);
+vm.runInContext(`${script.slice(walletStart, walletEnd)}\n;globalThis.wallet={createBudgetCycle,renderWallet,addExpense,deleteExpense,setExpenseForEdit,renewBudgetCycle,formatCny,budgetRenewalStartDay};`, context);
 const wallet = context.wallet;
 
 elements.budgetTotalAmount.value = '875.00';
@@ -186,6 +203,14 @@ assert.equal(weeklyCycle.periodCount, 1);
 assert.equal(context.S.activeBudgetCycleId, weeklyCycle.id);
 assert.match(elements.walletTotal.textContent, /875[.,]00/);
 assert.match(wallet.formatCny(1234), /12[.,]34/);
+const enCurrency=wallet.formatCny(1234);
+context.lang='zh';
+const zhCurrency=wallet.formatCny(1234);
+assert.match(zhCurrency,/¥/);
+assert.notEqual(zhCurrency,enCurrency,'currency formatting follows the active language');
+context.lang='en';
+assert.match(elements.walletCycleDates.textContent,/2026-08-10.*2026-08-16/);
+assert.doesNotMatch(elements.walletCycleDates.textContent,/2026-08-17/,'endExclusive is not presented as an included date');
 assert.equal(JSON.parse(storage.get('ll_walletState')).budgetCycles[0].totalCents, 87500);
 assert.equal(storage.has('ll_budgetCycles'), false, 'Wallet mutations commit through one atomic payload');
 
@@ -268,18 +293,30 @@ context.S.activeBudgetCycleId = endedCycle.id;
 assert.equal(wallet.renderWallet(), true);
 assert.equal(elements.walletCycleEnd.hidden, false, 'ended cycles wait on an inline decision');
 assert.equal(context.S.activeBudgetCycleId, endedCycle.id, 'rendering never auto-renews');
+for(const id of ['expenseName','expenseAmount','expenseSpentAt','expenseCategory','saveExpenseButton']){
+  assert.equal(elements[id].disabled,true,`${id} is disabled after the cycle ends`);
+}
+assert.equal(elements.walletExpenseAvailability.textContent,'expenseCycleEnded');
 elements.expenseName.value = 'After ended cycle';
 elements.expenseAmount.value = '1.00';
-elements.expenseSpentAt.value = `${todayKey}T14:00`;
-assert.equal(wallet.addExpense(), false, 'a current expense cannot be attached to an ended historical cycle');
-assert.equal(elements.walletFormStatus.textContent, 'expenseOutsideCycle');
+elements.expenseSpentAt.value = '2000-01-02T14:00';
+assert.equal(wallet.addExpense(), false, 'disabled ended cycles also reject an in-range programmatic add');
+assert.equal(elements.walletFormStatus.textContent, 'expenseCycleEnded');
+
+assert.equal(wallet.budgetRenewalStartDay('2026-08-09','2026-08-09'),'2026-08-09','on-time renewal starts at endExclusive');
+assert.equal(wallet.budgetRenewalStartDay('2026-08-09','2026-08-12'),'2026-08-12','delayed renewal starts today');
 
 assert.equal(wallet.renewBudgetCycle('same', true), true);
 const carriedCycle = context.S.budgetCycles.find(item => item.id === context.S.activeBudgetCycleId);
-assert.equal(carriedCycle.startDay, '2000-01-03');
-assert.equal(carriedCycle.endExclusive, '2000-01-05');
+assert.equal(carriedCycle.startDay, todayKey);
+assert.equal(carriedCycle.endExclusive, budgetEndExclusive(todayKey,'day',2));
 assert.equal(carriedCycle.totalCents, 300);
 assert.equal(carriedCycle.openingCarryCents, 200);
+assert.ok(carriedCycle.endExclusive>todayKey,'a delayed renewal is not born expired');
+for(const id of ['expenseName','expenseAmount','expenseSpentAt','expenseCategory','saveExpenseButton']){
+  assert.equal(elements[id].disabled,false,`${id} is re-enabled for the renewed cycle`);
+}
+assert.equal(elements.walletExpenseAvailability.textContent,'');
 
 context.S.activeBudgetCycleId = endedCycle.id;
 elements.budgetRechargeTotal.value = '5.00';
@@ -287,6 +324,17 @@ assert.equal(wallet.renewBudgetCycle('recharge', false), true);
 const rechargedCycle = context.S.budgetCycles.find(item => item.id === context.S.activeBudgetCycleId);
 assert.equal(rechargedCycle.totalCents, 500);
 assert.equal(rechargedCycle.openingCarryCents, 0);
+assert.equal(rechargedCycle.startDay,todayKey);
+
+const delayedLegacyMonth={...legacyMonth,id:'ended-legacy-month',startDay:'2000-01-01',endExclusive:'2000-02-01'};
+context.S.budgetCycles.push(delayedLegacyMonth);
+context.S.activeBudgetCycleId=delayedLegacyMonth.id;
+assert.equal(wallet.renewBudgetCycle('same',false),true);
+const renewedLegacyMonth=context.S.budgetCycles.find(item=>item.id===context.S.activeBudgetCycleId);
+assert.equal(renewedLegacyMonth.periodUnit,'month');
+assert.equal(renewedLegacyMonth.periodCount,1);
+assert.equal(renewedLegacyMonth.startDay,todayKey);
+assert.equal(renewedLegacyMonth.endExclusive,budgetEndExclusive(todayKey,'month',1));
 
 context.S.activeBudgetCycleId = endedCycle.id;
 assert.equal(wallet.renewBudgetCycle('pause', false), true);
