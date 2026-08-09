@@ -104,8 +104,64 @@ class MangaUIContractTests(unittest.TestCase):
         self.assertIn("addEventListener('storage'", HTML)
 
     def test_all_five_views_have_manga_identity(self):
-        for view in ("today", "pool", "goals", "focus", "journal"):
+        for view in ("today", "pool", "goals", "focus", "life"):
             self.assertRegex(HTML, rf'<section class="view manga-view [^"]*" id="v-{view}"')
+
+    def test_life_hub_has_three_accessible_panels(self):
+        self.assertIn(
+            '<section class="view manga-view life-view" id="v-life">',
+            HTML,
+        )
+        self.assertEqual(HTML.count('data-v="life"'), 1)
+        self.assertNotIn('data-v="journal"', HTML)
+
+        tabs = (
+            ("lifeTabNutrition", "lifeNutrition"),
+            ("lifeTabWallet", "lifeWallet"),
+            ("lifeTabJournal", "lifeJournal"),
+        )
+        for tab_id, panel_id in tabs:
+            self.assertRegex(
+                HTML,
+                rf'<button\b(?=[^>]*\bid="{tab_id}")(?=[^>]*\brole="tab")'
+                rf'(?=[^>]*\baria-selected="(?:true|false)")'
+                rf'(?=[^>]*\baria-controls="{panel_id}")[^>]*>',
+            )
+            self.assertRegex(
+                HTML,
+                rf'<section\b(?=[^>]*\bid="{panel_id}")(?=[^>]*\brole="tabpanel")'
+                rf'(?=[^>]*\baria-labelledby="{tab_id}")[^>]*>',
+            )
+
+        for journal_id in ("logText", "moodPick", "logList"):
+            self.assertIn(f'id="{journal_id}"', HTML)
+        for key in ("navLife", "nutritionTitle", "walletTitle"):
+            self.assertEqual(len(re.findall(rf"\b{key}:", HTML)), 2)
+
+        compact = HTML.replace(" ", "")
+        for fragment in (
+            ".life-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))",
+            ".life-tab{min-height:44px",
+            '.life-tab[aria-selected="true"]{background:#ff7f6b',
+            "functionsetLifeTab(tab,focus=true)",
+            "if(v==='life')setLifeTab(activeLifeTab,false)",
+        ):
+            self.assertIn(fragment, compact)
+
+    def test_bilingual_catalogs_have_identical_keys(self):
+        catalogs = re.search(
+            r"const I18N=\{\s*zh:\{(?P<zh>[\s\S]*?)\},\s*en:\{(?P<en>[\s\S]*?)\}\s*\};",
+            HTML,
+        )
+        self.assertIsNotNone(catalogs)
+
+        def catalog_keys(source):
+            return set(re.findall(r"(?:^|,)\s*([A-Za-z]\w*)\s*:", source))
+
+        self.assertEqual(
+            catalog_keys(catalogs.group("zh")),
+            catalog_keys(catalogs.group("en")),
+        )
 
     def test_growth_pool_entry_stacks_without_shrinking_touch_targets(self):
         compact = HTML.replace(" ", "")

@@ -232,6 +232,13 @@ button,input,textarea,select{min-height:44px}
 .bars .b i{border:2px solid var(--line);border-bottom:0;border-radius:0;background:repeating-linear-gradient(135deg,var(--blood) 0 7px,var(--power-pink) 7px 11px)}
 .bars .b span{color:var(--ink);font-weight:900}
 
+/* Life: three inked panels share one compact tab strip. */
+.life-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:0 4px 16px}
+.life-tab{min-height:44px;padding:7px 3px;background:var(--paper);border:3px solid var(--line);color:var(--ink);font:inherit;font-size:12px;font-weight:900;cursor:pointer;box-shadow:2px 2px 0 var(--line)}
+.life-tab[aria-selected="true"]{background:#ff7f6b;color:var(--ink);transform:translate(2px,2px);box-shadow:none}
+.life-panel[hidden]{display:none}
+.life-shell-panel{min-height:150px;background:repeating-linear-gradient(135deg,var(--paper) 0 17px,#fff8e8 17px 34px)}
+
 /* Journal: level film frames; the written copy never tilts. */
 .film-decor{background:radial-gradient(circle at 8px 8px,var(--ink) 0 3px,transparent 4px) 0 0/24px 24px;opacity:.08}
 .journal-view .log{position:relative;margin:12px 4px;padding:18px 16px 18px 26px;background:#fffdf6;border:3px solid var(--line);border-radius:0;box-shadow:4px 4px 0 var(--line);transform:none}
@@ -426,27 +433,48 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
       </div>
     </section>
 
-    <!-- ========== 记录 ========== -->
-    <section class="view manga-view journal-view" id="v-journal">
-      <div class="card manga-panel journal-entry-panel">
-        <div class="manga-decor film-decor" aria-hidden="true"></div>
-        <div class="hint" data-i="jHint">这些记录只存在你自己的手机上，没有人能看到。诚实地写，才对你有用。</div>
-        <h2 class="manga-title" data-i="jTitle">今天做了什么</h2>
-        <textarea id="logText" data-ph="logPh" placeholder="不用写得漂亮。做了什么、什么感觉，随便记两句就行…"></textarea>
-        <div class="muted" id="moodLabel" style="margin-top:10px" data-i="moodLabel">今天状态如何</div>
-        <div class="moodpick" id="moodPick" role="radiogroup" aria-labelledby="moodLabel">
-          <button type="button" role="radio" aria-checked="false" data-m="😖">😖<span data-i="moodAwful">很糟</span></button>
-          <button type="button" role="radio" aria-checked="false" data-m="😕">😕<span data-i="moodLow">低落</span></button>
-          <button type="button" role="radio" aria-checked="true" data-m="😐" class="sel">😐<span data-i="moodNeutral">一般</span></button>
-          <button type="button" role="radio" aria-checked="false" data-m="🙂">🙂<span data-i="moodGood">不错</span></button>
-          <button type="button" role="radio" aria-checked="false" data-m="😄">😄<span data-i="moodGreat">很好</span></button>
+    <!-- ========== 生活 ========== -->
+    <section class="view manga-view life-view" id="v-life">
+      <h2 class="sr-only" id="lifeHubTitle" data-i="navLife">生活</h2>
+      <div class="life-tabs" role="tablist" aria-labelledby="lifeHubTitle">
+        <button type="button" class="life-tab" id="lifeTabNutrition" role="tab" aria-selected="true" aria-controls="lifeNutrition" tabindex="0" onclick="setLifeTab('nutrition')" data-i="nutritionTitle">营养</button>
+        <button type="button" class="life-tab" id="lifeTabWallet" role="tab" aria-selected="false" aria-controls="lifeWallet" tabindex="-1" onclick="setLifeTab('wallet')" data-i="walletTitle">钱包</button>
+        <button type="button" class="life-tab" id="lifeTabJournal" role="tab" aria-selected="false" aria-controls="lifeJournal" tabindex="-1" onclick="setLifeTab('journal')" data-i="journalTitle">记录</button>
+      </div>
+
+      <section class="life-panel" id="lifeNutrition" role="tabpanel" aria-labelledby="lifeTabNutrition">
+        <div class="card manga-panel life-shell-panel">
+          <h2 class="manga-title" data-i="nutritionTitle">营养</h2>
         </div>
-        <div class="row"><button class="btn full" onclick="addLog()" data-i="saveLog">保存记录</button></div>
-      </div>
-      <div class="card manga-panel journal-list-panel">
-        <h2 class="manga-title" data-i="history">历史记录</h2>
-        <div id="logList"></div>
-      </div>
+      </section>
+
+      <section class="life-panel" id="lifeWallet" role="tabpanel" aria-labelledby="lifeTabWallet" hidden>
+        <div class="card manga-panel life-shell-panel">
+          <h2 class="manga-title" data-i="walletTitle">钱包</h2>
+        </div>
+      </section>
+
+      <section class="life-panel journal-view" id="lifeJournal" role="tabpanel" aria-labelledby="lifeTabJournal" hidden>
+        <div class="card manga-panel journal-entry-panel">
+          <div class="manga-decor film-decor" aria-hidden="true"></div>
+          <div class="hint" data-i="jHint">这些记录只存在你自己的手机上，没有人能看到。诚实地写，才对你有用。</div>
+          <h2 class="manga-title" data-i="jTitle">今天做了什么</h2>
+          <textarea id="logText" data-ph="logPh" placeholder="不用写得漂亮。做了什么、什么感觉，随便记两句就行…"></textarea>
+          <div class="muted" id="moodLabel" style="margin-top:10px" data-i="moodLabel">今天状态如何</div>
+          <div class="moodpick" id="moodPick" role="radiogroup" aria-labelledby="moodLabel">
+            <button type="button" role="radio" aria-checked="false" data-m="😖">😖<span data-i="moodAwful">很糟</span></button>
+            <button type="button" role="radio" aria-checked="false" data-m="😕">😕<span data-i="moodLow">低落</span></button>
+            <button type="button" role="radio" aria-checked="true" data-m="😐" class="sel">😐<span data-i="moodNeutral">一般</span></button>
+            <button type="button" role="radio" aria-checked="false" data-m="🙂">🙂<span data-i="moodGood">不错</span></button>
+            <button type="button" role="radio" aria-checked="false" data-m="😄">😄<span data-i="moodGreat">很好</span></button>
+          </div>
+          <div class="row"><button class="btn full" onclick="addLog()" data-i="saveLog">保存记录</button></div>
+        </div>
+        <div class="card manga-panel journal-list-panel">
+          <h2 class="manga-title" data-i="history">历史记录</h2>
+          <div id="logList"></div>
+        </div>
+      </section>
     </section>
   </main>
 
@@ -463,9 +491,9 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
     <button data-v="focus" onclick="go('focus',this)">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 3h6"/></svg>
       <span data-i="navFocus">专注</span></button>
-    <button data-v="journal" onclick="go('journal',this)">
+    <button data-v="life" onclick="go('life',this)">
       <svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 10h8M8 14h6"/></svg>
-      <span data-i="navJournal">记录</span></button>
+      <span data-i="navLife">生活</span></button>
   </nav>
 </div>
 <div class="flashcard-overlay" id="flashcardOverlay" role="dialog" aria-modal="true" aria-labelledby="flashcardTitle" hidden>
@@ -571,7 +599,8 @@ const I18N={
    logPh:"不用写得漂亮。做了什么、什么感觉，随便记两句就行…",moodLabel:"今天状态如何",
    moodAwful:"很糟",moodLow:"低落",moodNeutral:"一般",moodGood:"不错",moodGreat:"很好",
    saveLog:"保存记录",history:"历史记录",
-   navToday:"今日",navPool:"成长池",navGoals:"目标",navFocus:"专注",navJournal:"记录",
+   navToday:"今日",navPool:"成长池",navGoals:"目标",navFocus:"专注",navLife:"生活",
+   nutritionTitle:"营养",walletTitle:"钱包",journalTitle:"记录",
    emptyTask:"还没有任务，加一个吧",emptyIdea:"成长池是空的～想法随手记这里",
    emptyGoal:"还没有目标。目标是方向，不是压力。",emptyLog:"还没有记录。从今天开始吧。",
    savedLog:"记录已保存",movedTask:"已移到今日任务",newDayReset:"新的一天，精力已经重新归零。昨天没做完的事放回成长池了。",days:["一","二","三","四","五","六","日"],
@@ -595,7 +624,8 @@ const I18N={
    logPh:"No need to make it pretty. What you did, how it felt. Two lines is enough…",moodLabel:"How was today?",
    moodAwful:"Awful",moodLow:"Low",moodNeutral:"Okay",moodGood:"Good",moodGreat:"Great",
    saveLog:"Save entry",history:"Past entries",
-   navToday:"Today",navPool:"Pool",navGoals:"Goals",navFocus:"Focus",navJournal:"Journal",
+   navToday:"Today",navPool:"Pool",navGoals:"Goals",navFocus:"Focus",navLife:"Life",
+   nutritionTitle:"Nutrition",walletTitle:"Wallet",journalTitle:"Journal",
    emptyTask:"No tasks yet. Add one.",emptyIdea:"Your growth pool is empty — jot ideas here.",
    emptyGoal:"No goals yet. A goal is a direction, not pressure.",emptyLog:"No entries yet. Start today.",
    savedLog:"Entry saved",movedTask:"Moved to today's tasks",newDayReset:"A new day starts with fresh energy. Yesterday's unfinished tasks are back in your Growth Pool.",days:["M","T","W","T","F","S","S"],
@@ -1375,9 +1405,25 @@ DB.set('tasks',S.tasks);
 let pickedEnergy=25, pickedMood='😐';
 
 /* ============ nav ============ */
+const LIFE_TABS=['nutrition','wallet','journal'];
+let activeLifeTab='nutrition';
+function setLifeTab(tab,focus=true){
+  if(!LIFE_TABS.includes(tab))return;
+  activeLifeTab=tab;
+  LIFE_TABS.forEach(name=>{
+    const selected=name===tab;
+    const button=document.getElementById(`lifeTab${name[0].toUpperCase()}${name.slice(1)}`);
+    const panel=document.getElementById(`life${name[0].toUpperCase()}${name.slice(1)}`);
+    button.setAttribute('aria-selected',String(selected));
+    button.tabIndex=selected?0:-1;
+    panel.hidden=!selected;
+  });
+  if(focus)document.getElementById(`lifeTab${tab[0].toUpperCase()}${tab.slice(1)}`).focus();
+}
 function go(v,el){
   document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));
   document.getElementById('v-'+v).classList.add('active');
+  if(v==='life')setLifeTab(activeLifeTab,false);
   document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
   document.querySelector('main').scrollTop=0;
