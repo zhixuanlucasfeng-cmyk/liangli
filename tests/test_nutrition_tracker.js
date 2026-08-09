@@ -133,6 +133,18 @@ const uiContext = {
   Date,
   Math,
 };
+uiContext.saveLifeState = () => {
+  try {
+    localStorage.setItem('ll_lifeState', JSON.stringify({
+      version: 1,
+      calorieTarget: uiState.calorieTarget,
+      foodEntries: uiState.foodEntries,
+      favoriteFoods: uiState.favoriteFoods,
+      walletState: {version: 1, budgetCycles: [], expenses: [], activeBudgetCycleId: null},
+    }));
+    return true;
+  } catch (error) { return false; }
+};
 vm.createContext(uiContext);
 vm.runInContext(
   `${script.slice(uiStart, uiEnd)}\n;globalThis.nutritionUI={`+
@@ -188,7 +200,7 @@ assert.equal(elements.get('foodCalories').value, '500');
 assert.equal(elements.get('foodEatenAt').value, '2026-08-09T12:30');
 
 elements.get('foodName').value='午饭';
-failGetAt=1;
+failSetAt=1;
 assert.equal(ui.addFoodEntry(), false);
 resetStorageFaults();
 assert.equal(uiState.foodEntries.length, 0, 'failed storage rolls state back');
@@ -198,20 +210,9 @@ assert.equal(elements.get('foodCalories').value, '500');
 assert.equal(elements.get('foodEatenAt').value, '2026-08-09T12:30');
 assert.equal(elements.get('foodFormStatus').textContent, messages.foodStoreError);
 
-for(const key of ['calorieTarget','foodEntries','favoriteFoods'])stored.set(`ll_${key}`,`old-${key}`);
-failSetAt=2;
-failSetsAfterFailure=true;
-assert.equal(ui.addFoodEntry(), false, 'a mid-write failure stays a failure when rollback writes also fail');
-resetStorageFaults();
-assert.equal(uiState.foodEntries.length, 0, 'mid-write storage failures roll memory back');
-assert.equal(elements.get('foodName').value, '午饭', 'mid-write errors preserve the form');
-assert.equal(elements.get('foodPortion').value, '1 碗');
-assert.equal(elements.get('foodCalories').value, '500');
-assert.equal(elements.get('foodEatenAt').value, '2026-08-09T12:30');
-assert.equal(elements.get('foodFormStatus').textContent, messages.foodStoreError);
-
 assert.equal(ui.addFoodEntry(), true);
 assert.equal(uiState.foodEntries.length, 1);
+assert.equal(JSON.parse(stored.get('ll_lifeState')).foodEntries.length, 1, 'nutrition writes the single canonical Life payload');
 const lunchId=uiState.foodEntries[0].id;
 assert.equal(uiState.foodEntries[0].mode, 'manual');
 ui.renderNutrition();

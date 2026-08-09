@@ -212,6 +212,15 @@ context.Intl = Intl;
 context.lang = 'en';
 context.S = {budgetCycles: [], expenses: [], activeBudgetCycleId: null};
 context.localStorage = localStorage;
+context.saveLifeState = () => {
+  try {
+    localStorage.setItem('ll_lifeState', JSON.stringify({
+      version: 1, calorieTarget: 2000, foodEntries: [], favoriteFoods: [],
+      walletState: {version: 1, budgetCycles: context.S.budgetCycles, expenses: context.S.expenses, activeBudgetCycleId: context.S.activeBudgetCycleId},
+    }));
+    return true;
+  } catch (error) { return false; }
+};
 context.document = {getElementById(id) { return elements[id]; }};
 context.T = key => key;
 context.esc = value => String(value).replace(/[&<>\"]/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[char]));
@@ -247,8 +256,8 @@ assert.notEqual(zhCurrency,enCurrency,'currency formatting follows the active la
 context.lang='en';
 assert.match(elements.walletCycleDates.textContent,/2026-08-10.*2026-08-16/);
 assert.doesNotMatch(elements.walletCycleDates.textContent,/2026-08-17/,'endExclusive is not presented as an included date');
-assert.equal(JSON.parse(storage.get('ll_walletState')).budgetCycles[0].totalCents, 87500);
-assert.equal(storage.has('ll_budgetCycles'), false, 'Wallet mutations commit through one atomic payload');
+assert.equal(JSON.parse(storage.get('ll_lifeState')).walletState.budgetCycles[0].totalCents, 87500);
+assert.equal(storage.has('ll_walletState'), false, 'Wallet mutations commit through the canonical Life payload');
 
 const todayKey = context.localDayKey(new Date());
 elements.budgetTotalAmount.value = '3.00';
@@ -304,12 +313,12 @@ elements.expenseAmount.value = '0.25';
 elements.expenseSpentAt.value = `${todayKey}T13:00`;
 elements.expenseCategory.value = 'other';
 const expensesBeforeFailure = JSON.stringify(context.S.expenses);
-const payloadBeforeExpenseFailure = storage.get('ll_walletState');
+const payloadBeforeExpenseFailure = storage.get('ll_lifeState');
 resetStorageFaults();
 storageFaults.failSetAt = 1;
 assert.equal(wallet.addExpense(), false);
 assert.equal(JSON.stringify(context.S.expenses), expensesBeforeFailure, 'storage failures roll back memory');
-assert.equal(storage.get('ll_walletState'), payloadBeforeExpenseFailure, 'a failed atomic write leaves persisted state unchanged');
+assert.equal(storage.get('ll_lifeState'), payloadBeforeExpenseFailure, 'a failed atomic write leaves persisted state unchanged');
 assert.equal(elements.expenseName.value, 'Keep this form');
 assert.equal(elements.expenseAmount.value, '0.25');
 assert.equal(elements.walletFormStatus.textContent, 'walletStoreError');

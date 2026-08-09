@@ -290,6 +290,20 @@ class MangaUIContractTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_life_backup_controls_are_keyboard_accessible(self):
+        for element_id in (
+            "lifeBackupPanel", "lifeExportButton", "lifeImportButton", "lifeImportFile",
+            "lifeImportPreview", "lifeImportConfirm", "lifeImportCancel", "lifeImportStatus",
+        ):
+            self.assertIn(f'id="{element_id}"', HTML)
+        self.assertRegex(
+            HTML,
+            r'<button\b[^>]*\bid="lifeImportButton"[^>]*\bonclick="document\.getElementById\(\'lifeImportFile\'\)\.click\(\)"',
+        )
+        self.assertIn('data-i="lifeBackupTitle"', HTML)
+        self.assertIn('data-i="importLifeData"', HTML)
+        self.assertIn('role="status" aria-live="polite"', HTML)
+
     def test_nutrition_panel_contract(self):
         for element_id in (
             "calorieTarget", "foodName", "foodPortion", "foodCalories",
@@ -394,8 +408,8 @@ class MangaUIContractTests(unittest.TestCase):
         self.assertIn("newIntl.NumberFormat(", compact)
         self.assertIn("currency:'CNY'", compact)
         self.assertIn("moneyToCents(", compact)
-        self.assertIn("constWALLET_STORAGE_KEY='walletState'", compact)
-        self.assertIn("DB.get('walletState',null)", compact)
+        self.assertIn("DB.get('lifeState',null)", compact)
+        self.assertRegex(compact, r"functionpersistWalletState\(\)\{\s*returnsaveLifeState\(\);\s*\}")
 
         wallet_controller = re.search(
             r"/\* ============ 钱包 ============ \*/(?P<body>[\s\S]*?)"

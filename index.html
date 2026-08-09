@@ -486,7 +486,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
         <p class="hint" data-i="lifeBackupHint">导出或导入营养与钱包数据；不会包含任务、账号或卡片。</p>
         <div class="row">
           <button type="button" class="btn ghost" id="lifeExportButton" onclick="exportLifeData()" data-i="exportLifeData">导出生活数据</button>
-          <label class="btn ghost" for="lifeImportFile" data-i="importLifeData">导入生活数据</label>
+          <button type="button" class="btn ghost" id="lifeImportButton" onclick="document.getElementById('lifeImportFile').click()" data-i="importLifeData">导入生活数据</button>
           <input class="sr-only" id="lifeImportFile" type="file" accept="application/json,.json" onchange="previewLifeImport(this.files[0])">
         </div>
         <div class="import-preview" id="lifeImportPreview" role="status" aria-live="polite" hidden>
@@ -1582,7 +1582,31 @@ function migrateDailyState(state,nextDay){
 const today=()=>localDayKey();
 let currentDayKey=localDayKey();
 const storedLastDay=DB.get('lastDay',currentDayKey);
-const storedWalletState=normalizeWalletStatePayload(DB.get('walletState',null));
+const LIFE_STATE_VERSION=1;
+function lifeStatePayload(state=S){
+  return {
+    version:LIFE_STATE_VERSION,
+    calorieTarget:state.calorieTarget,
+    foodEntries:state.foodEntries,
+    favoriteFoods:state.favoriteFoods,
+    walletState:walletStatePayload(state)
+  };
+}
+function normalizeLifeStatePayload(raw){
+  if(!raw||typeof raw!=='object'||raw.version!==LIFE_STATE_VERSION||!Array.isArray(raw.foodEntries)
+    ||!Array.isArray(raw.favoriteFoods)||!Object.hasOwn(raw,'walletState'))return null;
+  const walletState=normalizeWalletStatePayload(raw.walletState);
+  if(!walletState)return null;
+  return {
+    version:LIFE_STATE_VERSION,
+    calorieTarget:normalizeCalorieTarget(raw.calorieTarget),
+    foodEntries:raw.foodEntries.filter(entry=>entry&&typeof entry==='object').map(entry=>normalizeFoodEntry(entry,Date.now())),
+    favoriteFoods:raw.favoriteFoods.filter(food=>typeof food==='string'),
+    walletState
+  };
+}
+const storedLifeState=normalizeLifeStatePayload(DB.get('lifeState',null));
+const storedWalletState=storedLifeState?storedLifeState.walletState:normalizeWalletStatePayload(DB.get('walletState',null));
 const storedBudgetCycles=storedWalletState?storedWalletState.budgetCycles:DB.get('budgetCycles',[]);
 const storedExpenses=storedWalletState?storedWalletState.expenses:DB.get('expenses',[]);
 
@@ -1597,9 +1621,9 @@ let S={
   pomo:DB.get('pomo',0),
   week:DB.get('week',[0,0,0,0,0,0,0]),
   lastDay:storedLastDay,
-  calorieTarget:normalizeCalorieTarget(DB.get('calorieTarget',2000)),
-  foodEntries:Array.isArray(DB.get('foodEntries',[]))?DB.get('foodEntries',[]).filter(entry=>entry&&typeof entry==='object').map(entry=>normalizeFoodEntry(entry,Date.now())):[],
-  favoriteFoods:Array.isArray(DB.get('favoriteFoods',[]))?DB.get('favoriteFoods',[]).filter(food=>typeof food==='string'):[],
+  calorieTarget:storedLifeState?storedLifeState.calorieTarget:normalizeCalorieTarget(DB.get('calorieTarget',2000)),
+  foodEntries:storedLifeState?storedLifeState.foodEntries:(Array.isArray(DB.get('foodEntries',[]))?DB.get('foodEntries',[]).filter(entry=>entry&&typeof entry==='object').map(entry=>normalizeFoodEntry(entry,Date.now())):[]),
+  favoriteFoods:storedLifeState?storedLifeState.favoriteFoods:(Array.isArray(DB.get('favoriteFoods',[]))?DB.get('favoriteFoods',[]).filter(food=>typeof food==='string'):[]),
   budgetCycles:Array.isArray(storedBudgetCycles)?storedBudgetCycles.map(normalizeBudgetCycle).filter(Boolean):[],
   expenses:Array.isArray(storedExpenses)?storedExpenses.map(normalizeExpense).filter(Boolean):[],
   activeBudgetCycleId:null
@@ -1608,17 +1632,15 @@ const storedActiveBudgetCycleId=storedWalletState&&Object.hasOwn(storedWalletSta
   ?storedWalletState.activeBudgetCycleId:DB.get('activeBudgetCycleId',null);
 S.activeBudgetCycleId=S.budgetCycles.some(cycle=>cycle.id===storedActiveBudgetCycleId)?storedActiveBudgetCycleId:null;
 function saveLifeState(){
-  let saved=true;
-  for(const key of ['calorieTarget','foodEntries','favoriteFoods']){
-    if(!DB.set(key,S[key]))saved=false;
-  }
-  if(!DB.set('walletState',walletStatePayload()))saved=false;
-  return saved;
+  return DB.set('lifeState',lifeStatePayload());
 }
 const LIFE_BUNDLE_FORMAT='liangli-life';
 const LIFE_BUNDLE_VERSION=1;
 const LIFE_BUNDLE_KEYS=['calorieTarget','foodEntries','favoriteFoods','walletState'];
 let pendingLifeImport=null;
+let lifeImportGeneration=0;
+const MAX_LIFE_CALORIES=1000000,MAX_LIFE_MONEY_CENTS=1000000000000;
+const MAX_LIFE_NAME_LENGTH=500,MAX_LIFE_FAVORITE_LENGTH=120,MAX_LIFE_CATEGORY_LENGTH=120;
 
 function isPlainObject(value){
   return value!==null&&typeof value==='object'&&!Array.isArray(value);
@@ -1629,42 +1651,76 @@ function lifeBackupError(message){
 function hasExactKeys(value,keys){
   return isPlainObject(value)&&Object.keys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key));
 }
+function hasOnlyKeys(value,keys){
+  return isPlainObject(value)&&Object.keys(value).every(key=>keys.includes(key));
+}
 function validLifeId(value){
   return (typeof value==='string'||typeof value==='number')&&String(value).trim()!=='';
 }
-function assertUniqueLifeIds(items,label){
-  const ids=new Set();
+function strictLifeText(value,maxLength,allowEmpty=false){
+  return typeof value==='string'&&value.length<=maxLength&&(allowEmpty||value.trim()!=='');
+}
+function strictLifeDay(value){
+  try{budgetDayDate(value);return true;}catch(error){return false;}
+}
+function strictLifeDateTime(value){
+  const match=typeof value==='string'&&value.match(/^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}(?::\d{2}(?:\.\d{3})?)?(?:Z|[+-]\d{2}:\d{2})$/);
+  return Boolean(match)&&strictLifeDay(match[1])&&Number.isFinite(Date.parse(value));
+}
+function safeLifeMoney(value,allowNegative=false){
+  return Number.isSafeInteger(value)&&Math.abs(value)<=MAX_LIFE_MONEY_CENTS&&(allowNegative||value>=0);
+}
+function assertUniqueLifeIds(items,label,ids){
   for(const item of items){
     if(!validLifeId(item?.id))lifeBackupError(`${label} ID is invalid`);
     const id=String(item.id);
     if(ids.has(id))lifeBackupError(`contains duplicate ${label} IDs`);
     ids.add(id);
   }
-  return ids;
 }
-function assertLifeFoodEntry(raw){
-  if(!isPlainObject(raw)||!validLifeId(raw.id)||typeof raw.name!=='string'||typeof raw.portion!=='string'
-    ||typeof raw.eatenAt!=='string'||!Number.isFinite(Date.parse(raw.eatenAt))
-    ||!['manual','estimate'].includes(raw.mode))lifeBackupError('food record is invalid');
-  if(typeof raw.calories!=='number'||!Number.isFinite(raw.calories)||raw.calories<0)
+function buildLifeFoodEntry(raw){
+  if(!hasExactKeys(raw,['id','name','portion','calories','eatenAt','mode'])||!validLifeId(raw.id)
+    ||!strictLifeText(raw.name,MAX_LIFE_NAME_LENGTH)||typeof raw.portion!=='string'||raw.portion.length>MAX_LIFE_NAME_LENGTH
+    ||!strictLifeDateTime(raw.eatenAt)||!['manual','estimate'].includes(raw.mode))lifeBackupError('food record is invalid');
+  if(typeof raw.calories!=='number'||!Number.isFinite(raw.calories)||raw.calories<0||raw.calories>MAX_LIFE_CALORIES)
     lifeBackupError('food calories are invalid');
+  return {id:raw.id,name:raw.name,portion:raw.portion,calories:raw.calories,eatenAt:raw.eatenAt,mode:raw.mode};
 }
-function assertLifeBudgetCycle(raw){
-  if(!isPlainObject(raw)||!validLifeId(raw.id)||typeof raw.startDay!=='string'||typeof raw.endExclusive!=='string'
-    ||!Number.isSafeInteger(raw.totalCents)||raw.totalCents<0||!Number.isSafeInteger(raw.openingCarryCents)
+function optionalLifeDateTime(raw,key){
+  return !Object.hasOwn(raw,key)||strictLifeDateTime(raw[key]);
+}
+function buildLifeBudgetCycle(raw){
+  const keys=['id','startDay','endExclusive','totalCents','savingsBps','openingCarryCents','periodUnit','periodCount','createdAt','updatedAt'];
+  if(!hasOnlyKeys(raw,keys)||!validLifeId(raw.id)||!strictLifeDay(raw.startDay)||!strictLifeDay(raw.endExclusive)
+    ||!safeLifeMoney(raw.totalCents)||!safeLifeMoney(raw.openingCarryCents,true)
     ||!['day','week','month','year'].includes(raw.periodUnit)||!Number.isInteger(raw.periodCount)||raw.periodCount<=0)
     lifeBackupError('budget cycle is invalid');
   if(!Number.isSafeInteger(raw.savingsBps)||raw.savingsBps<0||raw.savingsBps>10000)
     lifeBackupError('savings basis points are invalid');
+  if(!Number.isSafeInteger(raw.totalCents+raw.openingCarryCents)
+    ||!Number.isSafeInteger(raw.totalCents-Math.round(raw.totalCents*raw.savingsBps/10000)+raw.openingCarryCents))
+    lifeBackupError('money values are unsafe');
+  if(!optionalLifeDateTime(raw,'createdAt')||!optionalLifeDateTime(raw,'updatedAt'))lifeBackupError('budget cycle metadata is invalid');
   const normalized=normalizeBudgetCycle(raw);
   if(!normalized||normalized.periodUnit!==raw.periodUnit||normalized.periodCount!==raw.periodCount)
     lifeBackupError('budget cycle date is invalid');
+  const cycle={id:raw.id,startDay:raw.startDay,endExclusive:raw.endExclusive,totalCents:raw.totalCents,savingsBps:raw.savingsBps,openingCarryCents:raw.openingCarryCents,periodUnit:raw.periodUnit,periodCount:raw.periodCount};
+  if(Object.hasOwn(raw,'createdAt'))cycle.createdAt=raw.createdAt;
+  if(Object.hasOwn(raw,'updatedAt'))cycle.updatedAt=raw.updatedAt;
+  return cycle;
 }
-function assertLifeExpense(raw){
-  if(!isPlainObject(raw)||!validLifeId(raw.id)||!Number.isSafeInteger(raw.amountCents)||raw.amountCents<0
-    ||typeof raw.spentAt!=='string'||!Number.isFinite(Date.parse(raw.spentAt))
-    ||(raw.deletedAt!=null&&(typeof raw.deletedAt!=='string'||!Number.isFinite(Date.parse(raw.deletedAt)))))
+function buildLifeExpense(raw){
+  const keys=['id','cycleId','name','amountCents','category','spentAt','createdAt','updatedAt','deletedAt'];
+  if(!hasOnlyKeys(raw,keys)||!validLifeId(raw.id)||!validLifeId(raw.cycleId)
+    ||!strictLifeText(raw.name,MAX_LIFE_NAME_LENGTH)||!safeLifeMoney(raw.amountCents)
+    ||!strictLifeText(raw.category,MAX_LIFE_CATEGORY_LENGTH,true)||!strictLifeDateTime(raw.spentAt)
+    ||!optionalLifeDateTime(raw,'createdAt')||!optionalLifeDateTime(raw,'updatedAt')
+    ||(raw.deletedAt!=null&&!strictLifeDateTime(raw.deletedAt)))
     lifeBackupError('expense record is invalid');
+  const expense={id:raw.id,cycleId:raw.cycleId,name:raw.name,amountCents:raw.amountCents,category:raw.category,spentAt:raw.spentAt,deletedAt:raw.deletedAt??null};
+  if(Object.hasOwn(raw,'createdAt'))expense.createdAt=raw.createdAt;
+  if(Object.hasOwn(raw,'updatedAt'))expense.updatedAt=raw.updatedAt;
+  return expense;
 }
 function parseLifeData(text){
   let raw;
@@ -1673,30 +1729,42 @@ function parseLifeData(text){
     lifeBackupError('format or version is unsupported');
   if(!hasExactKeys(raw.life,LIFE_BUNDLE_KEYS))lifeBackupError('payload shape is invalid');
   const life=raw.life;
-  if(typeof life.calorieTarget!=='number'||!Number.isFinite(life.calorieTarget)||life.calorieTarget<0)
+  if(typeof life.calorieTarget!=='number'||!Number.isFinite(life.calorieTarget)||life.calorieTarget<0||life.calorieTarget>MAX_LIFE_CALORIES)
     lifeBackupError('calorie target is invalid');
   if(!Array.isArray(life.foodEntries)||!Array.isArray(life.favoriteFoods))lifeBackupError('nutrition data is invalid');
-  life.foodEntries.forEach(assertLifeFoodEntry);
-  assertUniqueLifeIds(life.foodEntries,'food');
-  if(life.favoriteFoods.some(food=>typeof food!=='string'))lifeBackupError('favorite food is invalid');
+  const foodEntries=life.foodEntries.map(buildLifeFoodEntry);
+  if(life.favoriteFoods.some(food=>!strictLifeText(food,MAX_LIFE_FAVORITE_LENGTH)||food.trim()!==food))lifeBackupError('favorite food is invalid');
+  const favoriteNames=new Set();
+  for(const food of life.favoriteFoods){
+    const normalized=food.toLocaleLowerCase();
+    if(favoriteNames.has(normalized))lifeBackupError('favorite food is duplicated');
+    favoriteNames.add(normalized);
+  }
   const wallet=life.walletState;
   if(!hasExactKeys(wallet,['version','budgetCycles','expenses','activeBudgetCycleId'])||wallet.version!==1
     ||!Array.isArray(wallet.budgetCycles)||!Array.isArray(wallet.expenses))lifeBackupError('wallet data is invalid');
-  wallet.budgetCycles.forEach(assertLifeBudgetCycle);
-  wallet.expenses.forEach(assertLifeExpense);
-  const cycleIds=assertUniqueLifeIds(wallet.budgetCycles,'budget cycle');
-  assertUniqueLifeIds(wallet.expenses,'expense');
+  const budgetCycles=wallet.budgetCycles.map(buildLifeBudgetCycle);
+  const expenses=wallet.expenses.map(buildLifeExpense);
+  const allIds=new Set();
+  assertUniqueLifeIds(foodEntries,'food',allIds);
+  assertUniqueLifeIds(budgetCycles,'budget cycle',allIds);
+  assertUniqueLifeIds(expenses,'expense',allIds);
+  const cycleIds=new Set(budgetCycles.map(cycle=>String(cycle.id)));
   if(wallet.activeBudgetCycleId!==null&&(!validLifeId(wallet.activeBudgetCycleId)||!cycleIds.has(String(wallet.activeBudgetCycleId))))
     lifeBackupError('active budget cycle reference is invalid');
-  for(const expense of wallet.expenses){
-    if(expense.cycleId!=null&&(!validLifeId(expense.cycleId)||!cycleIds.has(String(expense.cycleId))))
+  for(const expense of expenses){
+    if(!cycleIds.has(String(expense.cycleId)))
       lifeBackupError('expense cycle reference is invalid');
+    const cycle=budgetCycles.find(item=>String(item.id)===String(expense.cycleId));
+    const spentDay=localDayKey(new Date(expense.spentAt));
+    if(!cycle||budgetDayOrdinal(spentDay)<budgetDayOrdinal(cycle.startDay)||budgetDayOrdinal(spentDay)>=budgetDayOrdinal(cycle.endExclusive))
+      lifeBackupError('expense date is outside its budget cycle');
   }
-  const normalizedWallet=normalizeWalletStatePayload(wallet);
+  const normalizedWallet=normalizeWalletStatePayload({version:1,budgetCycles,expenses,activeBudgetCycleId:wallet.activeBudgetCycleId});
   if(!normalizedWallet)lifeBackupError('wallet data is invalid');
   return {
     calorieTarget:life.calorieTarget,
-    foodEntries:life.foodEntries.map(entry=>normalizeFoodEntry(entry,entry.eatenAt)),
+    foodEntries,
     favoriteFoods:[...life.favoriteFoods],
     walletState:normalizedWallet,
   };
@@ -1732,10 +1800,13 @@ function exportLifeData(){
   setTimeout(()=>URL.revokeObjectURL(url),0);
 }
 function previewLifeImport(file){
-  cancelLifeImport();
+  const generation=++lifeImportGeneration;
+  pendingLifeImport=null;
+  document.getElementById('lifeImportPreview').hidden=true;
   if(!file){return false;}
   const reader=new FileReader();
   reader.onload=()=>{
+    if(generation!==lifeImportGeneration)return;
     try{
       pendingLifeImport=parseLifeData(String(reader.result||''));
       document.getElementById('lifeImportSummary').textContent=lifeImportSummary(pendingLifeImport);
@@ -1743,11 +1814,12 @@ function previewLifeImport(file){
       setLifeImportStatus(T('lifeImportReady'));
     }catch(error){setLifeImportStatus(T('lifeImportInvalid'));}
   };
-  reader.onerror=()=>setLifeImportStatus(T('lifeImportInvalid'));
+  reader.onerror=()=>{if(generation===lifeImportGeneration)setLifeImportStatus(T('lifeImportInvalid'));};
   reader.readAsText(file);
   return true;
 }
 function cancelLifeImport(){
+  lifeImportGeneration++;
   pendingLifeImport=null;
   const preview=document.getElementById('lifeImportPreview');
   if(preview)preview.hidden=true;
@@ -1755,14 +1827,10 @@ function cancelLifeImport(){
   if(file)file.value='';
   return true;
 }
-function restoreLifeStorage(snapshot){
-  for(const [key,value] of snapshot){DB.set(key,value);}
-}
 function commitLifeImport(){
   if(!pendingLifeImport)return false;
   const bundle=pendingLifeImport;
   const previous=S;
-  const storageSnapshot=['calorieTarget','foodEntries','favoriteFoods','walletState'].map(key=>[key,DB.get(key,null)]);
   S={...S,
     calorieTarget:bundle.calorieTarget,
     foodEntries:bundle.foodEntries,
@@ -1773,7 +1841,6 @@ function commitLifeImport(){
   };
   if(!saveLifeState()){
     S=previous;
-    restoreLifeStorage(storageSnapshot);
     setLifeImportStatus(T('lifeImportStoreError'));
     return false;
   }
@@ -2572,27 +2639,13 @@ function renderStats(){
 let selectedNutritionDay=localDayKey();
 let editingFoodEntryId=null;
 let foodEntryMode='manual';
-const NUTRITION_STORAGE_KEYS=['calorieTarget','foodEntries','favoriteFoods'];
 
 function currentLocalDateTimeValue(date=new Date()){
   const pad=value=>String(value).padStart(2,'0');
   return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 function persistNutritionState(){
-  let previous=[];
-  try{
-    previous=NUTRITION_STORAGE_KEYS.map(key=>[key,localStorage.getItem(`ll_${key}`)]);
-    NUTRITION_STORAGE_KEYS.forEach(key=>localStorage.setItem(`ll_${key}`,JSON.stringify(S[key])));
-    return true;
-  }catch(error){
-    previous.forEach(([key,value])=>{
-      try{
-        if(value===null)localStorage.removeItem(`ll_${key}`);
-        else localStorage.setItem(`ll_${key}`,value);
-      }catch(rollbackError){}
-    });
-    return false;
-  }
+  return saveLifeState();
 }
 function showFoodFormStatus(message){
   document.getElementById('foodFormStatus').textContent=message;
@@ -2766,7 +2819,6 @@ function renderNutrition(){
 
 /* ============ 钱包 ============ */
 let editingExpenseId=null;
-const WALLET_STORAGE_KEY='walletState';
 
 function showWalletStatus(message){
   document.getElementById('walletFormStatus').textContent=message;
@@ -2800,12 +2852,7 @@ function restoreWalletSnapshot(snapshot){
   S.activeBudgetCycleId=snapshot.activeBudgetCycleId;
 }
 function persistWalletState(){
-  try{
-    localStorage.setItem(`ll_${WALLET_STORAGE_KEY}`,JSON.stringify(walletStatePayload()));
-    return true;
-  }catch(error){
-    return false;
-  }
+  return saveLifeState();
 }
 function activeBudgetCycle(){
   return S.budgetCycles.find(cycle=>cycle.id===S.activeBudgetCycleId)||null;
@@ -2828,12 +2875,8 @@ function setExpenseControlsDisabled(disabled,message=''){
   document.getElementById('walletExpenseAvailability').textContent=message;
 }
 function expenseBelongsToCycle(expense,cycle){
-  if(!expense||!cycle)return false;
-  if(expense.cycleId!=null)return String(expense.cycleId)===String(cycle.id);
-  const dayKey=budgetExpenseDay(expense);
-  if(!dayKey)return false;
-  const day=budgetDayOrdinal(dayKey);
-  return day>=budgetDayOrdinal(cycle.startDay)&&day<budgetDayOrdinal(cycle.endExclusive);
+  const hasCycleId=typeof expense?.cycleId==='string'||typeof expense?.cycleId==='number';
+  return Boolean(expense&&cycle&&hasCycleId&&String(expense.cycleId).trim()!==''&&String(expense.cycleId)===String(cycle.id));
 }
 function expensesForBudgetCycle(cycle){
   return S.expenses.filter(expense=>expenseBelongsToCycle(expense,cycle));
