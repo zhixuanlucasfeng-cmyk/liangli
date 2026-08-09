@@ -48,8 +48,10 @@ function element(value='') {
     innerHTML:'',
     hidden:false,
     checked:false,
+    attributes:{},
     focusCount:0,
     focus(){ this.focusCount += 1; },
+    setAttribute(key,value){ this.attributes[key]=String(value); },
   };
 }
 const elements = new Map([
@@ -66,23 +68,31 @@ const elements = new Map([
   ['nutritionDateLabel', element('')],
   ['favoriteFoodOptions', element('')],
   ['saveFoodButton', element('')],
+  ['foodModeManual', element('manual')],
+  ['foodModeEstimate', element('estimate')],
 ]);
-const modes = {
-  manual:{value:'manual',checked:true},
-  estimate:{value:'estimate',checked:false},
-};
 const document = {
   getElementById(id){ return elements.get(id); },
-  querySelector(selector){
-    if(selector==='input[name="foodMode"]:checked')return modes.estimate.checked?modes.estimate:modes.manual;
-    return null;
-  },
 };
 const stored = new Map();
-let failWrites = false;
+let getCalls=0,setCalls=0,failGetAt=null,failSetAt=null,failSetsAfterFailure=false,setFailureTriggered=false;
+function resetStorageFaults(){
+  getCalls=0;setCalls=0;failGetAt=null;failSetAt=null;failSetsAfterFailure=false;setFailureTriggered=false;
+}
 const localStorage = {
-  getItem(key){ return stored.has(key)?stored.get(key):null; },
-  setItem(key,value){ if(failWrites)throw new Error('quota'); stored.set(key,value); },
+  getItem(key){
+    getCalls += 1;
+    if(getCalls===failGetAt)throw new Error('security');
+    return stored.has(key)?stored.get(key):null;
+  },
+  setItem(key,value){
+    setCalls += 1;
+    if(setCalls===failSetAt||(setFailureTriggered&&failSetsAfterFailure)){
+      setFailureTriggered=true;
+      throw new Error('quota');
+    }
+    stored.set(key,value);
+  },
   removeItem(key){ stored.delete(key); },
 };
 const uiState = {
@@ -127,7 +137,8 @@ vm.createContext(uiContext);
 vm.runInContext(
   `${script.slice(uiStart, uiEnd)}\n;globalThis.nutritionUI={`+
   `currentLocalDateTimeValue,setFoodMode,applyFoodEstimate,addFoodEntry,deleteFoodEntry,`+
-  `setFoodEntryForEdit,saveFavoriteFood,renderNutrition,shiftNutritionDay};`,
+  `setFoodEntryForEdit,saveFavoriteFood,renderNutrition,shiftNutritionDay,`+
+  `setSelectedDay(day){selectedNutritionDay=day;renderNutrition();}};`,
   uiContext,
 );
 const ui = uiContext.nutritionUI;
@@ -152,6 +163,11 @@ ui.applyFoodEstimate();
 assert.equal(elements.get('foodCalories').value, '321', 'unmatched estimates keep editable calories');
 assert.equal(elements.get('foodEstimateStatus').textContent, messages.foodManualNeeded);
 assert.equal(elements.get('foodCalories').focusCount, 1);
+assert.equal(elements.get('foodModeManual').checked, true, 'unmatched estimates select manual mode');
+assert.equal(elements.get('foodModeEstimate').checked, false);
+assert.equal(elements.get('foodModeManual').attributes['aria-checked'], 'true');
+assert.equal(elements.get('foodModeEstimate').attributes['aria-checked'], 'false');
+assert.equal(elements.get('foodEstimateControls').hidden, true);
 
 elements.get('foodName').value='';
 elements.get('foodPortion').value='1 碗';
@@ -163,17 +179,34 @@ assert.equal(elements.get('foodCalories').value, '500');
 assert.equal(elements.get('foodEatenAt').value, '2026-08-09T12:30');
 
 elements.get('foodName').value='午饭';
-failWrites=true;
+failGetAt=1;
 assert.equal(ui.addFoodEntry(), false);
-failWrites=false;
+resetStorageFaults();
 assert.equal(uiState.foodEntries.length, 0, 'failed storage rolls state back');
-assert.equal(elements.get('foodName').value, '午饭', 'storage errors preserve the form');
+assert.equal(elements.get('foodName').value, '午饭', 'snapshot read errors preserve the form');
+assert.equal(elements.get('foodPortion').value, '1 碗');
+assert.equal(elements.get('foodCalories').value, '500');
+assert.equal(elements.get('foodEatenAt').value, '2026-08-09T12:30');
+assert.equal(elements.get('foodFormStatus').textContent, messages.foodStoreError);
+
+for(const key of ['calorieTarget','foodEntries','favoriteFoods'])stored.set(`ll_${key}`,`old-${key}`);
+failSetAt=2;
+failSetsAfterFailure=true;
+assert.equal(ui.addFoodEntry(), false, 'a mid-write failure stays a failure when rollback writes also fail');
+resetStorageFaults();
+assert.equal(uiState.foodEntries.length, 0, 'mid-write storage failures roll memory back');
+assert.equal(elements.get('foodName').value, '午饭', 'mid-write errors preserve the form');
+assert.equal(elements.get('foodPortion').value, '1 碗');
+assert.equal(elements.get('foodCalories').value, '500');
+assert.equal(elements.get('foodEatenAt').value, '2026-08-09T12:30');
 assert.equal(elements.get('foodFormStatus').textContent, messages.foodStoreError);
 
 assert.equal(ui.addFoodEntry(), true);
 assert.equal(uiState.foodEntries.length, 1);
 const lunchId=uiState.foodEntries[0].id;
-assert.equal(uiState.foodEntries[0].mode, 'estimate');
+assert.equal(uiState.foodEntries[0].mode, 'manual');
+ui.renderNutrition();
+assert.ok(!elements.get('foodTimeline').innerHTML.includes('≈'), 'manual fallback entries do not render as approximate');
 
 ui.setFoodEntryForEdit(lunchId);
 assert.equal(elements.get('foodName').value, '午饭');
@@ -195,6 +228,8 @@ assert.ok(timeline.includes('&lt;b&gt;苹果 &amp; 梨&lt;/b&gt;'));
 assert.ok(timeline.includes('&quot;大&quot;份'));
 assert.ok(!timeline.includes('<b>苹果'));
 assert.match(timeline, /<button type="button" class="food-action"/);
+assert.ok(timeline.includes('aria-label="Edit food: &lt;b&gt;苹果 &amp; 梨&lt;/b&gt;"'));
+assert.ok(timeline.includes('aria-label="Delete food: &lt;b&gt;苹果 &amp; 梨&lt;/b&gt;"'));
 
 elements.get('foodName').value='苹果';
 assert.equal(ui.saveFavoriteFood(), true);
@@ -204,8 +239,12 @@ assert.ok(elements.get('favoriteFoodOptions').innerHTML.includes('苹果'));
 assert.equal(ui.deleteFoodEntry(lunchId), true);
 assert.equal(uiState.foodEntries.some(entry=>entry.id===lunchId), false);
 
-const beforeDate=elements.get('nutritionDateLabel').textContent;
+ui.setSelectedDay('2026-03-01');
 ui.shiftNutritionDay(-1);
-assert.notEqual(elements.get('nutritionDateLabel').textContent, beforeDate);
+assert.equal(elements.get('nutritionDateLabel').textContent, '2026-02-28', 'previous crosses a month boundary');
+ui.shiftNutritionDay(1);
+assert.equal(elements.get('nutritionDateLabel').textContent, '2026-03-01', 'next restores the exact day');
+ui.shiftNutritionDay(1);
+assert.equal(elements.get('nutritionDateLabel').textContent, '2026-03-02', 'next advances exactly one day');
 
 console.log('nutrition tracker behavior: ok');

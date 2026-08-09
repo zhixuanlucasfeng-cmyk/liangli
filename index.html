@@ -2238,8 +2238,9 @@ function currentLocalDateTimeValue(date=new Date()){
   return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 function persistNutritionState(){
-  const previous=NUTRITION_STORAGE_KEYS.map(key=>[key,localStorage.getItem(`ll_${key}`)]);
+  let previous=[];
   try{
+    previous=NUTRITION_STORAGE_KEYS.map(key=>[key,localStorage.getItem(`ll_${key}`)]);
     NUTRITION_STORAGE_KEYS.forEach(key=>localStorage.setItem(`ll_${key}`,JSON.stringify(S[key])));
     return true;
   }catch(error){
@@ -2259,8 +2260,8 @@ function setFoodMode(mode){
   foodEntryMode=mode==='estimate'?'estimate':'manual';
   const manual=document.getElementById('foodModeManual');
   const estimate=document.getElementById('foodModeEstimate');
-  if(manual)manual.checked=foodEntryMode==='manual';
-  if(estimate)estimate.checked=foodEntryMode==='estimate';
+  if(manual){manual.checked=foodEntryMode==='manual';manual.setAttribute('aria-checked',String(manual.checked));}
+  if(estimate){estimate.checked=foodEntryMode==='estimate';estimate.setAttribute('aria-checked',String(estimate.checked));}
   document.getElementById('foodEstimateControls').hidden=foodEntryMode!=='estimate';
   if(foodEntryMode==='manual')document.getElementById('foodEstimateStatus').textContent='';
 }
@@ -2271,6 +2272,7 @@ function applyFoodEstimate(){
   const status=document.getElementById('foodEstimateStatus');
   const estimate=estimateFoodCalories(name,portion);
   if(!estimate.matched){
+    setFoodMode('manual');
     status.textContent=T('foodManualNeeded');
     calories.focus();
     return false;
@@ -2415,8 +2417,8 @@ function renderNutrition(){
       <div class="food-entry-main"><div class="food-entry-name">${esc(entry.name)}</div>
       <div class="food-entry-meta">${time}${entry.portion?` · ${esc(entry.portion)}`:''} · ${approximate}${entry.calories} ${esc(T('calorieUnit'))}</div></div>
       <div class="food-entry-actions">
-        <button type="button" class="food-action" aria-label="${esc(T('editFood'))}" onclick="setFoodEntryForEdit(${serializedId})">✎</button>
-        <button type="button" class="food-action" aria-label="${esc(T('deleteFood'))}" onclick="deleteFoodEntry(${serializedId})">×</button>
+        <button type="button" class="food-action" aria-label="${esc(`${T('editFood')}: ${entry.name}`)}" onclick="setFoodEntryForEdit(${serializedId})">✎</button>
+        <button type="button" class="food-action" aria-label="${esc(`${T('deleteFood')}: ${entry.name}`)}" onclick="deleteFoodEntry(${serializedId})">×</button>
       </div></article>`;
   }).join(''):`<div class="empty">${esc(T('foodEmptyDay'))}</div>`;
 }
