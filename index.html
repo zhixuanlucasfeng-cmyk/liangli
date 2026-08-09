@@ -1148,6 +1148,53 @@ async function syncFlashcards(session,now){
   });
   return {uploaded:rawOps.length,decks:remoteDecks.length,cards:remoteCards.length,reviews:remoteReviews.length};
 }
+const OFFLINE_FOODS=[
+  {keys:['鸡蛋','egg'],labelZh:'鸡蛋',labelEn:'Egg',unit:'piece',calories:70},
+  {keys:['米饭','rice'],labelZh:'米饭',labelEn:'Rice',unit:'100g',calories:130},
+  {keys:['牛奶','milk'],labelZh:'牛奶',labelEn:'Milk',unit:'250ml',calories:150},
+  {keys:['苹果','apple'],labelZh:'苹果',labelEn:'Apple',unit:'piece',calories:95},
+  {keys:['香蕉','banana'],labelZh:'香蕉',labelEn:'Banana',unit:'piece',calories:105},
+];
+function normalizedCalories(value){return typeof value==='number'&&Number.isFinite(value)&&value>=0?value:0;}
+function normalizeFoodEntry(raw,fallbackTimestamp){
+  const entry=raw&&typeof raw==='object'?raw:{};
+  return {
+    ...entry,
+    id:entry.id??null,
+    name:typeof entry.name==='string'?entry.name:'',
+    portion:typeof entry.portion==='string'?entry.portion:'',
+    calories:normalizedCalories(entry.calories),
+    eatenAt:entry.eatenAt??fallbackTimestamp,
+    mode:entry.mode==='estimate'?'estimate':'manual'
+  };
+}
+function foodQuantity(portion,unit){
+  const text=typeof portion==='string'?portion:'';
+  const match=text.match(/(\d+(?:\.\d+)?)/);
+  const value=match?Number(match[1]):NaN;
+  if(!Number.isFinite(value)||value<=0)return 1;
+  if(unit==='piece')return /个|枚|只|颗|pieces?|pcs?/i.test(text)?value:1;
+  if(unit==='100g')return /克|g\b/i.test(text)?value/100:1;
+  return /毫升|ml\b/i.test(text)?value/250:1;
+}
+function estimateFoodCalories(name,portion){
+  const text=typeof name==='string'?name.toLowerCase():'';
+  const food=OFFLINE_FOODS.find(item=>item.keys.some(key=>text.includes(key.toLowerCase())));
+  if(!food)return {matched:false,calories:null,label:null};
+  return {matched:true,calories:Math.round(food.calories*foodQuantity(portion,food.unit)),label:food.labelZh};
+}
+function foodEntriesForDay(entries,dayKey){
+  if(!Array.isArray(entries))return [];
+  return entries.map((entry,index)=>({entry,index,timestamp:new Date(entry?.eatenAt)}))
+    .filter(item=>Number.isFinite(item.timestamp.getTime())&&localDayKey(item.timestamp)===dayKey)
+    .sort((a,b)=>a.timestamp-b.timestamp||a.index-b.index)
+    .map(item=>item.entry);
+}
+function summarizeCalories(entries,dayKey,target){
+  const consumed=foodEntriesForDay(entries,dayKey).reduce((sum,entry)=>sum+normalizedCalories(entry.calories),0);
+  const normalizedTarget=normalizedCalories(target);
+  return {consumed,target:normalizedTarget,remaining:normalizedTarget-consumed};
+}
 function normalizeTaskDays(tasks,fallbackDay){
   return tasks.map(task=>normalizeTask(task,fallbackDay));
 }
