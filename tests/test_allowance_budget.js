@@ -37,7 +37,7 @@ const cycle = {
   totalCents: 87500, savingsBps: 2000, openingCarryCents: 0,
 };
 const ledger = computeBudgetLedger(cycle, [
-  {id: 'e1', amountCents: 13000, spentAt: '2026-08-10T12:00:00+08:00'},
+  {id: 'e1', amountCents: 13000, spentAt: '2026-08-10T23:00:00+08:00'},
 ], '2026-08-11');
 assert.equal(ledger[0].baseCents, 10000);
 assert.equal(ledger[0].carryCents, -3000);
@@ -57,7 +57,7 @@ assert.equal(positiveCarry[1].availableCents, 267);
 const afterExpense = computeBudgetLedger({
   id: 'c3', startDay: '2026-08-10', endExclusive: '2026-08-12',
   totalCents: 200, savingsBps: 0, openingCarryCents: 0,
-}, [{id: 'deleted-later', amountCents: 50, spentAt: '2026-08-10T09:00:00+08:00'}], '2026-08-11');
+}, [{id: 'deleted-later', amountCents: 50, spentAt: '2026-08-10T23:00:00+08:00'}], '2026-08-11');
 const afterDeletion = computeBudgetLedger({
   id: 'c3', startDay: '2026-08-10', endExclusive: '2026-08-12',
   totalCents: 200, savingsBps: 0, openingCarryCents: 0,
