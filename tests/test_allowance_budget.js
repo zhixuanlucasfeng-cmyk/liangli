@@ -16,7 +16,7 @@ assert.notEqual(end, -1, 'budget block end marker must exist');
 
 const context = {Date};
 vm.createContext(context);
-vm.runInContext(`${script.slice(localDayStart, localDayEnd)}\n${script.slice(start, end)}\n;globalThis.allowance={moneyToCents,budgetEndExclusive,budgetDayCount,allocateDailyCents,computeBudgetLedger,normalizeBudgetCycle};`, context);
+vm.runInContext(`${script.slice(localDayStart, localDayEnd)}\n${script.slice(start, end)}\n;globalThis.allowance={moneyToCents,budgetEndExclusive,budgetDayCount,allocateDailyCents,computeBudgetLedger,normalizeBudgetCycle,assertWalletMoneyAggregates};`, context);
 const {moneyToCents, budgetEndExclusive, budgetDayCount, allocateDailyCents, computeBudgetLedger, normalizeBudgetCycle} = context.allowance;
 
 assert.equal(moneyToCents('12.34'), 1234);
@@ -88,6 +88,30 @@ assert.throws(() => computeBudgetLedger({
 assert.throws(() => computeBudgetLedger({
   id: 'money-cap', startDay: '2026-08-10', endExclusive: '2026-08-11', totalCents: 1000000000001, savingsBps: 0, openingCarryCents: 0,
 }, [], '2026-08-10'), /Budget values|money|cents/i, 'ledger math enforces canonical money caps');
+const aggregateBoundaryCycle={
+  id:'aggregate-boundary',startDay:'2026-08-10',endExclusive:'2026-08-11',
+  totalCents:0,savingsBps:0,openingCarryCents:0,
+};
+const aggregateBoundaryExpenses=[
+  {id:'half-a',amountCents:500000000000,spentAt:'2026-08-10T08:00:00Z',spentDay:'2026-08-10'},
+  {id:'half-b',amountCents:500000000000,spentAt:'2026-08-10T09:00:00Z',spentDay:'2026-08-10'},
+];
+const aggregateBoundaryLedger=computeBudgetLedger(aggregateBoundaryCycle,aggregateBoundaryExpenses,'2026-08-10');
+assert.equal(aggregateBoundaryLedger[0].spentCents,1000000000000,'aggregate money exactly at the canonical cap is accepted');
+assert.equal(aggregateBoundaryLedger[0].carryCents,-1000000000000);
+assert.throws(() => computeBudgetLedger(aggregateBoundaryCycle,[
+  ...aggregateBoundaryExpenses,
+  {id:'one-over',amountCents:1,spentAt:'2026-08-10T10:00:00Z',spentDay:'2026-08-10'},
+],'2026-08-10'),/aggregate|money|cap|range|cents/i,'one cent above the aggregate cap is rejected');
+assert.throws(() => computeBudgetLedger(aggregateBoundaryCycle,[
+  ...aggregateBoundaryExpenses,
+  {id:'one-over',amountCents:1,spentAt:'2026-08-10T10:00:00Z',spentDay:'2026-08-10'},
+],'2026-08-09'),/aggregate|money|cap|range|cents/i,'aggregate validation does not disappear when the requested ledger ends before the cycle starts');
+const preciseSavings=computeBudgetLedger({
+  id:'precise-savings',startDay:'2026-08-10',endExclusive:'2026-08-11',
+  totalCents:999999999999,savingsBps:9999,openingCarryCents:0,
+},[],'2026-08-10');
+assert.equal(preciseSavings[0].baseCents,100000000,'savings arithmetic stays exact without an unsafe intermediate product');
 
 const timezoneLedger = computeBudgetLedger({
   id: 'c9', startDay: '2026-08-10', endExclusive: '2026-08-12', totalCents: 200, savingsBps: 0, openingCarryCents: 0,
@@ -219,6 +243,7 @@ context.S = {budgetCycles: [], expenses: [], activeBudgetCycleId: null};
 context.localStorage = localStorage;
 context.saveLifeState = () => {
   try {
+    context.allowance.assertWalletMoneyAggregates(context.S.budgetCycles,context.S.expenses);
     localStorage.setItem('ll_lifeState', JSON.stringify({
       version: 2, calorieTarget: 2000, foodEntries: [], favoriteFoods: [],
       walletState: {version: 2, budgetCycles: context.S.budgetCycles, expenses: context.S.expenses, activeBudgetCycleId: context.S.activeBudgetCycleId},
@@ -253,6 +278,7 @@ assert.equal(weeklyCycle.periodCount, 1);
 assert.equal(context.S.activeBudgetCycleId, weeklyCycle.id);
 assert.match(elements.walletTotal.textContent, /875[.,]00/);
 assert.match(wallet.formatCny(1234), /12[.,]34/);
+assert.throws(() => wallet.formatCny(1000000000001),/money|safe|range|cents/i,'formatting rejects out-of-contract money instead of silently showing zero');
 const enCurrency=wallet.formatCny(1234);
 context.lang='zh';
 const zhCurrency=wallet.formatCny(1234);
@@ -272,6 +298,23 @@ elements.budgetPeriodUnit.value = 'day';
 elements.budgetPeriodCount.value = '2';
 assert.equal(wallet.createBudgetCycle(), true);
 const activeCycle = context.S.budgetCycles.find(item => item.id === context.S.activeBudgetCycleId);
+
+context.S.expenses=[{
+  id:'aggregate-cap',cycleId:activeCycle.id,name:'Existing cap',amountCents:1000000000000,
+  category:'',spentAt:`${todayKey}T08:00:00.000Z`,spentDay:todayKey,deletedAt:null,
+}];
+assert.equal(context.saveLifeState(),true,'the exact aggregate boundary persists');
+const aggregateStateBeforeCandidate=JSON.stringify(context.S.expenses);
+const aggregateStorageBeforeCandidate=storage.get('ll_lifeState');
+elements.expenseName.value='One over';
+elements.expenseAmount.value='0.01';
+elements.expenseSpentAt.value=`${todayKey}T12:00`;
+elements.expenseCategory.value='';
+assert.equal(wallet.addExpense(),false,'an aggregate-overflow candidate is rejected');
+assert.equal(JSON.stringify(context.S.expenses),aggregateStateBeforeCandidate,'aggregate rejection rolls back in-memory expenses');
+assert.equal(storage.get('ll_lifeState'),aggregateStorageBeforeCandidate,'aggregate rejection leaves canonical storage unchanged');
+context.S.expenses=[];
+assert.equal(context.saveLifeState(),true);
 
 elements.expenseName.value = '<b>Lunch & tea</b>';
 elements.expenseAmount.value = '2.00';

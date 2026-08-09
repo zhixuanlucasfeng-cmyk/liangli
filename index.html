@@ -1400,6 +1400,25 @@ function strictLifeDateTime(value){
 function safeLifeMoney(value,allowNegative=false){
   return Number.isSafeInteger(value)&&Math.abs(value)<=MAX_LIFE_MONEY_CENTS&&(allowNegative||value>=0);
 }
+function checkedLifeMoney(value,label='Money aggregate'){
+  if(!safeLifeMoney(value,true))throw new RangeError(`${label} is outside the supported money range`);
+  return value;
+}
+function addLifeMoney(left,right,label){
+  if(!safeLifeMoney(left,true)||!safeLifeMoney(right,true))throw new RangeError(`${label||'Money aggregate'} is outside the supported money range`);
+  return checkedLifeMoney(left+right,label);
+}
+function budgetSavedCents(totalCents,savingsBps){
+  if(!safeLifeMoney(totalCents)||!Number.isSafeInteger(savingsBps)||savingsBps<0||savingsBps>10000)
+    throw new RangeError('Savings values are outside the supported money range');
+  const quotient=Math.floor(totalCents/10000),remainder=totalCents%10000;
+  return checkedLifeMoney(quotient*savingsBps+Math.round(remainder*savingsBps/10000),'Saved money');
+}
+function budgetSpendableCents(cycle){
+  const openingCarryCents=cycle?.openingCarryCents??0;
+  if(!safeLifeMoney(openingCarryCents,true))throw new RangeError('Opening carry is outside the supported money range');
+  return addLifeMoney(cycle.totalCents-budgetSavedCents(cycle.totalCents,cycle.savingsBps??2000),openingCarryCents,'Spendable money');
+}
 function timestampCivilDay(value){
   const match=typeof value==='string'&&value.match(/^(\d{4}-\d{2}-\d{2})T/);
   return match&&strictLifeDay(match[1])?match[1]:null;
@@ -1557,27 +1576,31 @@ function computeBudgetLedger(cycle,expenses,throughDay){
   if(!safeLifeMoney(totalCents)||!Number.isSafeInteger(savingsBps)||!safeLifeMoney(openingCarryCents,true))throw new TypeError('Budget values must be bounded integer cents or basis points');
   if(savingsBps<0||savingsBps>10000)throw new RangeError('Savings basis points must be between 0 and 10000');
   const totalDays=budgetDayCount(cycle.startDay,cycle.endExclusive);
-  const savedCents=Math.round(totalCents*savingsBps/10000);
-  const dailyCents=allocateDailyCents(totalCents-savedCents+openingCarryCents,totalDays);
+  const dailyCents=allocateDailyCents(budgetSpendableCents(cycle),totalDays);
   const finalDayOrdinal=budgetDayOrdinal(cycle.endExclusive)-1;
   const requestedDay=throughDay==null?finalDayOrdinal:budgetDayOrdinal(throughDay);
   const lastDayOrdinal=Math.min(finalDayOrdinal,requestedDay);
   const startOrdinal=budgetDayOrdinal(cycle.startDay);
-  if(lastDayOrdinal<startOrdinal)return [];
   const spentByDay=new Map();
-  (Array.isArray(expenses)?expenses:[])
-    .filter(expense=>expense&&expense.deletedAt==null&&Number.isSafeInteger(expense.amountCents))
-    .map((expense,index)=>({expense,index,dayKey:budgetExpenseDay(expense),time:Date.parse(expense.spentAt)}))
-    .filter(item=>item.dayKey&&budgetDayOrdinal(item.dayKey)>=startOrdinal&&budgetDayOrdinal(item.dayKey)<=lastDayOrdinal)
-    .sort((a,b)=>(Number.isFinite(a.time)?a.time:0)-(Number.isFinite(b.time)?b.time:0)||a.index-b.index)
-    .forEach(item=>spentByDay.set(item.dayKey,(spentByDay.get(item.dayKey)||0)+item.expense.amountCents));
+  let cycleSpentCents=0;
+  for(const expense of Array.isArray(expenses)?expenses:[]){
+    if(!expense||expense.deletedAt!=null)continue;
+    if(!safeLifeMoney(expense.amountCents))throw new RangeError('Expense money is outside the supported range');
+    const dayKey=budgetExpenseDay(expense);
+    if(!dayKey)continue;
+    const dayOrdinal=budgetDayOrdinal(dayKey);
+    if(dayOrdinal<startOrdinal||dayOrdinal>finalDayOrdinal)continue;
+    cycleSpentCents=addLifeMoney(cycleSpentCents,expense.amountCents,'Cycle spending aggregate');
+    spentByDay.set(dayKey,addLifeMoney(spentByDay.get(dayKey)||0,expense.amountCents,'Daily spending aggregate'));
+  }
+  if(lastDayOrdinal<startOrdinal)return [];
   const ledger=[];
   let carryCents=0;
   for(let offset=0;offset<=lastDayOrdinal-startOrdinal;offset++){
     const date=budgetDayDate(cycle.startDay);date.setDate(date.getDate()+offset);
     const dayKey=budgetDayKey(date),baseCents=dailyCents[offset],spentCents=spentByDay.get(dayKey)||0;
-    const availableCents=baseCents+carryCents;
-    carryCents=availableCents-spentCents;
+    const availableCents=addLifeMoney(baseCents,carryCents,'Available money');
+    carryCents=addLifeMoney(availableCents,-spentCents,'Carry money');
     ledger.push({dayKey,baseCents,spentCents,availableCents,carryCents});
   }
   return ledger;
@@ -1638,9 +1661,7 @@ function buildLifeBudgetCycle(raw){
     lifeBackupError('budget cycle is invalid');
   if(!Number.isSafeInteger(raw.savingsBps)||raw.savingsBps<0||raw.savingsBps>10000)
     lifeBackupError('savings basis points are invalid');
-  if(!Number.isSafeInteger(raw.totalCents+raw.openingCarryCents)
-    ||!Number.isSafeInteger(raw.totalCents-Math.round(raw.totalCents*raw.savingsBps/10000)+raw.openingCarryCents))
-    lifeBackupError('money values are unsafe');
+  try{budgetSpendableCents(raw);}catch(error){lifeBackupError('money values are unsafe');}
   if(!optionalLifeDateTime(raw,'createdAt')||!optionalLifeDateTime(raw,'updatedAt'))lifeBackupError('budget cycle metadata is invalid');
   const normalized=normalizeBudgetCycle(raw);
   if(!normalized||normalized.periodUnit!==raw.periodUnit||normalized.periodCount!==raw.periodCount)
@@ -1653,17 +1674,35 @@ function buildLifeBudgetCycle(raw){
 function buildLifeExpense(raw,legacy=false){
   const keys=['id','cycleId','name','amountCents','category','spentAt','spentDay','createdAt','updatedAt','deletedAt'];
   const allowed=legacy?keys.filter(key=>key!=='spentDay'):keys;
+  const category=legacy&&!Object.hasOwn(raw,'category')?'':raw.category;
   if(!hasOnlyKeys(raw,allowed)||(!legacy&&!Object.hasOwn(raw,'spentDay'))||!validLifeId(raw.id)||!validLifeId(raw.cycleId)
     ||!strictLifeText(raw.name,MAX_LIFE_NAME_LENGTH)||!safeLifeMoney(raw.amountCents)
-    ||!strictLifeText(raw.category,MAX_LIFE_CATEGORY_LENGTH,true)||!strictLifeDateTime(raw.spentAt)
+    ||!strictLifeText(category,MAX_LIFE_CATEGORY_LENGTH,true)||!strictLifeDateTime(raw.spentAt)
     ||!optionalLifeDateTime(raw,'createdAt')||!optionalLifeDateTime(raw,'updatedAt')
     ||(raw.deletedAt!=null&&!strictLifeDateTime(raw.deletedAt)))lifeBackupError('expense record is invalid');
   const spentDay=legacy?timestampCivilDay(raw.spentAt):raw.spentDay;
   if(!strictLifeDay(spentDay))lifeBackupError('expense civil day is invalid');
-  const expense={id:raw.id,cycleId:raw.cycleId,name:raw.name,amountCents:raw.amountCents,category:raw.category,spentAt:raw.spentAt,spentDay,deletedAt:raw.deletedAt??null};
+  const expense={id:raw.id,cycleId:raw.cycleId,name:raw.name,amountCents:raw.amountCents,category,spentAt:raw.spentAt,spentDay,deletedAt:raw.deletedAt??null};
   if(Object.hasOwn(raw,'createdAt'))expense.createdAt=raw.createdAt;
   if(Object.hasOwn(raw,'updatedAt'))expense.updatedAt=raw.updatedAt;
   return expense;
+}
+function assertWalletMoneyAggregates(budgetCycles,expenses){
+  const aggregateByCycle=new Map(budgetCycles.map(cycle=>[String(cycle.id),{
+    cycle,spentCents:0,spentByDay:new Map(),
+  }]));
+  for(const expense of expenses){
+    if(expense.deletedAt!=null)continue;
+    const aggregate=aggregateByCycle.get(String(expense.cycleId));
+    if(!aggregate)lifeBackupError('expense cycle reference is invalid');
+    aggregate.spentCents=addLifeMoney(aggregate.spentCents,expense.amountCents,'Cycle spending aggregate');
+    const dayKey=expense.spentDay;
+    aggregate.spentByDay.set(dayKey,addLifeMoney(aggregate.spentByDay.get(dayKey)||0,expense.amountCents,'Daily spending aggregate'));
+  }
+  for(const {cycle,spentCents} of aggregateByCycle.values()){
+    addLifeMoney(budgetSpendableCents(cycle),-spentCents,'Carry aggregate');
+  }
+  return true;
 }
 function normalizeWalletStatePayload(raw){
   if(!raw||typeof raw!=='object'||![1,2].includes(raw.version)||!Array.isArray(raw.budgetCycles)
@@ -1738,8 +1777,11 @@ function normalizeLifeStatePayload(raw){
   }catch(error){return null;}
 }
 function migrateLegacyWalletState(rawCycles,rawExpenses,rawActiveBudgetCycleId=null){
+  const cycleInput=Array.isArray(rawCycles)?rawCycles:[];
+  const expenseInput=Array.isArray(rawExpenses)?rawExpenses:[];
+  if(cycleInput.length>MAX_LIFE_COLLECTION_ITEMS||expenseInput.length>MAX_LIFE_COLLECTION_ITEMS)return null;
   const ids=new Set(),budgetCycles=[];
-  for(const raw of Array.isArray(rawCycles)?rawCycles:[]){
+  for(const raw of cycleInput){
     const normalized=normalizeBudgetCycle(raw);
     if(!normalized)continue;
     try{
@@ -1748,24 +1790,48 @@ function migrateLegacyWalletState(rawCycles,rawExpenses,rawActiveBudgetCycleId=n
       ids.add(id);budgetCycles.push(cycle);
     }catch(error){}
   }
-  const expenses=[];
-  for(const raw of Array.isArray(rawExpenses)?rawExpenses:[]){
+  const cycleById=new Map(budgetCycles.map(cycle=>[String(cycle.id),cycle]));
+  const intervals=budgetCycles.map((cycle,index)=>({
+    cycle,index,start:budgetDayOrdinal(cycle.startDay),end:budgetDayOrdinal(cycle.endExclusive),
+  }));
+  const starts=[...intervals].sort((a,b)=>a.start-b.start||a.index-b.index);
+  const ends=[...intervals].sort((a,b)=>a.end-b.end||a.index-b.index);
+  const resolved=[];
+  const unresolved=[];
+  for(let sourceIndex=0;sourceIndex<expenseInput.length;sourceIndex++){
+    const raw=expenseInput[sourceIndex];
     const normalized=normalizeExpense(raw);
     if(!normalized)continue;
     const spentDay=budgetExpenseDay(normalized);
     if(!spentDay)continue;
-    const matches=budgetCycles.filter(cycle=>{
-      const day=budgetDayOrdinal(spentDay);
-      return day>=budgetDayOrdinal(cycle.startDay)&&day<budgetDayOrdinal(cycle.endExclusive);
-    });
-    const referenced=normalized.cycleId==null?matches:(matches.filter(cycle=>String(cycle.id)===String(normalized.cycleId)));
-    if(referenced.length!==1)continue;
+    const day=budgetDayOrdinal(spentDay);
+    if(normalized.cycleId==null){unresolved.push({normalized,sourceIndex,day});continue;}
+    const cycle=cycleById.get(String(normalized.cycleId));
+    if(cycle&&day>=budgetDayOrdinal(cycle.startDay)&&day<budgetDayOrdinal(cycle.endExclusive))
+      resolved.push({normalized,sourceIndex,cycle});
+  }
+  const active=new Map();
+  let startIndex=0,endIndex=0;
+  unresolved.sort((a,b)=>a.day-b.day||a.sourceIndex-b.sourceIndex);
+  for(const candidate of unresolved){
+    while(startIndex<starts.length&&starts[startIndex].start<=candidate.day){
+      const interval=starts[startIndex++];active.set(String(interval.cycle.id),interval.cycle);
+    }
+    while(endIndex<ends.length&&ends[endIndex].end<=candidate.day){
+      active.delete(String(ends[endIndex++].cycle.id));
+    }
+    if(active.size===1)resolved.push({...candidate,cycle:active.values().next().value});
+  }
+  resolved.sort((a,b)=>a.sourceIndex-b.sourceIndex);
+  const expenses=[];
+  for(const {normalized,cycle} of resolved){
     try{
-      const expense=buildLifeExpense({...normalized,cycleId:referenced[0].id}),id=String(expense.id);
+      const expense=buildLifeExpense({...normalized,cycleId:cycle.id}),id=String(expense.id);
       if(ids.has(id))continue;
       ids.add(id);expenses.push(expense);
     }catch(error){}
   }
+  try{assertWalletMoneyAggregates(budgetCycles,expenses);}catch(error){return null;}
   const activeBudgetCycleId=budgetCycles.some(cycle=>cycle.id===rawActiveBudgetCycleId)?rawActiveBudgetCycleId:null;
   return {version:2,budgetCycles,expenses,activeBudgetCycleId};
 }
@@ -1807,8 +1873,11 @@ const legacyBudgetCycles=Array.isArray(legacyWalletPayload?.budgetCycles)?legacy
 const legacyExpenses=Array.isArray(legacyWalletPayload?.expenses)?legacyWalletPayload.expenses:DB.get('expenses',[]);
 const legacyActiveBudgetCycleId=legacyWalletPayload&&Object.hasOwn(legacyWalletPayload,'activeBudgetCycleId')
   ?legacyWalletPayload.activeBudgetCycleId:DB.get('activeBudgetCycleId',null);
+const legacyWalletMigration=lifeStateStorageStatus==='missing'
+  ?migrateLegacyWalletState(legacyBudgetCycles,legacyExpenses,legacyActiveBudgetCycleId):null;
+if(lifeStateStorageStatus==='missing'&&legacyWalletMigration===null)lifeStateStorageStatus='legacy-invalid';
 const storedWalletState=storedLifeState?storedLifeState.walletState
-  :lifeStateStorageStatus==='missing'?migrateLegacyWalletState(legacyBudgetCycles,legacyExpenses,legacyActiveBudgetCycleId)
+  :lifeStateStorageStatus==='missing'?legacyWalletMigration
   :{version:2,budgetCycles:[],expenses:[],activeBudgetCycleId:null};
 const storedBudgetCycles=storedWalletState.budgetCycles;
 const storedExpenses=storedWalletState.expenses;
@@ -1836,7 +1905,7 @@ const storedActiveBudgetCycleId=storedWalletState&&Object.hasOwn(storedWalletSta
   ?storedWalletState.activeBudgetCycleId:DB.get('activeBudgetCycleId',null);
 S.activeBudgetCycleId=S.budgetCycles.some(cycle=>cycle.id===storedActiveBudgetCycleId)?storedActiveBudgetCycleId:null;
 function saveLifeState(options={}){
-  if(['invalid','read-error'].includes(lifeStateStorageStatus)&&options.replaceInvalid!==true)return false;
+  if(['invalid','read-error','legacy-invalid'].includes(lifeStateStorageStatus)&&options.replaceInvalid!==true)return false;
   const payload=lifeStatePayload();
   if(!normalizeLifeStatePayload(payload))return false;
   if(!DB.set('lifeState',payload))return false;
@@ -1845,7 +1914,7 @@ function saveLifeState(options={}){
 }
 if(['missing','migration-needed'].includes(lifeStateStorageStatus)&&!saveLifeState())lifeStateStorageStatus='write-error';
 function showLifeStorageStatus(){
-  if(lifeStateStorageStatus==='invalid')setLifeImportStatus(T('lifeStorageInvalid'));
+  if(['invalid','legacy-invalid'].includes(lifeStateStorageStatus))setLifeImportStatus(T('lifeStorageInvalid'));
   else if(lifeStateStorageStatus==='read-error')setLifeImportStatus(T('lifeStorageReadError'));
   else if(lifeStateStorageStatus==='write-error')setLifeImportStatus(T('lifeImportStoreError'));
 }
@@ -1897,6 +1966,7 @@ function parseLifeData(text){
     if(!cycle||budgetDayOrdinal(spentDay)<budgetDayOrdinal(cycle.startDay)||budgetDayOrdinal(spentDay)>=budgetDayOrdinal(cycle.endExclusive))
       lifeBackupError('expense date is outside its budget cycle');
   }
+  assertWalletMoneyAggregates(budgetCycles,expenses);
   const normalizedWallet=normalizeWalletStatePayload({version:2,budgetCycles,expenses,activeBudgetCycleId:wallet.activeBudgetCycleId});
   if(!normalizedWallet)lifeBackupError('wallet data is invalid');
   return {
@@ -2975,10 +3045,10 @@ function showWalletStatus(message){
   document.getElementById('walletFormStatus').textContent=message;
 }
 function formatCny(cents){
-  const safeCents=Number.isSafeInteger(cents)?cents:0;
+  if(!safeLifeMoney(cents,true))throw new RangeError('Money value is outside the supported range');
   return new Intl.NumberFormat(lang==='zh'?'zh-CN':'en-US',{
     style:'currency',currency:'CNY',minimumFractionDigits:2,maximumFractionDigits:2
-  }).format(safeCents/100);
+  }).format(cents/100);
 }
 function walletId(prefix){
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
@@ -3190,8 +3260,8 @@ function renderWallet(){
   const ended=budgetCycleHasEnded(cycle,todayKey);
   const latestLedger=ledger.length?ledger[ledger.length-1]:null;
   const todayBalance=todayLedger?todayLedger.carryCents:ended&&latestLedger?latestLedger.carryCents:0;
-  const savedCents=Math.round(cycle.totalCents*cycle.savingsBps/10000);
-  const spendableCents=cycle.totalCents-savedCents+cycle.openingCarryCents;
+  const savedCents=budgetSavedCents(cycle.totalCents,cycle.savingsBps);
+  const spendableCents=budgetSpendableCents(cycle);
   document.getElementById('walletCycleDates').textContent=`${T('walletCycleDates')}: ${cycle.startDay} → ${budgetInclusiveEndDay(cycle.endExclusive)}`;
   document.getElementById('walletTotal').textContent=formatCny(cycle.totalCents);
   document.getElementById('walletSaved').textContent=formatCny(savedCents);

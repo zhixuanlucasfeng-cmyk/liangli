@@ -90,11 +90,26 @@ delete legacyBundle.life.foodEntries[0].dayKey;
 delete legacyBundle.life.foodEntries[0].createdAt;
 delete legacyBundle.life.foodEntries[0].updatedAt;
 delete legacyBundle.life.walletState.expenses[0].spentDay;
+delete legacyBundle.life.walletState.expenses[0].category;
 const migratedLegacy = parseLifeData(JSON.stringify(legacyBundle));
 assert.equal(migratedLegacy.foodEntries[0].dayKey, '2026-08-09', 'v1 food receives a deterministic civil day');
 assert.equal(migratedLegacy.foodEntries[0].createdAt, state.foodEntries[0].eatenAt, 'v1 food receives stable creation metadata');
 assert.equal(migratedLegacy.foodEntries[0].updatedAt, state.foodEntries[0].eatenAt);
 assert.equal(migratedLegacy.walletState.expenses[0].spentDay, '2026-08-10', 'v1 expense receives a deterministic civil day');
+assert.equal(migratedLegacy.walletState.expenses[0].category, '', 'v1 omitted expense category migrates to an empty string');
+const reexportedLegacy = JSON.parse(serializeLifeData({
+  ...migratedLegacy,
+  budgetCycles:migratedLegacy.walletState.budgetCycles,
+  expenses:migratedLegacy.walletState.expenses,
+  activeBudgetCycleId:migratedLegacy.walletState.activeBudgetCycleId,
+}));
+assert.equal(reexportedLegacy.version, 2, 'migrated v1 data exports as v2');
+assert.equal(reexportedLegacy.life.walletState.expenses[0].category, '');
+assert.equal(reexportedLegacy.life.walletState.expenses[0].spentDay, '2026-08-10');
+assert.equal(reexportedLegacy.life.walletState.expenses[0].cycleId, 'cycle-1');
+const invalidLegacyCategory=JSON.parse(JSON.stringify(legacyBundle));
+invalidLegacyCategory.life.walletState.expenses[0].category=3;
+assert.throws(() => parseLifeData(JSON.stringify(invalidLegacyCategory)), /expense|category/i, 'v1 non-string expense category remains invalid');
 
 assert.throws(() => parseLifeData('{'), /JSON|backup/i, 'malformed JSON is rejected');
 assert.throws(() => parseLifeData(JSON.stringify({...exported, version: 3})), /version|format/i, 'unsupported versions are rejected');
@@ -141,6 +156,36 @@ invalid(bundle => {
   const template=bundle.life.foodEntries[0];
   bundle.life.foodEntries=Array.from({length:10001},(_,index)=>({...template,id:`food-${index}`}));
 }, /nutrition|many|limit/i, 'oversized import collections are rejected before persistence');
+
+function aggregateExpense(id,amountCents,spentDay='2026-08-10'){
+  return {id,cycleId:'cycle-1',name:id,amountCents,category:'',spentAt:`${spentDay}T12:00:00.000Z`,spentDay,deletedAt:null};
+}
+function aggregateBundle(expenses){
+  const bundle=JSON.parse(JSON.stringify(exported));
+  Object.assign(bundle.life.walletState.budgetCycles[0],{
+    startDay:'2026-08-10',endExclusive:'2026-08-17',totalCents:0,savingsBps:0,
+    openingCarryCents:0,periodUnit:'week',periodCount:1,
+  });
+  bundle.life.walletState.expenses=expenses;
+  return bundle;
+}
+assert.doesNotThrow(() => parseLifeData(JSON.stringify(aggregateBundle([
+  aggregateExpense('half-a',500000000000),aggregateExpense('half-b',500000000000),
+]))),'daily and cycle spending exactly at the aggregate cap is valid');
+assert.throws(() => parseLifeData(JSON.stringify(aggregateBundle([
+  aggregateExpense('half-a',500000000000),aggregateExpense('half-b',500000000000),aggregateExpense('one-over',1),
+]))),/aggregate|money|cap|range|cents/i,'one cent above the daily aggregate cap rejects the whole backup');
+assert.throws(() => parseLifeData(JSON.stringify(aggregateBundle([
+  aggregateExpense('half-a',500000000000,'2026-08-10'),
+  aggregateExpense('half-b',500000000000,'2026-08-11'),
+  aggregateExpense('one-over',1,'2026-08-12'),
+]))),/aggregate|money|cap|range|cents/i,'one cent above the cycle aggregate cap rejects the whole backup');
+const manyExpenseBundle=aggregateBundle(Array.from({length:10000},(_,index)=>aggregateExpense(`huge-${index}`,1000000000000)));
+const stateBeforeHugeAggregate=JSON.stringify(getState());
+const storageBeforeHugeAggregate=JSON.stringify(stored.lifeState||null);
+assert.throws(() => parseLifeData(JSON.stringify(manyExpenseBundle)),/aggregate|money|cap|range|cents/i,'10k individually valid maximum expenses cannot create unsafe aggregate state');
+assert.equal(JSON.stringify(getState()),stateBeforeHugeAggregate,'aggregate rejection leaves in-memory state unchanged');
+assert.equal(JSON.stringify(stored.lifeState||null),storageBeforeHugeAggregate,'aggregate rejection leaves canonical storage unchanged');
 
 const before = JSON.stringify(getState());
 invalid(bundle => { bundle.life.foodEntries[0].calories = -1; }, /calorie/i, 'one bad record rejects the entire bundle');
