@@ -83,6 +83,23 @@ textarea{resize:vertical;min-height:76px;line-height:1.5}
 .task-field+.task-field{margin-top:9px}
 .task-time-row .task-field+.task-field{margin-top:0}
 .task-meta{display:block;margin-top:4px;color:#625d55;font-size:10px;font-weight:800;line-height:1.35}
+.nutrition-target{display:grid;grid-template-columns:minmax(0,1fr) 118px;gap:10px;align-items:end}
+.nutrition-field label,.food-mode-label{display:block;margin-bottom:5px;color:#5f5a54;font-size:11px;font-weight:900}
+.food-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.food-mode label{display:flex;align-items:center;gap:7px;min-height:44px;padding:8px 10px;background:#fffdf6;border:2px solid var(--line);font-size:12px;font-weight:900;cursor:pointer}
+.food-mode input{width:auto;min-height:auto;margin:0;box-shadow:none}
+.food-estimate-controls{padding:10px;border:2px dashed var(--line);background:#fff8e8}
+.food-estimate-controls[hidden]{display:none}
+.food-estimate-status,.food-form-status{min-height:1.5em;margin-top:7px;color:#5f5a54;font-size:11px;font-weight:800;line-height:1.45}
+.nutrition-date-nav{display:grid;grid-template-columns:44px 1fr 44px;gap:8px;align-items:center;margin-bottom:10px}
+.nutrition-date-nav strong{text-align:center;font-size:13px}
+.nutrition-summary{padding:10px;margin-bottom:10px;background:var(--warning);border:2px solid var(--line);font-size:12px;font-weight:900;line-height:1.45}
+.food-entry{display:grid;grid-template-columns:1fr auto;gap:8px;padding:11px;margin-bottom:8px;background:#fffdf6;border:2px solid var(--line)}
+.food-entry-main{min-width:0}
+.food-entry-name{font-size:13px;font-weight:900;overflow-wrap:anywhere}
+.food-entry-meta{margin-top:4px;color:#5f5a54;font-size:11px;font-weight:700;overflow-wrap:anywhere}
+.food-entry-actions{display:flex;gap:4px;align-items:center}
+.food-action{display:grid;place-items:center;min-width:44px;min-height:44px;padding:5px;background:var(--paper);border:2px solid var(--line);color:var(--ink);font:inherit;font-weight:900;cursor:pointer}
 .ring{width:180px;height:180px;margin:4px auto 12px;position:relative}
 .ring svg{transform:rotate(-90deg)}
 .ring .tm{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
@@ -443,8 +460,54 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
       </div>
 
       <section class="life-panel" id="lifeNutrition" role="tabpanel" aria-labelledby="lifeTabNutrition" tabindex="0">
-        <div class="card manga-panel life-shell-panel">
+        <div class="card manga-panel nutrition-entry-panel">
           <h2 class="manga-title" data-i="nutritionTitle">营养</h2>
+          <div class="nutrition-target">
+            <div class="nutrition-field">
+              <label for="calorieTarget" data-i="calorieTargetLabel">每日热量目标</label>
+              <input id="calorieTarget" type="number" min="0" step="1" inputmode="numeric" onchange="updateCalorieTarget()">
+            </div>
+            <button type="button" class="btn ghost" onclick="saveFavoriteFood()" data-i="saveFavoriteFood">收藏食物</button>
+          </div>
+          <div class="nutrition-field" style="margin-top:10px">
+            <label for="foodName" data-i="foodNameLabel">食物</label>
+            <input id="foodName" list="favoriteFoodOptions" data-ph="foodNamePh" placeholder="例如：鸡蛋" autocomplete="off">
+            <datalist id="favoriteFoodOptions"></datalist>
+          </div>
+          <div class="nutrition-field" style="margin-top:10px">
+            <label for="foodPortion" data-i="foodPortionLabel">份量</label>
+            <input id="foodPortion" data-ph="foodPortionPh" placeholder="例如：2 个">
+          </div>
+          <span class="food-mode-label" id="foodModeLabel" data-i="foodModeLabel">热量录入方式</span>
+          <div class="food-mode" id="foodMode" role="radiogroup" aria-labelledby="foodModeLabel">
+            <label><input id="foodModeManual" type="radio" name="foodMode" value="manual" checked onchange="setFoodMode('manual')"><span data-i="foodModeManual">手动</span></label>
+            <label><input id="foodModeEstimate" type="radio" name="foodMode" value="estimate" aria-controls="foodEstimateControls" onchange="setFoodMode('estimate')"><span data-i="foodModeEstimate">估算</span></label>
+          </div>
+          <div class="food-estimate-controls" id="foodEstimateControls" hidden>
+            <button type="button" class="btn ghost full" onclick="applyFoodEstimate()" data-i="estimateCalories">估算热量</button>
+            <div class="food-estimate-status" id="foodEstimateStatus" aria-live="polite"></div>
+          </div>
+          <div class="row">
+            <div class="nutrition-field" style="flex:1">
+              <label for="foodCalories" data-i="foodCaloriesLabel">热量 (kcal)</label>
+              <input id="foodCalories" type="number" min="0" step="1" inputmode="decimal">
+            </div>
+            <div class="nutrition-field" style="flex:1.25">
+              <label for="foodEatenAt" data-i="foodEatenAtLabel">进食时间</label>
+              <input id="foodEatenAt" type="datetime-local">
+            </div>
+          </div>
+          <div class="food-form-status" id="foodFormStatus" role="status" aria-live="polite"></div>
+          <div class="row"><button type="button" class="btn full" id="saveFoodButton" onclick="addFoodEntry()" data-i="saveFood">保存食物</button></div>
+        </div>
+        <div class="card manga-panel nutrition-timeline-panel">
+          <div class="nutrition-date-nav">
+            <button type="button" class="food-action" id="nutritionPrevDate" onclick="shiftNutritionDay(-1)" data-aria-i="previousDate" aria-label="前一天">‹</button>
+            <strong id="nutritionDateLabel"></strong>
+            <button type="button" class="food-action" id="nutritionNextDate" onclick="shiftNutritionDay(1)" data-aria-i="nextDate" aria-label="后一天">›</button>
+          </div>
+          <div class="nutrition-summary" id="nutritionSummary" aria-live="polite"></div>
+          <div id="foodTimeline"></div>
         </div>
       </section>
 
@@ -601,6 +664,7 @@ const I18N={
    saveLog:"保存记录",history:"历史记录",
    navToday:"今日",navPool:"成长池",navGoals:"目标",navFocus:"专注",navLife:"生活",
    nutritionTitle:"营养",walletTitle:"钱包",journalTitle:"记录",
+   calorieTargetLabel:"每日热量目标",saveFavoriteFood:"收藏食物",foodNameLabel:"食物",foodNamePh:"例如：鸡蛋",foodPortionLabel:"份量",foodPortionPh:"例如：2 个",foodModeLabel:"热量录入方式",foodModeManual:"手动",foodModeEstimate:"估算",estimateCalories:"估算热量",foodCaloriesLabel:"热量 (kcal)",foodEatenAtLabel:"进食时间",saveFood:"保存食物",updateFood:"更新食物",previousDate:"前一天",nextDate:"后一天",editFood:"编辑食物",deleteFood:"删除食物",foodManualNeeded:"未找到可用估算，请手动填写热量。",foodNameNeeded:"请填写食物名称。",foodCaloriesInvalid:"请填写有效热量。",foodDateInvalid:"请选择有效进食时间。",foodStoreError:"保存失败，表单内容已保留。",foodSaved:"食物已保存。",foodUpdated:"食物已更新。",foodDeleted:"食物已删除。",foodFavoriteSaved:"已收藏这个食物。",foodEmptyDay:"这一天还没有饮食记录。",caloriesConsumed:"已摄入",caloriesRemaining:"剩余",calorieUnit:"千卡",
    emptyTask:"还没有任务，加一个吧",emptyIdea:"成长池是空的～想法随手记这里",
    emptyGoal:"还没有目标。目标是方向，不是压力。",emptyLog:"还没有记录。从今天开始吧。",
    savedLog:"记录已保存",movedTask:"已移到今日任务",newDayReset:"新的一天，精力已经重新归零。昨天没做完的事放回成长池了。",days:["一","二","三","四","五","六","日"],
@@ -626,6 +690,7 @@ const I18N={
    saveLog:"Save entry",history:"Past entries",
    navToday:"Today",navPool:"Pool",navGoals:"Goals",navFocus:"Focus",navLife:"Life",
    nutritionTitle:"Nutrition",walletTitle:"Wallet",journalTitle:"Journal",
+   calorieTargetLabel:"Daily calorie target",saveFavoriteFood:"Favorite food",foodNameLabel:"Food",foodNamePh:"e.g. Eggs",foodPortionLabel:"Portion",foodPortionPh:"e.g. 2 pieces",foodModeLabel:"Calorie entry mode",foodModeManual:"Manual",foodModeEstimate:"Estimate",estimateCalories:"Estimate calories",foodCaloriesLabel:"Calories (kcal)",foodEatenAtLabel:"Eaten at",saveFood:"Save food",updateFood:"Update food",previousDate:"Previous day",nextDate:"Next day",editFood:"Edit food",deleteFood:"Delete food",foodManualNeeded:"No estimate found. Enter calories manually.",foodNameNeeded:"Enter a food name.",foodCaloriesInvalid:"Enter valid calories.",foodDateInvalid:"Choose a valid time.",foodStoreError:"Could not save. Your form is unchanged.",foodSaved:"Food saved.",foodUpdated:"Food updated.",foodDeleted:"Food deleted.",foodFavoriteSaved:"Favorite saved.",foodEmptyDay:"No food logged for this day.",caloriesConsumed:"consumed",caloriesRemaining:"remaining",calorieUnit:"kcal",
    emptyTask:"No tasks yet. Add one.",emptyIdea:"Your growth pool is empty — jot ideas here.",
    emptyGoal:"No goals yet. A goal is a direction, not pressure.",emptyLog:"No entries yet. Start today.",
    savedLog:"Entry saved",movedTask:"Moved to today's tasks",newDayReset:"A new day starts with fresh energy. Yesterday's unfinished tasks are back in your Growth Pool.",days:["M","T","W","T","F","S","S"],
@@ -2162,6 +2227,200 @@ function renderStats(){
     `<div class="b"><i style="height:${Math.round(v/max*100)}%"></i><span>${days[i]}</span></div>`).join('');
 }
 
+/* ============ 营养时间线 ============ */
+let selectedNutritionDay=localDayKey();
+let editingFoodEntryId=null;
+let foodEntryMode='manual';
+const NUTRITION_STORAGE_KEYS=['calorieTarget','foodEntries','favoriteFoods'];
+
+function currentLocalDateTimeValue(date=new Date()){
+  const pad=value=>String(value).padStart(2,'0');
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+function persistNutritionState(){
+  const previous=NUTRITION_STORAGE_KEYS.map(key=>[key,localStorage.getItem(`ll_${key}`)]);
+  try{
+    NUTRITION_STORAGE_KEYS.forEach(key=>localStorage.setItem(`ll_${key}`,JSON.stringify(S[key])));
+    return true;
+  }catch(error){
+    previous.forEach(([key,value])=>{
+      try{
+        if(value===null)localStorage.removeItem(`ll_${key}`);
+        else localStorage.setItem(`ll_${key}`,value);
+      }catch(rollbackError){}
+    });
+    return false;
+  }
+}
+function showFoodFormStatus(message){
+  document.getElementById('foodFormStatus').textContent=message;
+}
+function setFoodMode(mode){
+  foodEntryMode=mode==='estimate'?'estimate':'manual';
+  const manual=document.getElementById('foodModeManual');
+  const estimate=document.getElementById('foodModeEstimate');
+  if(manual)manual.checked=foodEntryMode==='manual';
+  if(estimate)estimate.checked=foodEntryMode==='estimate';
+  document.getElementById('foodEstimateControls').hidden=foodEntryMode!=='estimate';
+  if(foodEntryMode==='manual')document.getElementById('foodEstimateStatus').textContent='';
+}
+function applyFoodEstimate(){
+  const name=document.getElementById('foodName').value;
+  const portion=document.getElementById('foodPortion').value;
+  const calories=document.getElementById('foodCalories');
+  const status=document.getElementById('foodEstimateStatus');
+  const estimate=estimateFoodCalories(name,portion);
+  if(!estimate.matched){
+    status.textContent=T('foodManualNeeded');
+    calories.focus();
+    return false;
+  }
+  calories.value=String(estimate.calories);
+  status.textContent=`≈ ${estimate.calories} ${T('calorieUnit')}`;
+  return true;
+}
+function resetFoodForm(){
+  editingFoodEntryId=null;
+  document.getElementById('foodName').value='';
+  document.getElementById('foodPortion').value='';
+  document.getElementById('foodCalories').value='';
+  document.getElementById('foodEatenAt').value=currentLocalDateTimeValue();
+  document.getElementById('foodEstimateStatus').textContent='';
+  document.getElementById('saveFoodButton').textContent=T('saveFood');
+  setFoodMode('manual');
+}
+function nutritionEntryFromForm(){
+  const name=document.getElementById('foodName').value.trim();
+  const portion=document.getElementById('foodPortion').value.trim();
+  const calorieText=document.getElementById('foodCalories').value.trim();
+  const eatenAtValue=document.getElementById('foodEatenAt').value;
+  const calories=Number(calorieText);
+  const eatenAt=new Date(eatenAtValue);
+  if(!name)return {error:T('foodNameNeeded')};
+  if(calorieText===''||!Number.isFinite(calories)||calories<0)return {error:T('foodCaloriesInvalid')};
+  if(!eatenAtValue||!Number.isFinite(eatenAt.getTime()))return {error:T('foodDateInvalid')};
+  return {entry:{name,portion,calories,eatenAt:eatenAt.toISOString(),mode:foodEntryMode}};
+}
+function addFoodEntry(){
+  const result=nutritionEntryFromForm();
+  if(result.error){showFoodFormStatus(result.error);return false;}
+  const previous=S.foodEntries;
+  const editingIndex=previous.findIndex(entry=>entry.id===editingFoodEntryId);
+  const updated=editingIndex>=0;
+  if(updated){
+    S.foodEntries=previous.map((entry,index)=>index===editingIndex?{...entry,...result.entry,id:entry.id}:entry);
+  }else{
+    const id=`food-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+    S.foodEntries=[...previous,{id,...result.entry}];
+  }
+  if(!persistNutritionState()){
+    S.foodEntries=previous;
+    showFoodFormStatus(T('foodStoreError'));
+    return false;
+  }
+  selectedNutritionDay=localDayKey(new Date(result.entry.eatenAt));
+  resetFoodForm();
+  showFoodFormStatus(T(updated?'foodUpdated':'foodSaved'));
+  renderNutrition();
+  return true;
+}
+function deleteFoodEntry(id){
+  const previous=S.foodEntries;
+  if(!previous.some(entry=>entry.id===id))return false;
+  S.foodEntries=previous.filter(entry=>entry.id!==id);
+  if(!persistNutritionState()){
+    S.foodEntries=previous;
+    showFoodFormStatus(T('foodStoreError'));
+    return false;
+  }
+  if(editingFoodEntryId===id)resetFoodForm();
+  showFoodFormStatus(T('foodDeleted'));
+  renderNutrition();
+  return true;
+}
+function setFoodEntryForEdit(id){
+  const entry=S.foodEntries.find(item=>item.id===id);
+  if(!entry)return false;
+  editingFoodEntryId=id;
+  document.getElementById('foodName').value=entry.name;
+  document.getElementById('foodPortion').value=entry.portion;
+  document.getElementById('foodCalories').value=String(entry.calories);
+  document.getElementById('foodEatenAt').value=currentLocalDateTimeValue(new Date(entry.eatenAt));
+  document.getElementById('saveFoodButton').textContent=T('updateFood');
+  setFoodMode(entry.mode);
+  document.getElementById('foodEstimateStatus').textContent=entry.mode==='estimate'?`≈ ${entry.calories} ${T('calorieUnit')}`:'';
+  document.getElementById('foodName').focus();
+  return true;
+}
+function saveFavoriteFood(){
+  const name=document.getElementById('foodName').value.trim();
+  if(!name){showFoodFormStatus(T('foodNameNeeded'));return false;}
+  if(S.favoriteFoods.some(item=>item.toLocaleLowerCase()===name.toLocaleLowerCase())){
+    showFoodFormStatus(T('foodFavoriteSaved'));
+    return true;
+  }
+  const previous=S.favoriteFoods;
+  S.favoriteFoods=[...previous,name];
+  if(!persistNutritionState()){
+    S.favoriteFoods=previous;
+    showFoodFormStatus(T('foodStoreError'));
+    return false;
+  }
+  showFoodFormStatus(T('foodFavoriteSaved'));
+  renderNutrition();
+  return true;
+}
+function updateCalorieTarget(){
+  const input=document.getElementById('calorieTarget');
+  const value=Number(input.value);
+  if(input.value.trim()===''||!Number.isFinite(value)||value<0){
+    showFoodFormStatus(T('foodCaloriesInvalid'));
+    return false;
+  }
+  const previous=S.calorieTarget;
+  S.calorieTarget=value;
+  if(!persistNutritionState()){
+    S.calorieTarget=previous;
+    showFoodFormStatus(T('foodStoreError'));
+    return false;
+  }
+  renderNutrition();
+  return true;
+}
+function shiftNutritionDay(offset){
+  const [year,month,day]=selectedNutritionDay.split('-').map(Number);
+  const date=new Date(year,month-1,day,12);
+  date.setDate(date.getDate()+offset);
+  selectedNutritionDay=localDayKey(date);
+  renderNutrition();
+}
+function renderNutrition(){
+  const target=document.getElementById('calorieTarget');
+  target.value=String(S.calorieTarget);
+  const eatenAt=document.getElementById('foodEatenAt');
+  if(!eatenAt.value)eatenAt.value=currentLocalDateTimeValue();
+  document.getElementById('nutritionDateLabel').textContent=selectedNutritionDay;
+  const summary=summarizeCalories(S.foodEntries,selectedNutritionDay,S.calorieTarget);
+  document.getElementById('nutritionSummary').textContent=
+    `${T('caloriesConsumed')} ${summary.consumed} ${T('calorieUnit')} · ${T('caloriesRemaining')} ${summary.remaining} ${T('calorieUnit')}`;
+  document.getElementById('favoriteFoodOptions').innerHTML=S.favoriteFoods
+    .map(name=>`<option value="${esc(name)}"></option>`).join('');
+  const entries=foodEntriesForDay(S.foodEntries,selectedNutritionDay);
+  document.getElementById('foodTimeline').innerHTML=entries.length?entries.map(entry=>{
+    const timestamp=new Date(entry.eatenAt);
+    const time=currentLocalDateTimeValue(timestamp).slice(11);
+    const approximate=entry.mode==='estimate'?'≈ ':'';
+    const serializedId=esc(JSON.stringify(entry.id));
+    return `<article class="food-entry">
+      <div class="food-entry-main"><div class="food-entry-name">${esc(entry.name)}</div>
+      <div class="food-entry-meta">${time}${entry.portion?` · ${esc(entry.portion)}`:''} · ${approximate}${entry.calories} ${esc(T('calorieUnit'))}</div></div>
+      <div class="food-entry-actions">
+        <button type="button" class="food-action" aria-label="${esc(T('editFood'))}" onclick="setFoodEntryForEdit(${serializedId})">✎</button>
+        <button type="button" class="food-action" aria-label="${esc(T('deleteFood'))}" onclick="deleteFoodEntry(${serializedId})">×</button>
+      </div></article>`;
+  }).join(''):`<div class="empty">${esc(T('foodEmptyDay'))}</div>`;
+}
+
 /* ============ 记录 ============ */
 function renderLogs(){
   const box=document.getElementById('logList');
@@ -2191,7 +2450,7 @@ document.getElementById('moodPick').addEventListener('click',e=>{
 
 /* ============ utils ============ */
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-function renderAll(){ renderTasks(); renderIdeas(); renderGoals(); renderLogs(); renderStats(); saveLifeState(); }
+function renderAll(){ renderTasks(); renderIdeas(); renderGoals(); renderLogs(); renderStats(); renderNutrition(); saveLifeState(); }
 document.getElementById('taskName').addEventListener('keydown',e=>{if(e.key==='Enter')addTask()});
 document.getElementById('ideaName').addEventListener('keydown',e=>{if(e.key==='Enter')addIdea()});
 document.getElementById('goalName').addEventListener('keydown',e=>{if(e.key==='Enter')addGoal()});

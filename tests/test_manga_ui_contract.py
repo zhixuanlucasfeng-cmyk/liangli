@@ -240,6 +240,43 @@ class MangaUIContractTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_nutrition_panel_contract(self):
+        for element_id in (
+            "calorieTarget", "foodName", "foodPortion", "foodCalories",
+            "foodEatenAt", "foodTimeline", "nutritionPrevDate",
+            "nutritionNextDate", "nutritionSummary", "foodEstimateControls",
+        ):
+            self.assertIn(f'id="{element_id}"', HTML)
+
+        self.assertRegex(
+            HTML,
+            r'<input\b(?=[^>]*\bid="foodEatenAt")(?=[^>]*\btype="datetime-local")[^>]*>',
+        )
+        self.assertRegex(
+            HTML,
+            r'<div\b(?=[^>]*\bid="foodMode")(?=[^>]*\brole="radiogroup")'
+            r'(?=[^>]*\baria-labelledby="foodModeLabel")[^>]*>',
+        )
+        for mode in ("manual", "estimate"):
+            self.assertRegex(
+                HTML,
+                rf'<input\b(?=[^>]*\btype="radio")(?=[^>]*\bname="foodMode")'
+                rf'(?=[^>]*\bvalue="{mode}")[^>]*>',
+            )
+        self.assertRegex(
+            HTML,
+            r'<[^>]+\bid="nutritionSummary"[^>]+\baria-live="polite"[^>]*>',
+        )
+
+        compact = HTML.replace(" ", "")
+        for function_name in (
+            "renderNutrition", "addFoodEntry", "deleteFoodEntry",
+            "setFoodEntryForEdit", "applyFoodEstimate", "saveFavoriteFood",
+        ):
+            self.assertIn(f"function{function_name}(", compact)
+        self.assertIn('<buttontype="button"class="food-action"', compact)
+        self.assertNotIn('<divclass="food-action"', compact)
+
     def test_bilingual_catalogs_have_identical_keys(self):
         catalogs = re.search(
             r"const I18N=\{\s*zh:\{(?P<zh>[\s\S]*?)\},\s*en:\{(?P<en>[\s\S]*?)\}\s*\};",
