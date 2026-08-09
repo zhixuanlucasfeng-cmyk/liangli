@@ -7,23 +7,34 @@ const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const localDayStart = script.indexOf('function localDayKey(');
 const localDayEnd = script.indexOf('function dayOrdinal', localDayStart);
-const start = script.indexOf('const OFFLINE_FOODS=');
+const start = script.indexOf('const MAX_LIFE_CALORIES=');
+const foodStart = script.indexOf('const OFFLINE_FOODS=', start);
 const end = script.indexOf('function migrateDailyState', start);
 assert.notEqual(localDayStart, -1, 'localDayKey must exist');
 assert.notEqual(localDayEnd, -1, 'localDayKey block end marker must exist');
-assert.notEqual(start, -1, 'OFFLINE_FOODS must exist');
+assert.notEqual(start, -1, 'Life calculation limits must exist');
+assert.notEqual(foodStart, -1, 'OFFLINE_FOODS must exist');
 assert.notEqual(end, -1, 'nutrition block end marker must exist');
 
 const context = {};
 vm.createContext(context);
-vm.runInContext(`${script.slice(localDayStart, localDayEnd)}\n${script.slice(start, end)}\n;globalThis.nutrition={localDayKey,normalizeFoodEntry,estimateFoodCalories,summarizeCalories,foodEntriesForDay};`, context);
-const {localDayKey, normalizeFoodEntry, estimateFoodCalories, summarizeCalories, foodEntriesForDay} = context.nutrition;
+vm.runInContext(`${script.slice(localDayStart, localDayEnd)}\n${script.slice(start, end)}\n;globalThis.nutrition={localDayKey,normalizeFoodEntry,estimateFoodCalories,summarizeCalories,foodEntriesForDay,buildLifeFoodEntry,nextLifeTimestamp,parseLocalDateTimeInput,strictLifeDay,strictLifeText,MAX_LIFE_CALORIES,MAX_LIFE_NAME_LENGTH,MAX_LIFE_FAVORITE_LENGTH};`, context);
+const {
+  localDayKey, normalizeFoodEntry, estimateFoodCalories, summarizeCalories, foodEntriesForDay,
+  buildLifeFoodEntry, nextLifeTimestamp, parseLocalDateTimeInput,
+  strictLifeDay, strictLifeText, MAX_LIFE_CALORIES, MAX_LIFE_NAME_LENGTH, MAX_LIFE_FAVORITE_LENGTH,
+} = context.nutrition;
 
 const egg = normalizeFoodEntry({id:'1',name:'鸡蛋',calories:140,eatenAt:'2026-08-09T08:10:00+08:00'}, 0);
 assert.equal(egg.portion, '');
 assert.equal(egg.mode, 'manual');
 assert.equal(estimateFoodCalories('两个鸡蛋', '2 个').matched, true);
 assert.equal(estimateFoodCalories('完全未知食物', '1 份').calories, null);
+assert.equal(estimateFoodCalories('price', '100g').matched, false, 'Latin food keys require token boundaries');
+assert.equal(estimateFoodCalories('eggplant', '1 piece').matched, false, 'egg does not match inside eggplant');
+assert.equal(estimateFoodCalories('2 eggs', '2 pieces').calories, 140, 'whole-token English plurals remain usable');
+assert.equal(estimateFoodCalories('rice', '100g').calories, 130, 'explicit gram units are recognized');
+assert.equal(estimateFoodCalories('rice', '1 serving').calories, 130, 'the terminal g in serving is not parsed as grams');
 const summary = summarizeCalories([
   egg,
   normalizeFoodEntry({id:'2',name:'饭',calories:300,eatenAt:'2026-08-09T12:00:00+08:00'}, 0),
@@ -35,6 +46,14 @@ assert.deepEqual(
   foodEntriesForDay([summaryInputLate, summaryInputEarly], '2026-08-09').map(x=>x.id),
   ['early','late'],
 );
+const shanghaiMidnight = normalizeFoodEntry({
+  id:'stable-day',name:'Milk',portion:'250ml',calories:150,
+  eatenAt:'2026-08-09T16:30:00.000Z',dayKey:'2026-08-10',mode:'manual',
+  createdAt:'2026-08-09T16:30:00.000Z',updatedAt:'2026-08-09T16:30:00.000Z',
+}, 0);
+assert.equal(shanghaiMidnight.dayKey, '2026-08-10');
+assert.deepEqual(foodEntriesForDay([shanghaiMidnight], '2026-08-10').map(x=>x.id), ['stable-day']);
+assert.deepEqual(foodEntriesForDay([shanghaiMidnight], '2026-08-09').map(x=>x.id), []);
 
 const uiStart = script.indexOf('let selectedNutritionDay=');
 const uiEnd = script.indexOf('/* ============ 记录 ============ */', uiStart);
@@ -130,17 +149,25 @@ const uiContext = {
   estimateFoodCalories,
   summarizeCalories,
   foodEntriesForDay,
+  buildLifeFoodEntry,
+  nextLifeTimestamp,
+  parseLocalDateTimeInput,
+  strictLifeDay,
+  strictLifeText,
+  MAX_LIFE_CALORIES,
+  MAX_LIFE_NAME_LENGTH,
+  MAX_LIFE_FAVORITE_LENGTH,
   Date,
   Math,
 };
 uiContext.saveLifeState = () => {
   try {
     localStorage.setItem('ll_lifeState', JSON.stringify({
-      version: 1,
+      version: 2,
       calorieTarget: uiState.calorieTarget,
       foodEntries: uiState.foodEntries,
       favoriteFoods: uiState.favoriteFoods,
-      walletState: {version: 1, budgetCycles: [], expenses: [], activeBudgetCycleId: null},
+      walletState: {version: 2, budgetCycles: [], expenses: [], activeBudgetCycleId: null},
     }));
     return true;
   } catch (error) { return false; }
@@ -149,7 +176,7 @@ vm.createContext(uiContext);
 vm.runInContext(
   `${script.slice(uiStart, uiEnd)}\n;globalThis.nutritionUI={`+
   `currentLocalDateTimeValue,setFoodMode,applyFoodEstimate,addFoodEntry,deleteFoodEntry,`+
-  `setFoodEntryForEdit,saveFavoriteFood,renderNutrition,shiftNutritionDay,`+
+  `setFoodEntryForEdit,saveFavoriteFood,updateCalorieTarget,renderNutrition,shiftNutritionDay,`+
   `setSelectedDay(day){selectedNutritionDay=day;renderNutrition();}};`,
   uiContext,
 );
@@ -190,6 +217,11 @@ assert.equal(elements.get('foodModeManual').attributes['aria-checked'], 'true');
 assert.equal(elements.get('foodModeEstimate').attributes['aria-checked'], 'false');
 assert.equal(elements.get('foodEstimateControls').hidden, true);
 
+elements.get('foodName').value='rice';
+elements.get('foodPortion').value='100g';
+assert.equal(ui.applyFoodEstimate(), true, 'a retry can succeed after an unmatched estimate');
+assert.equal(elements.get('foodFormStatus').textContent, '', 'a successful retry clears stale manual-entry guidance');
+
 elements.get('foodName').value='';
 elements.get('foodPortion').value='1 碗';
 elements.get('foodCalories').value='500';
@@ -215,16 +247,23 @@ assert.equal(uiState.foodEntries.length, 1);
 assert.equal(JSON.parse(stored.get('ll_lifeState')).foodEntries.length, 1, 'nutrition writes the single canonical Life payload');
 const lunchId=uiState.foodEntries[0].id;
 assert.equal(uiState.foodEntries[0].mode, 'manual');
+assert.equal(uiState.foodEntries[0].dayKey, '2026-08-09', 'the source civil day is persisted');
+assert.match(uiState.foodEntries[0].createdAt, /^\d{4}-\d{2}-\d{2}T/);
+assert.equal(uiState.foodEntries[0].updatedAt, uiState.foodEntries[0].createdAt, 'creation sets stable metadata together');
 ui.renderNutrition();
 assert.ok(!elements.get('foodTimeline').innerHTML.includes('≈'), 'manual fallback entries do not render as approximate');
 
 ui.setFoodEntryForEdit(lunchId);
 assert.equal(elements.get('foodName').value, '午饭');
 assert.equal(elements.get('foodCalories').value, '500');
+const lunchCreatedAt=uiState.foodEntries[0].createdAt;
+const lunchUpdatedAt=uiState.foodEntries[0].updatedAt;
 elements.get('foodCalories').value='510';
 assert.equal(ui.addFoodEntry(), true);
 assert.equal(uiState.foodEntries.length, 1, 'editing updates instead of duplicating');
 assert.equal(uiState.foodEntries[0].calories, 510);
+assert.equal(uiState.foodEntries[0].createdAt, lunchCreatedAt, 'editing preserves createdAt');
+assert.ok(Date.parse(uiState.foodEntries[0].updatedAt)>Date.parse(lunchUpdatedAt), 'editing advances updatedAt');
 
 elements.get('foodName').value='<b>苹果 & 梨</b>';
 elements.get('foodPortion').value='"大"份';
@@ -245,6 +284,26 @@ elements.get('foodName').value='苹果';
 assert.equal(ui.saveFavoriteFood(), true);
 assert.deepEqual(JSON.parse(JSON.stringify(uiState.favoriteFoods)), ['苹果']);
 assert.ok(elements.get('favoriteFoodOptions').innerHTML.includes('苹果'));
+
+const validNutritionState=JSON.stringify(uiState);
+const validNutritionStorage=stored.get('ll_lifeState');
+elements.get('calorieTarget').value='1000001';
+assert.equal(ui.updateCalorieTarget(), false, 'UI rejects targets above the canonical cap');
+elements.get('foodName').value='x'.repeat(501);
+assert.equal(ui.saveFavoriteFood(), false, 'UI rejects favorites above the canonical cap');
+elements.get('foodName').value='x'.repeat(501);
+elements.get('foodPortion').value='portion';
+elements.get('foodCalories').value='1';
+elements.get('foodEatenAt').value='2026-08-09T10:00';
+assert.equal(ui.addFoodEntry(), false, 'UI rejects names above the canonical cap');
+elements.get('foodName').value='Food';
+elements.get('foodPortion').value='x'.repeat(501);
+assert.equal(ui.addFoodEntry(), false, 'UI rejects portions above the canonical cap');
+elements.get('foodPortion').value='portion';
+elements.get('foodCalories').value='1000001';
+assert.equal(ui.addFoodEntry(), false, 'UI rejects calories above the canonical cap');
+assert.equal(JSON.stringify(uiState), validNutritionState, 'invalid nutrition mutations leave prior memory intact');
+assert.equal(stored.get('ll_lifeState'), validNutritionStorage, 'invalid nutrition mutations leave canonical storage intact');
 
 assert.equal(ui.deleteFoodEntry(lunchId), true);
 assert.equal(uiState.foodEntries.some(entry=>entry.id===lunchId), false);

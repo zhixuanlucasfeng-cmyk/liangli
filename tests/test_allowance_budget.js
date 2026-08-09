@@ -7,11 +7,11 @@ const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const localDayStart = script.indexOf('function localDayKey(');
 const localDayEnd = script.indexOf('function dayOrdinal', localDayStart);
-const start = script.indexOf('function moneyToCents(');
+const start = script.indexOf('const MAX_LIFE_CALORIES=');
 const end = script.indexOf('function normalizeTaskDays', start);
 assert.notEqual(localDayStart, -1, 'localDayKey must exist');
 assert.notEqual(localDayEnd, -1, 'localDayKey block end marker must exist');
-assert.notEqual(start, -1, 'moneyToCents must exist');
+assert.notEqual(start, -1, 'Life calculation limits must exist');
 assert.notEqual(end, -1, 'budget block end marker must exist');
 
 const context = {Date};
@@ -21,6 +21,7 @@ const {moneyToCents, budgetEndExclusive, budgetDayCount, allocateDailyCents, com
 
 assert.equal(moneyToCents('12.34'), 1234);
 assert.equal(moneyToCents('-1'), null);
+assert.equal(moneyToCents('10000000000.01'), null, 'money above the canonical cents cap is rejected');
 assert.equal(budgetEndExclusive('2028-02-01', 'month', 1), '2028-03-01');
 assert.equal(budgetEndExclusive('2028-02-29', 'year', 1), '2029-03-01');
 assert.equal(budgetEndExclusive('2026-08-10', 'day', 3), '2026-08-13');
@@ -28,16 +29,19 @@ assert.equal(budgetEndExclusive('2026-08-10', 'week', 2), '2026-08-24');
 assert.deepEqual(Array.from(allocateDailyCents(10, 3)), [4, 3, 3]);
 
 assert.throws(() => budgetDayCount('2026-08-10', '2026-08-10'), /at least one day/);
+assert.throws(() => budgetDayCount('0000-01-01', '0000-01-02'), /range|valid/i, 'civil calendar years start at 0001');
 assert.throws(() => allocateDailyCents(10, 0), /at least one day/);
 assert.equal(budgetEndExclusive('2026-01-15', 'month', 3), '2026-04-15');
 assert.equal(budgetEndExclusive('2024-02-29', 'year', 2), '2026-03-01');
+assert.throws(() => budgetEndExclusive('9999-12-31', 'day', 1), /range|overflow|valid/i, 'calendar overflow is rejected');
+assert.throws(() => budgetEndExclusive('2026-01-01', 'day', 10001), /count|period|range/i, 'huge periods are rejected before allocation');
 
 const cycle = {
   id: 'c1', startDay: '2026-08-10', endExclusive: '2026-08-17',
   totalCents: 87500, savingsBps: 2000, openingCarryCents: 0,
 };
 const ledger = computeBudgetLedger(cycle, [
-  {id: 'e1', amountCents: 13000, spentAt: '2026-08-10T23:00:00+08:00'},
+  {id: 'e1', amountCents: 13000, spentAt: '2026-08-10T23:00:00+08:00', spentDay: '2026-08-10'},
 ], '2026-08-11');
 assert.equal(ledger[0].baseCents, 10000);
 assert.equal(ledger[0].carryCents, -3000);
@@ -57,7 +61,7 @@ assert.equal(positiveCarry[1].availableCents, 267);
 const afterExpense = computeBudgetLedger({
   id: 'c3', startDay: '2026-08-10', endExclusive: '2026-08-12',
   totalCents: 200, savingsBps: 0, openingCarryCents: 0,
-}, [{id: 'deleted-later', amountCents: 50, spentAt: '2026-08-10T23:00:00+08:00'}], '2026-08-11');
+}, [{id: 'deleted-later', amountCents: 50, spentAt: '2026-08-10T23:00:00+08:00', spentDay: '2026-08-10'}], '2026-08-11');
 const afterDeletion = computeBudgetLedger({
   id: 'c3', startDay: '2026-08-10', endExclusive: '2026-08-12',
   totalCents: 200, savingsBps: 0, openingCarryCents: 0,
@@ -81,16 +85,17 @@ assert.throws(() => computeBudgetLedger({
 assert.throws(() => computeBudgetLedger({
   id: 'c8', startDay: '2026-08-10', endExclusive: '2026-08-11', totalCents: 10000, savingsBps: 10001, openingCarryCents: 0,
 }, [], '2026-08-10'), /Savings basis points/);
+assert.throws(() => computeBudgetLedger({
+  id: 'money-cap', startDay: '2026-08-10', endExclusive: '2026-08-11', totalCents: 1000000000001, savingsBps: 0, openingCarryCents: 0,
+}, [], '2026-08-10'), /Budget values|money|cents/i, 'ledger math enforces canonical money caps');
 
-const localOffsetTime = new Date('2026-08-10T00:30:00+14:00');
-const localOffsetDay = `${localOffsetTime.getFullYear()}-${String(localOffsetTime.getMonth() + 1).padStart(2, '0')}-${String(localOffsetTime.getDate()).padStart(2, '0')}`;
 const timezoneLedger = computeBudgetLedger({
-  id: 'c9', startDay: '2026-08-09', endExclusive: '2026-08-11', totalCents: 200, savingsBps: 0, openingCarryCents: 0,
+  id: 'c9', startDay: '2026-08-10', endExclusive: '2026-08-12', totalCents: 200, savingsBps: 0, openingCarryCents: 0,
 }, [
-  {id: 'offset', amountCents: 25, spentAt: '2026-08-10T00:30:00+14:00'},
+  {id: 'offset', amountCents: 25, spentAt: '2026-08-09T16:30:00.000Z', spentDay: '2026-08-10'},
   {id: 'invalid', amountCents: 75, spentAt: 'not-a-timestamp'},
-], '2026-08-10');
-assert.equal(timezoneLedger.find(day => day.dayKey === localOffsetDay).spentCents, 25);
+], '2026-08-11');
+assert.equal(timezoneLedger.find(day => day.dayKey === '2026-08-10').spentCents, 25, 'persisted civil day is timezone-stable');
 assert.equal(timezoneLedger.reduce((total, day) => total + day.spentCents, 0), 25);
 
 const legacyMonth = normalizeBudgetCycle({
@@ -139,7 +144,7 @@ vm.runInContext(
 const farLegacy = countContext.countedBudget.normalizeBudgetCycle({
   id: 'far-legacy', startDay: '1000-01-31', endExclusive: '9999-12-30', totalCents: 10000,
 });
-assert.equal(farLegacy.periodUnit, 'day');
+assert.equal(farLegacy, null, 'legacy cycles large enough to render huge ledgers are rejected');
 assert.ok(
   countContext.countedBudget.getCallCount() <= 3,
   `far legacy inference must stay O(1), received ${countContext.countedBudget.getCallCount()} end-date helper calls`,
@@ -215,8 +220,8 @@ context.localStorage = localStorage;
 context.saveLifeState = () => {
   try {
     localStorage.setItem('ll_lifeState', JSON.stringify({
-      version: 1, calorieTarget: 2000, foodEntries: [], favoriteFoods: [],
-      walletState: {version: 1, budgetCycles: context.S.budgetCycles, expenses: context.S.expenses, activeBudgetCycleId: context.S.activeBudgetCycleId},
+      version: 2, calorieTarget: 2000, foodEntries: [], favoriteFoods: [],
+      walletState: {version: 2, budgetCycles: context.S.budgetCycles, expenses: context.S.expenses, activeBudgetCycleId: context.S.activeBudgetCycleId},
     }));
     return true;
   } catch (error) { return false; }
@@ -277,6 +282,7 @@ const expenseId = context.S.expenses.at(-1).id;
 assert.equal(context.S.expenses.at(-1).amountCents, 200);
 assert.equal(context.S.expenses.at(-1).cycleId, activeCycle.id);
 assert.equal(context.S.expenses.at(-1).category, 'food');
+assert.equal(context.S.expenses.at(-1).spentDay, todayKey, 'expense source civil day is persisted');
 assert.match(elements.walletToday.textContent, /-.*0[.,]50/);
 assert.equal(elements.walletNegativeNote.hidden, false);
 assert.match(elements.expenseTimeline.innerHTML, /&lt;b&gt;Lunch &amp; tea&lt;\/b&gt;/);
@@ -302,6 +308,21 @@ assert.equal(wallet.addExpense(), true);
 assert.equal(context.S.expenses.filter(item => item.id === expenseId).length, 1, 'edit preserves the stable ID');
 assert.equal(context.S.expenses.find(item => item.id === expenseId).amountCents, 100);
 assert.match(elements.walletToday.textContent, /0[.,]50/);
+
+const validWalletState=JSON.stringify({cycles:context.S.budgetCycles,expenses:context.S.expenses,active:context.S.activeBudgetCycleId});
+const validWalletStorage=storage.get('ll_lifeState');
+elements.expenseName.value='x'.repeat(501);
+elements.expenseAmount.value='1.00';
+elements.expenseSpentAt.value=`${todayKey}T12:00`;
+assert.equal(wallet.addExpense(), false, 'UI rejects expense names above the canonical cap');
+elements.expenseName.value='Lunch';
+elements.expenseCategory.value='x'.repeat(121);
+assert.equal(wallet.addExpense(), false, 'UI rejects categories above the canonical cap');
+elements.expenseCategory.value='food';
+elements.expenseAmount.value='10000000000.01';
+assert.equal(wallet.addExpense(), false, 'UI rejects money above the canonical cap');
+assert.equal(JSON.stringify({cycles:context.S.budgetCycles,expenses:context.S.expenses,active:context.S.activeBudgetCycleId}),validWalletState);
+assert.equal(storage.get('ll_lifeState'),validWalletStorage,'invalid expense mutations leave canonical storage intact');
 
 assert.equal(wallet.deleteExpense(expenseId), true);
 assert.ok(context.S.expenses.find(item => item.id === expenseId).deletedAt, 'delete leaves a stable-ID tombstone');
@@ -416,5 +437,22 @@ const reloadedWallet = JSON.parse(storage.get('ll_walletState'));
 assert.equal(reloadedWallet.activeBudgetCycleId, endedCycle.id);
 assert.equal(JSON.stringify(reloadedWallet.budgetCycles), cyclesBeforeRenewFailure);
 resetStorageFaults();
+
+const cyclesBeforeInvalidCreate=JSON.stringify(context.S.budgetCycles);
+const storageBeforeInvalidCreate=storage.get('ll_lifeState');
+elements.budgetTotalAmount.value='10000000000.01';
+elements.budgetSavingsPercent.value='20';
+elements.budgetStartDate.value='2026-08-10';
+elements.budgetPeriodUnit.value='day';
+elements.budgetPeriodCount.value='1';
+assert.equal(wallet.createBudgetCycle(),false,'UI rejects cycle money above the canonical cap');
+elements.budgetTotalAmount.value='10.00';
+elements.budgetPeriodCount.value='10001';
+assert.equal(wallet.createBudgetCycle(),false,'UI rejects periods above the canonical cap');
+elements.budgetStartDate.value='9999-12-31';
+elements.budgetPeriodCount.value='1';
+assert.equal(wallet.createBudgetCycle(),false,'UI rejects calendar overflow before assignment');
+assert.equal(JSON.stringify(context.S.budgetCycles),cyclesBeforeInvalidCreate,'invalid cycles leave memory intact');
+assert.equal(storage.get('ll_lifeState'),storageBeforeInvalidCreate,'invalid cycles leave storage intact');
 
 console.log('allowance budget behavior: ok');

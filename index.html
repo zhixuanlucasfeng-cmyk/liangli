@@ -505,18 +505,18 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
           <div class="nutrition-target">
             <div class="nutrition-field">
               <label for="calorieTarget" data-i="calorieTargetLabel">每日热量目标</label>
-              <input id="calorieTarget" type="number" min="0" step="1" inputmode="numeric" onchange="updateCalorieTarget()">
+              <input id="calorieTarget" type="number" min="0" max="1000000" step="1" inputmode="numeric" onchange="updateCalorieTarget()">
             </div>
             <button type="button" class="btn ghost" onclick="saveFavoriteFood()" data-i="saveFavoriteFood">收藏食物</button>
           </div>
           <div class="nutrition-field" style="margin-top:10px">
             <label for="foodName" data-i="foodNameLabel">食物</label>
-            <input id="foodName" list="favoriteFoodOptions" data-ph="foodNamePh" placeholder="例如：鸡蛋" autocomplete="off">
+            <input id="foodName" list="favoriteFoodOptions" maxlength="500" data-ph="foodNamePh" placeholder="例如：鸡蛋" autocomplete="off">
             <datalist id="favoriteFoodOptions"></datalist>
           </div>
           <div class="nutrition-field" style="margin-top:10px">
             <label for="foodPortion" data-i="foodPortionLabel">份量</label>
-            <input id="foodPortion" data-ph="foodPortionPh" placeholder="例如：2 个">
+            <input id="foodPortion" maxlength="500" data-ph="foodPortionPh" placeholder="例如：2 个">
           </div>
           <span class="food-mode-label" id="foodModeLabel" data-i="foodModeLabel">热量录入方式</span>
           <div class="food-mode" id="foodMode" role="radiogroup" aria-labelledby="foodModeLabel">
@@ -530,7 +530,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
           <div class="row">
             <div class="nutrition-field" style="flex:1">
               <label for="foodCalories" data-i="foodCaloriesLabel">热量 (kcal)</label>
-              <input id="foodCalories" type="number" min="0" step="1" inputmode="decimal">
+              <input id="foodCalories" type="number" min="0" max="1000000" step="1" inputmode="decimal">
             </div>
             <div class="nutrition-field" style="flex:1.25">
               <label for="foodEatenAt" data-i="foodEatenAtLabel">进食时间</label>
@@ -557,7 +557,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
           <div class="wallet-grid" id="budgetCycleForm">
             <div class="wallet-field wallet-wide">
               <label for="budgetTotalAmount" data-i="budgetTotalLabel">周期总金额</label>
-              <input id="budgetTotalAmount" type="text" inputmode="decimal" data-ph="moneyAmountPh" placeholder="例如：875.00">
+              <input id="budgetTotalAmount" type="text" inputmode="decimal" maxlength="14" data-ph="moneyAmountPh" placeholder="例如：875.00">
             </div>
             <div class="wallet-field">
               <label for="budgetSavingsPercent" data-i="budgetSavingsLabel">建议储蓄比例 (%)</label>
@@ -578,7 +578,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
             </div>
             <div class="wallet-field">
               <label for="budgetPeriodCount" data-i="budgetPeriodCountLabel">周期数量</label>
-              <input id="budgetPeriodCount" type="number" value="1" min="1" step="1" inputmode="numeric">
+              <input id="budgetPeriodCount" type="number" value="1" min="1" max="10000" step="1" inputmode="numeric">
             </div>
           </div>
           <div class="row"><button type="button" class="btn full" id="createBudgetButton" onclick="createBudgetCycle()" data-i="createBudget">开始预算周期</button></div>
@@ -606,7 +606,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
               <label class="wallet-carry"><input id="budgetCarryForward" type="checkbox"><span data-i="walletCarryLabel">把最终余额（包括负数）带到下一周期</span></label>
               <div class="wallet-field" style="margin-top:8px">
                 <label for="budgetRechargeTotal" data-i="walletRechargeLabel">充值后的新总额</label>
-                <input id="budgetRechargeTotal" type="text" inputmode="decimal" data-ph="moneyAmountPh" placeholder="例如：875.00">
+                <input id="budgetRechargeTotal" type="text" inputmode="decimal" maxlength="14" data-ph="moneyAmountPh" placeholder="例如：875.00">
               </div>
               <div class="wallet-renew-actions">
                 <button type="button" class="btn ghost" onclick="renewBudgetCycle('same',document.getElementById('budgetCarryForward').checked)" data-i="walletRenewSame">沿用设置</button>
@@ -619,10 +619,10 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
           <div class="card manga-panel wallet-expense-panel">
             <h2 class="manga-title" data-i="expenseTitle">记一笔消费</h2>
             <p class="wallet-expense-availability" id="walletExpenseAvailability" role="status" aria-live="polite"></p>
-            <div class="wallet-field"><label for="expenseName" data-i="expenseNameLabel">消费名称</label><input id="expenseName" aria-describedby="walletExpenseAvailability" data-ph="expenseNamePh" placeholder="例如：午餐"></div>
+            <div class="wallet-field"><label for="expenseName" data-i="expenseNameLabel">消费名称</label><input id="expenseName" aria-describedby="walletExpenseAvailability" maxlength="500" data-ph="expenseNamePh" placeholder="例如：午餐"></div>
             <div class="wallet-grid" style="margin-top:9px">
-              <div class="wallet-field"><label for="expenseAmount" data-i="expenseAmountLabel">金额</label><input id="expenseAmount" aria-describedby="walletExpenseAvailability" type="text" inputmode="decimal" data-ph="moneyAmountPh" placeholder="例如：25.00"></div>
-              <div class="wallet-field"><label for="expenseCategory" data-i="expenseCategoryLabel">分类（可选）</label><input id="expenseCategory" aria-describedby="walletExpenseAvailability" data-ph="expenseCategoryPh" placeholder="例如：餐饮"></div>
+              <div class="wallet-field"><label for="expenseAmount" data-i="expenseAmountLabel">金额</label><input id="expenseAmount" aria-describedby="walletExpenseAvailability" type="text" inputmode="decimal" maxlength="14" data-ph="moneyAmountPh" placeholder="例如：25.00"></div>
+              <div class="wallet-field"><label for="expenseCategory" data-i="expenseCategoryLabel">分类（可选）</label><input id="expenseCategory" aria-describedby="walletExpenseAvailability" maxlength="120" data-ph="expenseCategoryPh" placeholder="例如：餐饮"></div>
               <div class="wallet-field wallet-wide"><label for="expenseSpentAt" data-i="expenseTimeLabel">消费时间</label><input id="expenseSpentAt" aria-describedby="walletExpenseAvailability" type="datetime-local"></div>
             </div>
             <div class="row"><button type="button" class="btn full" id="saveExpenseButton" aria-describedby="walletExpenseAvailability" onclick="addExpense()" data-i="saveExpense">保存消费</button></div>
@@ -781,8 +781,8 @@ const I18N={
    moodAwful:"很糟",moodLow:"低落",moodNeutral:"一般",moodGood:"不错",moodGreat:"很好",
    saveLog:"保存记录",history:"历史记录",
    navToday:"今日",navPool:"成长池",navGoals:"目标",navFocus:"专注",navLife:"生活",
-   nutritionTitle:"营养",walletTitle:"钱包",journalTitle:"记录",lifeBackupTitle:"生活数据备份",lifeBackupHint:"导出或导入营养与钱包数据；不会包含任务、账号或卡片。",exportLifeData:"导出生活数据",importLifeData:"导入生活数据",confirmLifeImport:"确认导入",cancelLifeImport:"取消",lifeImportReady:"已准备好导入",lifeImportSummary:"将导入 {foods} 条饮食记录、{favorites} 个收藏食物、{cycles} 个预算周期和 {expenses} 条消费记录。",lifeImportDone:"生活数据已导入。",lifeImportInvalid:"生活备份文件无效，未导入任何数据。",lifeImportStoreError:"无法保存导入内容，当前数据未改变。",
-   calorieTargetLabel:"每日热量目标",saveFavoriteFood:"收藏食物",foodNameLabel:"食物",foodNamePh:"例如：鸡蛋",foodPortionLabel:"份量",foodPortionPh:"例如：2 个",foodModeLabel:"热量录入方式",foodModeManual:"手动",foodModeEstimate:"估算",estimateCalories:"估算热量",foodCaloriesLabel:"热量 (kcal)",foodEatenAtLabel:"进食时间",saveFood:"保存食物",updateFood:"更新食物",previousDate:"前一天",nextDate:"后一天",editFood:"编辑食物",deleteFood:"删除食物",foodManualNeeded:"未找到可用估算，请手动填写热量。",foodNameNeeded:"请填写食物名称。",foodCaloriesInvalid:"请填写有效热量。",foodDateInvalid:"请选择有效进食时间。",foodStoreError:"保存失败，表单内容已保留。",foodSaved:"食物已保存。",foodUpdated:"食物已更新。",foodDeleted:"食物已删除。",foodFavoriteSaved:"已收藏这个食物。",foodEmptyDay:"这一天还没有饮食记录。",caloriesConsumed:"已摄入",caloriesRemaining:"剩余",calorieUnit:"千卡",
+   nutritionTitle:"营养",walletTitle:"钱包",journalTitle:"记录",lifeBackupTitle:"生活数据备份",lifeBackupHint:"导出或导入营养与钱包数据；不会包含任务、账号或卡片。",exportLifeData:"导出生活数据",importLifeData:"导入生活数据",confirmLifeImport:"确认导入",cancelLifeImport:"取消",lifeImportReady:"已准备好导入",lifeImportSummary:"将导入 {foods} 条饮食记录、{favorites} 个收藏食物、{cycles} 个预算周期和 {expenses} 条消费记录。",lifeImportDone:"生活数据已导入。",lifeImportInvalid:"生活备份文件无效，未导入任何数据。",lifeImportStoreError:"无法保存导入内容，当前数据未改变。",lifeStorageInvalid:"已保存的生活数据无法验证。原始数据保持不变；请导入一份有效备份以修复。",lifeStorageReadError:"暂时无法读取生活数据。没有覆盖原始数据；请检查浏览器存储权限后重试。",
+   calorieTargetLabel:"每日热量目标",saveFavoriteFood:"收藏食物",foodNameLabel:"食物",foodNamePh:"例如：鸡蛋",foodPortionLabel:"份量",foodPortionPh:"例如：2 个",foodModeLabel:"热量录入方式",foodModeManual:"手动",foodModeEstimate:"估算",estimateCalories:"估算热量",foodCaloriesLabel:"热量 (kcal)",foodEatenAtLabel:"进食时间",saveFood:"保存食物",updateFood:"更新食物",previousDate:"前一天",nextDate:"后一天",editFood:"编辑食物",deleteFood:"删除食物",foodManualNeeded:"未找到可用估算，请手动填写热量。",foodNameNeeded:"请填写食物名称。",foodCaloriesInvalid:"请填写 0 到 1,000,000 之间的有效热量。",foodDateInvalid:"请选择有效进食时间。",lifeTextTooLong:"输入内容过长，请缩短后再保存。",foodStoreError:"保存失败，表单内容已保留。",foodSaved:"食物已保存。",foodUpdated:"食物已更新。",foodDeleted:"食物已删除。",foodFavoriteSaved:"已收藏这个食物。",foodEmptyDay:"这一天还没有饮食记录。",caloriesConsumed:"已摄入",caloriesRemaining:"剩余",calorieUnit:"千卡",
    budgetTotalLabel:"周期总金额",budgetSavingsLabel:"建议储蓄比例 (%)",budgetStartLabel:"开始日期",budgetPeriodLabel:"周期单位",budgetPeriodCountLabel:"周期数量",budgetPeriodDay:"天",budgetPeriodWeek:"周",budgetPeriodMonth:"月",budgetPeriodYear:"年",moneyAmountPh:"例如：875.00",createBudget:"开始预算周期",walletNoCycle:"还没有进行中的预算周期。",walletSummaryTitle:"本周期",walletTotalLabel:"总额",walletSavedLabel:"建议储蓄",walletSpendableLabel:"可用零花钱",walletTodayLabel:"今日剩余",walletSpentLabel:"今日已花",walletNegativeNote:"今天暂时超出额度也没关系，这个差额会平静地结转到下一天。",walletCycleEndTitle:"这个周期已经结束",walletCycleEndDesc:"选择下一步前不会自动续期，也不会影响你继续使用其他页面。",walletCarryLabel:"把最终余额（包括负数）带到下一周期",walletRechargeLabel:"充值后的新总额",walletRenewSame:"沿用设置",walletRenewRecharge:"充值并续期",walletRenewPause:"暂停预算",expenseTitle:"记一笔消费",expenseNameLabel:"消费名称",expenseNamePh:"例如：午餐",expenseAmountLabel:"金额",expenseCategoryLabel:"分类（可选）",expenseCategoryPh:"例如：餐饮",expenseTimeLabel:"消费时间",saveExpense:"保存消费",updateExpense:"更新消费",expenseTimelineTitle:"消费时间线",editExpense:"编辑消费",deleteExpense:"删除消费",expenseEmpty:"这个周期还没有消费记录。",expenseCycleEnded:"本周期已经结束。续期后即可继续记账。",walletCycleDates:"周期（含首尾）",walletCycleInvalid:"请填写有效的金额、储蓄比例、开始日期和正数周期。",walletNoActiveCycle:"请先开始一个预算周期。",expenseNameNeeded:"请填写消费名称。",expenseAmountInvalid:"请填写有效金额。",expenseDateInvalid:"请选择有效消费时间。",expenseOutsideCycle:"消费时间需要在当前预算周期内。",walletRechargeInvalid:"请填写有效的新总额。",walletCycleNotEnded:"当前周期还没有结束。",walletStoreError:"保存失败，表单内容已保留。",walletCycleSaved:"预算周期已开始。",expenseSaved:"消费已保存。",expenseUpdated:"消费已更新。",expenseDeleted:"消费已删除。",walletRenewed:"新预算周期已开始。",walletPaused:"预算已暂停。",
    emptyTask:"还没有任务，加一个吧",emptyIdea:"成长池是空的～想法随手记这里",
    emptyGoal:"还没有目标。目标是方向，不是压力。",emptyLog:"还没有记录。从今天开始吧。",
@@ -808,8 +808,8 @@ const I18N={
    moodAwful:"Awful",moodLow:"Low",moodNeutral:"Okay",moodGood:"Good",moodGreat:"Great",
    saveLog:"Save entry",history:"Past entries",
    navToday:"Today",navPool:"Pool",navGoals:"Goals",navFocus:"Focus",navLife:"Life",
-   nutritionTitle:"Nutrition",walletTitle:"Wallet",journalTitle:"Journal",lifeBackupTitle:"Life data backup",lifeBackupHint:"Export or import nutrition and wallet data. Tasks, accounts, and cards are never included.",exportLifeData:"Export life data",importLifeData:"Import life data",confirmLifeImport:"Import now",cancelLifeImport:"Cancel",lifeImportReady:"Ready to import",lifeImportSummary:"This will import {foods} food entries, {favorites} favorite foods, {cycles} budget cycles, and {expenses} expenses.",lifeImportDone:"Life data imported.",lifeImportInvalid:"This life backup is invalid. Nothing was imported.",lifeImportStoreError:"Could not save the import. Your current data is unchanged.",
-   calorieTargetLabel:"Daily calorie target",saveFavoriteFood:"Favorite food",foodNameLabel:"Food",foodNamePh:"e.g. Eggs",foodPortionLabel:"Portion",foodPortionPh:"e.g. 2 pieces",foodModeLabel:"Calorie entry mode",foodModeManual:"Manual",foodModeEstimate:"Estimate",estimateCalories:"Estimate calories",foodCaloriesLabel:"Calories (kcal)",foodEatenAtLabel:"Eaten at",saveFood:"Save food",updateFood:"Update food",previousDate:"Previous day",nextDate:"Next day",editFood:"Edit food",deleteFood:"Delete food",foodManualNeeded:"No estimate found. Enter calories manually.",foodNameNeeded:"Enter a food name.",foodCaloriesInvalid:"Enter valid calories.",foodDateInvalid:"Choose a valid time.",foodStoreError:"Could not save. Your form is unchanged.",foodSaved:"Food saved.",foodUpdated:"Food updated.",foodDeleted:"Food deleted.",foodFavoriteSaved:"Favorite saved.",foodEmptyDay:"No food logged for this day.",caloriesConsumed:"consumed",caloriesRemaining:"remaining",calorieUnit:"kcal",
+   nutritionTitle:"Nutrition",walletTitle:"Wallet",journalTitle:"Journal",lifeBackupTitle:"Life data backup",lifeBackupHint:"Export or import nutrition and wallet data. Tasks, accounts, and cards are never included.",exportLifeData:"Export life data",importLifeData:"Import life data",confirmLifeImport:"Import now",cancelLifeImport:"Cancel",lifeImportReady:"Ready to import",lifeImportSummary:"This will import {foods} food entries, {favorites} favorite foods, {cycles} budget cycles, and {expenses} expenses.",lifeImportDone:"Life data imported.",lifeImportInvalid:"This life backup is invalid. Nothing was imported.",lifeImportStoreError:"Could not save the import. Your current data is unchanged.",lifeStorageInvalid:"Saved Life data could not be validated. The original bytes are unchanged; import a valid backup to repair them.",lifeStorageReadError:"Life data cannot be read right now. The original bytes were not overwritten; check browser storage access and try again.",
+   calorieTargetLabel:"Daily calorie target",saveFavoriteFood:"Favorite food",foodNameLabel:"Food",foodNamePh:"e.g. Eggs",foodPortionLabel:"Portion",foodPortionPh:"e.g. 2 pieces",foodModeLabel:"Calorie entry mode",foodModeManual:"Manual",foodModeEstimate:"Estimate",estimateCalories:"Estimate calories",foodCaloriesLabel:"Calories (kcal)",foodEatenAtLabel:"Eaten at",saveFood:"Save food",updateFood:"Update food",previousDate:"Previous day",nextDate:"Next day",editFood:"Edit food",deleteFood:"Delete food",foodManualNeeded:"No estimate found. Enter calories manually.",foodNameNeeded:"Enter a food name.",foodCaloriesInvalid:"Enter calories from 0 through 1,000,000.",foodDateInvalid:"Choose a valid time.",lifeTextTooLong:"This text is too long. Shorten it before saving.",foodStoreError:"Could not save. Your form is unchanged.",foodSaved:"Food saved.",foodUpdated:"Food updated.",foodDeleted:"Food deleted.",foodFavoriteSaved:"Favorite saved.",foodEmptyDay:"No food logged for this day.",caloriesConsumed:"consumed",caloriesRemaining:"remaining",calorieUnit:"kcal",
    budgetTotalLabel:"Cycle total",budgetSavingsLabel:"Suggested savings (%)",budgetStartLabel:"Start date",budgetPeriodLabel:"Period unit",budgetPeriodCountLabel:"Period count",budgetPeriodDay:"Day",budgetPeriodWeek:"Week",budgetPeriodMonth:"Month",budgetPeriodYear:"Year",moneyAmountPh:"e.g. 875.00",createBudget:"Start budget cycle",walletNoCycle:"No budget cycle is active yet.",walletSummaryTitle:"This cycle",walletTotalLabel:"Total",walletSavedLabel:"Suggested savings",walletSpendableLabel:"Spending allowance",walletTodayLabel:"Left today",walletSpentLabel:"Spent today",walletNegativeNote:"It is okay to be over today's amount. The difference will carry calmly into the next day.",walletCycleEndTitle:"This cycle has ended",walletCycleEndDesc:"Nothing renews until you choose. You can keep using every other page.",walletCarryLabel:"Carry the final balance (including a negative one) into the next cycle",walletRechargeLabel:"New total after recharge",walletRenewSame:"Use same settings",walletRenewRecharge:"Recharge and renew",walletRenewPause:"Pause budgeting",expenseTitle:"Log an expense",expenseNameLabel:"Expense name",expenseNamePh:"e.g. Lunch",expenseAmountLabel:"Amount",expenseCategoryLabel:"Category (optional)",expenseCategoryPh:"e.g. Food",expenseTimeLabel:"Spent at",saveExpense:"Save expense",updateExpense:"Update expense",expenseTimelineTitle:"Expense timeline",editExpense:"Edit expense",deleteExpense:"Delete expense",expenseEmpty:"No expenses in this cycle yet.",expenseCycleEnded:"This cycle has ended. Renew it to log more expenses.",walletCycleDates:"Cycle (inclusive)",walletCycleInvalid:"Enter a valid amount, savings percentage, start date, and positive period.",walletNoActiveCycle:"Start a budget cycle first.",expenseNameNeeded:"Enter an expense name.",expenseAmountInvalid:"Enter a valid amount.",expenseDateInvalid:"Choose a valid expense time.",expenseOutsideCycle:"The expense time must be within the active budget cycle.",walletRechargeInvalid:"Enter a valid new total.",walletCycleNotEnded:"The current cycle has not ended yet.",walletStoreError:"Could not save. Your form is unchanged.",walletCycleSaved:"Budget cycle started.",expenseSaved:"Expense saved.",expenseUpdated:"Expense updated.",expenseDeleted:"Expense deleted.",walletRenewed:"New budget cycle started.",walletPaused:"Budgeting paused.",
    emptyTask:"No tasks yet. Add one.",emptyIdea:"Your growth pool is empty — jot ideas here.",
    emptyGoal:"No goals yet. A goal is a direction, not pressure.",emptyLog:"No entries yet. Start today.",
@@ -944,6 +944,13 @@ function toggleLang(){ lang = lang==='zh'?'en':'zh'; localStorage.setItem('ll_la
 /* ============ storage ============ */
 const DB={
   get(k,d){try{const v=localStorage.getItem('ll_'+k);return v===null?d:JSON.parse(v)}catch(e){return d}},
+  read(k){
+    let raw;
+    try{raw=localStorage.getItem('ll_'+k);}catch(error){return {status:'read-error',value:null,raw:null};}
+    if(raw===null)return {status:'missing',value:null,raw:null};
+    try{return {status:'present',value:JSON.parse(raw),raw};}
+    catch(error){return {status:'invalid',value:null,raw};}
+  },
   set(k,v){try{localStorage.setItem('ll_'+k,JSON.stringify(v));return true}catch(e){return false}}
 };
 function localDayKey(date=new Date()){
@@ -1363,6 +1370,11 @@ async function syncFlashcards(session,now){
   });
   return {uploaded:rawOps.length,decks:remoteDecks.length,cards:remoteCards.length,reviews:remoteReviews.length};
 }
+const MAX_LIFE_CALORIES=1000000,MAX_LIFE_MONEY_CENTS=1000000000000;
+const MAX_LIFE_NAME_LENGTH=500,MAX_LIFE_FAVORITE_LENGTH=120,MAX_LIFE_CATEGORY_LENGTH=120;
+const MAX_LIFE_PERIOD_COUNT=10000,MAX_LIFE_BUDGET_DAYS=10000;
+const MAX_LIFE_COLLECTION_ITEMS=10000,MAX_LIFE_BACKUP_CHARS=5000000;
+const LEGACY_LIFE_FALLBACK_TIMESTAMP='1970-01-01T00:00:00.000Z';
 const OFFLINE_FOODS=[
   {keys:['鸡蛋','egg'],labelZh:'鸡蛋',labelEn:'Egg',unit:'piece',calories:70},
   {keys:['米饭','rice'],labelZh:'米饭',labelEn:'Rice',unit:'100g',calories:130},
@@ -1370,39 +1382,91 @@ const OFFLINE_FOODS=[
   {keys:['苹果','apple'],labelZh:'苹果',labelEn:'Apple',unit:'piece',calories:95},
   {keys:['香蕉','banana'],labelZh:'香蕉',labelEn:'Banana',unit:'piece',calories:105},
 ];
+function isPlainObject(value){return value!==null&&typeof value==='object'&&!Array.isArray(value);}
+function lifeBackupError(message){throw new TypeError(`Life backup ${message}`);}
+function hasExactKeys(value,keys){return isPlainObject(value)&&Object.keys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key));}
+function hasOnlyKeys(value,keys){return isPlainObject(value)&&Object.keys(value).every(key=>keys.includes(key));}
+function validLifeId(value){return (typeof value==='string'||typeof value==='number')&&String(value).trim()!=='';}
+function strictLifeText(value,maxLength,allowEmpty=false){return typeof value==='string'&&value.length<=maxLength&&(allowEmpty||value.trim()!=='');}
+function strictLifeDay(value){try{budgetDayDate(value);return true;}catch(error){return false;}}
+function strictLifeDateTime(value){
+  const match=typeof value==='string'&&value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{3})?)?(Z|[+-](\d{2}):(\d{2}))$/);
+  if(!match||!strictLifeDay(match[1]))return false;
+  const hour=Number(match[2]),minute=Number(match[3]),second=match[4]==null?0:Number(match[4]);
+  if(hour>23||minute>59||second>59)return false;
+  if(match[5]!=='Z'&&(Number(match[6])>23||Number(match[7])>59))return false;
+  return Number.isFinite(Date.parse(value));
+}
+function safeLifeMoney(value,allowNegative=false){
+  return Number.isSafeInteger(value)&&Math.abs(value)<=MAX_LIFE_MONEY_CENTS&&(allowNegative||value>=0);
+}
+function timestampCivilDay(value){
+  const match=typeof value==='string'&&value.match(/^(\d{4}-\d{2}-\d{2})T/);
+  return match&&strictLifeDay(match[1])?match[1]:null;
+}
+function parseLocalDateTimeInput(value){
+  const match=typeof value==='string'&&value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/);
+  if(!match||!strictLifeDay(match[1])||Number(match[2])>23||Number(match[3])>59)return null;
+  const timestamp=new Date(value);
+  return Number.isFinite(timestamp.getTime())?{timestamp:timestamp.toISOString(),dayKey:match[1]}:null;
+}
+function normalizeLifeDateTime(value,fallback=LEGACY_LIFE_FALLBACK_TIMESTAMP){
+  if(strictLifeDateTime(value))return value;
+  const timestamp=new Date(value??fallback);
+  return Number.isFinite(timestamp.getTime())?timestamp.toISOString():LEGACY_LIFE_FALLBACK_TIMESTAMP;
+}
+function nextLifeTimestamp(previous){
+  const now=Date.now(),prior=Date.parse(previous);
+  return new Date(Number.isFinite(prior)&&now<=prior?prior+1:now).toISOString();
+}
 function normalizedCalories(value){return typeof value==='number'&&Number.isFinite(value)&&value>=0?value:0;}
 function normalizeCalorieTarget(value){return typeof value==='number'&&Number.isFinite(value)&&value>=0?value:2000;}
 function normalizeFoodEntry(raw,fallbackTimestamp){
-  const entry=raw&&typeof raw==='object'?raw:{};
+  const entry=isPlainObject(raw)?raw:{};
+  const eatenAt=normalizeLifeDateTime(entry.eatenAt,fallbackTimestamp);
+  const dayKey=strictLifeDay(entry.dayKey)?entry.dayKey:timestampCivilDay(eatenAt);
+  const createdAt=normalizeLifeDateTime(entry.createdAt,eatenAt);
+  const candidateUpdatedAt=normalizeLifeDateTime(entry.updatedAt,createdAt);
+  const updatedAt=Date.parse(candidateUpdatedAt)>=Date.parse(createdAt)?candidateUpdatedAt:createdAt;
   return {
-    ...entry,
     id:entry.id??null,
     name:typeof entry.name==='string'?entry.name:'',
     portion:typeof entry.portion==='string'?entry.portion:'',
     calories:normalizedCalories(entry.calories),
-    eatenAt:entry.eatenAt??fallbackTimestamp,
-    mode:entry.mode==='estimate'?'estimate':'manual'
+    eatenAt,dayKey,
+    mode:entry.mode==='estimate'?'estimate':'manual',
+    createdAt,updatedAt,
   };
 }
-function foodQuantity(portion,unit){
+function explicitFoodQuantity(portion,unit){
   const text=typeof portion==='string'?portion:'';
-  const match=text.match(/(\d+(?:\.\d+)?)/);
-  const value=match?Number(match[1]):NaN;
+  const patterns={
+    piece:/(\d+(?:\.\d+)?)\s*(?:个|枚|只|颗|pieces?|pcs?)(?=$|[^\p{L}\p{N}])/iu,
+    '100g':/(\d+(?:\.\d+)?)\s*(?:克|g|grams?)(?=$|[^\p{L}\p{N}])/iu,
+    '250ml':/(\d+(?:\.\d+)?)\s*(?:毫升|ml|millilit(?:er|re)s?)(?=$|[^\p{L}\p{N}])/iu,
+  };
+  const match=text.match(patterns[unit]);
+  if(!match)return 1;
+  const value=Number(match[1]);
   if(!Number.isFinite(value)||value<=0)return 1;
-  if(unit==='piece')return /个|枚|只|颗|pieces?|pcs?/i.test(text)?value:1;
-  if(unit==='100g')return /克|g\b/i.test(text)?value/100:1;
-  return /毫升|ml\b/i.test(text)?value/250:1;
+  return unit==='100g'?value/100:unit==='250ml'?value/250:value;
+}
+function foodKeyMatches(text,key){
+  const normalized=key.toLowerCase();
+  if(!/^[a-z0-9]+$/i.test(normalized))return text.includes(normalized);
+  const tokens=text.match(/[\p{L}\p{N}]+/gu)||[];
+  return tokens.some(token=>token===normalized||token===`${normalized}s`);
 }
 function estimateFoodCalories(name,portion){
   const text=typeof name==='string'?name.toLowerCase():'';
-  const food=OFFLINE_FOODS.find(item=>item.keys.some(key=>text.includes(key.toLowerCase())));
+  const food=OFFLINE_FOODS.find(item=>item.keys.some(key=>foodKeyMatches(text,key)));
   if(!food)return {matched:false,calories:null,label:null};
-  return {matched:true,calories:Math.round(food.calories*foodQuantity(portion,food.unit)),label:food.labelZh};
+  return {matched:true,calories:Math.round(food.calories*explicitFoodQuantity(portion,food.unit)),label:food.labelZh};
 }
 function foodEntriesForDay(entries,dayKey){
   if(!Array.isArray(entries))return [];
-  return entries.map((entry,index)=>({entry,index,timestamp:new Date(entry?.eatenAt)}))
-    .filter(item=>Number.isFinite(item.timestamp.getTime())&&localDayKey(item.timestamp)===dayKey)
+  return entries.map((entry,index)=>({entry,index,timestamp:Date.parse(entry?.eatenAt),dayKey:strictLifeDay(entry?.dayKey)?entry.dayKey:timestampCivilDay(entry?.eatenAt)}))
+    .filter(item=>Number.isFinite(item.timestamp)&&item.dayKey===dayKey)
     .sort((a,b)=>a.timestamp-b.timestamp||a.index-b.index)
     .map(item=>item.entry);
 }
@@ -1416,12 +1480,13 @@ function moneyToCents(value){
   const match=text.match(/^(0|[1-9]\d*)(?:\.(\d{1,2}))?$/);
   if(!match)return null;
   const cents=Number(match[1])*100+Number((match[2]||'').padEnd(2,'0'));
-  return Number.isSafeInteger(cents)?cents:null;
+  return safeLifeMoney(cents)?cents:null;
 }
 function budgetDayDate(dayKey){
   const match=typeof dayKey==='string'&&dayKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if(!match)throw new RangeError('Budget day must be YYYY-MM-DD');
   const year=Number(match[1]),month=Number(match[2]),day=Number(match[3]);
+  if(year<1||year>9999)throw new RangeError('Budget calendar year is outside the supported range');
   const date=new Date(0);
   date.setFullYear(year,month-1,day);
   date.setHours(12,0,0,0);
@@ -1429,25 +1494,31 @@ function budgetDayDate(dayKey){
   return date;
 }
 function budgetDayKey(date){
-  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+  const year=date.getFullYear();
+  if(!Number.isFinite(date.getTime())||year<1||year>9999)throw new RangeError('Budget calendar overflow');
+  return `${String(year).padStart(4,'0')}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }
 function budgetDayOrdinal(dayKey){
   const date=budgetDayDate(dayKey);
   return Math.floor(Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())/864e5);
 }
 function budgetEndExclusive(startDay,unit,count){
-  if(!Number.isInteger(count)||count<=0)throw new RangeError('Budget period count must be positive');
+  if(!Number.isInteger(count)||count<=0||count>MAX_LIFE_PERIOD_COUNT)throw new RangeError('Budget period count is outside the supported range');
   const end=budgetDayDate(startDay);
   if(unit==='day')end.setDate(end.getDate()+count);
   else if(unit==='week')end.setDate(end.getDate()+count*7);
   else if(unit==='month')end.setMonth(end.getMonth()+count);
   else if(unit==='year')end.setFullYear(end.getFullYear()+count);
   else throw new RangeError('Budget period unit must be day, week, month, or year');
-  return budgetDayKey(end);
+  const result=budgetDayKey(end);
+  const days=budgetDayOrdinal(result)-budgetDayOrdinal(startDay);
+  if(days<=0||days>MAX_LIFE_BUDGET_DAYS)throw new RangeError('Budget period is outside the supported range');
+  return result;
 }
 function budgetDayCount(startDay,endExclusive){
   const days=budgetDayOrdinal(endExclusive)-budgetDayOrdinal(startDay);
   if(days<=0)throw new RangeError('Budget period must span at least one day');
+  if(days>MAX_LIFE_BUDGET_DAYS)throw new RangeError('Budget period is outside the supported range');
   return days;
 }
 function findBudgetPeriodCount(startDay,endExclusive,unit,candidates){
@@ -1471,19 +1542,19 @@ function inferBudgetPeriod(startDay,endExclusive){
 function allocateDailyCents(spendableCents,days){
   if(!Number.isSafeInteger(spendableCents))throw new TypeError('Spendable cents must be an integer');
   if(!Number.isInteger(days)||days<=0)throw new RangeError('Budget period must span at least one day');
+  if(days>MAX_LIFE_BUDGET_DAYS)throw new RangeError('Budget period is outside the supported range');
   const sign=Math.sign(spendableCents)||1,absolute=Math.abs(spendableCents);
   const quotient=Math.floor(absolute/days),remainder=absolute%days;
   return Array.from({length:days},(_,index)=>sign*(quotient+(index<remainder?1:0)));
 }
 function budgetExpenseDay(expense){
-  if(typeof expense?.spentAt!=='string')return null;
-  const timestamp=new Date(expense.spentAt);
-  return Number.isFinite(timestamp.getTime())?localDayKey(timestamp):null;
+  if(strictLifeDay(expense?.spentDay))return expense.spentDay;
+  return strictLifeDateTime(expense?.spentAt)?timestampCivilDay(expense.spentAt):null;
 }
 function computeBudgetLedger(cycle,expenses,throughDay){
   if(!cycle||typeof cycle!=='object')throw new TypeError('Budget cycle is required');
   const totalCents=cycle.totalCents,savingsBps=cycle.savingsBps??2000,openingCarryCents=cycle.openingCarryCents??0;
-  if(!Number.isSafeInteger(totalCents)||!Number.isSafeInteger(savingsBps)||!Number.isSafeInteger(openingCarryCents))throw new TypeError('Budget values must be integer cents or basis points');
+  if(!safeLifeMoney(totalCents)||!Number.isSafeInteger(savingsBps)||!safeLifeMoney(openingCarryCents,true))throw new TypeError('Budget values must be bounded integer cents or basis points');
   if(savingsBps<0||savingsBps>10000)throw new RangeError('Savings basis points must be between 0 and 10000');
   const totalDays=budgetDayCount(cycle.startDay,cycle.endExclusive);
   const savedCents=Math.round(totalCents*savingsBps/10000);
@@ -1515,12 +1586,12 @@ function normalizeBudgetCycle(raw){
   if(!raw||typeof raw!=='object'||(typeof raw.id!=='string'&&typeof raw.id!=='number')||String(raw.id).trim()==='')return null;
   const {id,startDay,endExclusive,totalCents}=raw;
   const savingsBps=raw.savingsBps??2000,openingCarryCents=raw.openingCarryCents??0;
-  if(typeof startDay!=='string'||typeof endExclusive!=='string'||!Number.isSafeInteger(totalCents)||totalCents<0||!Number.isSafeInteger(savingsBps)||savingsBps<0||savingsBps>10000||!Number.isSafeInteger(openingCarryCents))return null;
+  if(typeof startDay!=='string'||typeof endExclusive!=='string'||!safeLifeMoney(totalCents)||!Number.isSafeInteger(savingsBps)||savingsBps<0||savingsBps>10000||!safeLifeMoney(openingCarryCents,true))return null;
   let period;
   try{
     budgetDayCount(startDay,endExclusive);
     const hasReusablePeriod=['day','week','month','year'].includes(raw.periodUnit)
-      &&Number.isInteger(raw.periodCount)&&raw.periodCount>0
+      &&Number.isInteger(raw.periodCount)&&raw.periodCount>0&&raw.periodCount<=MAX_LIFE_PERIOD_COUNT
       &&budgetEndExclusive(startDay,raw.periodUnit,raw.periodCount)===endExclusive;
     period=hasReusablePeriod
       ?{periodUnit:raw.periodUnit,periodCount:raw.periodCount}
@@ -1531,23 +1602,82 @@ function normalizeBudgetCycle(raw){
 function normalizeExpense(raw){
   if(!raw||typeof raw!=='object'||(typeof raw.id!=='string'&&typeof raw.id!=='number')||String(raw.id).trim()==='')return null;
   const {id,amountCents,spentAt}=raw;
-  if(!Number.isSafeInteger(amountCents)||amountCents<0||typeof spentAt!=='string'||!Number.isFinite(Date.parse(spentAt)))return null;
-  if(raw.deletedAt!=null&&(typeof raw.deletedAt!=='string'||!Number.isFinite(Date.parse(raw.deletedAt))))return null;
-  return {...raw,id,amountCents,spentAt,deletedAt:raw.deletedAt??null};
+  if(!safeLifeMoney(amountCents)||!strictLifeDateTime(spentAt))return null;
+  const spentDay=strictLifeDay(raw.spentDay)?raw.spentDay:timestampCivilDay(spentAt);
+  if(!spentDay||raw.deletedAt!=null&&!strictLifeDateTime(raw.deletedAt))return null;
+  const expense={...raw,id,amountCents,category:raw.category??'',spentAt,spentDay,deletedAt:raw.deletedAt??null};
+  return expense;
+}
+function optionalLifeDateTime(raw,key){return !Object.hasOwn(raw,key)||strictLifeDateTime(raw[key]);}
+function assertUniqueLifeIds(items,label,ids){
+  for(const item of items){
+    if(!validLifeId(item?.id))lifeBackupError(`${label} ID is invalid`);
+    const id=String(item.id);
+    if(ids.has(id))lifeBackupError(`contains duplicate ${label} IDs`);
+    ids.add(id);
+  }
+}
+function buildLifeFoodEntry(raw,legacy=false){
+  const oldKeys=['id','name','portion','calories','eatenAt','mode'];
+  const newKeys=[...oldKeys,'dayKey','createdAt','updatedAt'];
+  if(!(legacy?hasExactKeys(raw,oldKeys):hasExactKeys(raw,newKeys))||!validLifeId(raw.id)
+    ||!strictLifeText(raw.name,MAX_LIFE_NAME_LENGTH)||typeof raw.portion!=='string'||raw.portion.length>MAX_LIFE_NAME_LENGTH
+    ||!strictLifeDateTime(raw.eatenAt)||!['manual','estimate'].includes(raw.mode))lifeBackupError('food record is invalid');
+  if(typeof raw.calories!=='number'||!Number.isFinite(raw.calories)||raw.calories<0||raw.calories>MAX_LIFE_CALORIES)
+    lifeBackupError('food calories are invalid');
+  if(legacy)return buildLifeFoodEntry(normalizeFoodEntry(raw,LEGACY_LIFE_FALLBACK_TIMESTAMP));
+  if(!strictLifeDay(raw.dayKey)||!strictLifeDateTime(raw.createdAt)||!strictLifeDateTime(raw.updatedAt)
+    ||Date.parse(raw.updatedAt)<Date.parse(raw.createdAt))lifeBackupError('food metadata is invalid');
+  return {id:raw.id,name:raw.name,portion:raw.portion,calories:raw.calories,eatenAt:raw.eatenAt,dayKey:raw.dayKey,mode:raw.mode,createdAt:raw.createdAt,updatedAt:raw.updatedAt};
+}
+function buildLifeBudgetCycle(raw){
+  const keys=['id','startDay','endExclusive','totalCents','savingsBps','openingCarryCents','periodUnit','periodCount','createdAt','updatedAt'];
+  if(!hasOnlyKeys(raw,keys)||!validLifeId(raw.id)||!strictLifeDay(raw.startDay)||!strictLifeDay(raw.endExclusive)
+    ||!safeLifeMoney(raw.totalCents)||!safeLifeMoney(raw.openingCarryCents,true)
+    ||!['day','week','month','year'].includes(raw.periodUnit)||!Number.isInteger(raw.periodCount)||raw.periodCount<=0||raw.periodCount>MAX_LIFE_PERIOD_COUNT)
+    lifeBackupError('budget cycle is invalid');
+  if(!Number.isSafeInteger(raw.savingsBps)||raw.savingsBps<0||raw.savingsBps>10000)
+    lifeBackupError('savings basis points are invalid');
+  if(!Number.isSafeInteger(raw.totalCents+raw.openingCarryCents)
+    ||!Number.isSafeInteger(raw.totalCents-Math.round(raw.totalCents*raw.savingsBps/10000)+raw.openingCarryCents))
+    lifeBackupError('money values are unsafe');
+  if(!optionalLifeDateTime(raw,'createdAt')||!optionalLifeDateTime(raw,'updatedAt'))lifeBackupError('budget cycle metadata is invalid');
+  const normalized=normalizeBudgetCycle(raw);
+  if(!normalized||normalized.periodUnit!==raw.periodUnit||normalized.periodCount!==raw.periodCount)
+    lifeBackupError('budget cycle date is invalid');
+  const cycle={id:raw.id,startDay:raw.startDay,endExclusive:raw.endExclusive,totalCents:raw.totalCents,savingsBps:raw.savingsBps,openingCarryCents:raw.openingCarryCents,periodUnit:raw.periodUnit,periodCount:raw.periodCount};
+  if(Object.hasOwn(raw,'createdAt'))cycle.createdAt=raw.createdAt;
+  if(Object.hasOwn(raw,'updatedAt'))cycle.updatedAt=raw.updatedAt;
+  return cycle;
+}
+function buildLifeExpense(raw,legacy=false){
+  const keys=['id','cycleId','name','amountCents','category','spentAt','spentDay','createdAt','updatedAt','deletedAt'];
+  const allowed=legacy?keys.filter(key=>key!=='spentDay'):keys;
+  if(!hasOnlyKeys(raw,allowed)||(!legacy&&!Object.hasOwn(raw,'spentDay'))||!validLifeId(raw.id)||!validLifeId(raw.cycleId)
+    ||!strictLifeText(raw.name,MAX_LIFE_NAME_LENGTH)||!safeLifeMoney(raw.amountCents)
+    ||!strictLifeText(raw.category,MAX_LIFE_CATEGORY_LENGTH,true)||!strictLifeDateTime(raw.spentAt)
+    ||!optionalLifeDateTime(raw,'createdAt')||!optionalLifeDateTime(raw,'updatedAt')
+    ||(raw.deletedAt!=null&&!strictLifeDateTime(raw.deletedAt)))lifeBackupError('expense record is invalid');
+  const spentDay=legacy?timestampCivilDay(raw.spentAt):raw.spentDay;
+  if(!strictLifeDay(spentDay))lifeBackupError('expense civil day is invalid');
+  const expense={id:raw.id,cycleId:raw.cycleId,name:raw.name,amountCents:raw.amountCents,category:raw.category,spentAt:raw.spentAt,spentDay,deletedAt:raw.deletedAt??null};
+  if(Object.hasOwn(raw,'createdAt'))expense.createdAt=raw.createdAt;
+  if(Object.hasOwn(raw,'updatedAt'))expense.updatedAt=raw.updatedAt;
+  return expense;
 }
 function normalizeWalletStatePayload(raw){
-  if(!raw||typeof raw!=='object'||raw.version!==1||!Array.isArray(raw.budgetCycles)
+  if(!raw||typeof raw!=='object'||![1,2].includes(raw.version)||!Array.isArray(raw.budgetCycles)
     ||!Array.isArray(raw.expenses)||!Object.hasOwn(raw,'activeBudgetCycleId'))return null;
   const budgetCycles=raw.budgetCycles.map(normalizeBudgetCycle);
   const expenses=raw.expenses.map(normalizeExpense);
   if(budgetCycles.some(cycle=>cycle===null)||expenses.some(expense=>expense===null))return null;
   const activeBudgetCycleId=raw.activeBudgetCycleId;
   if(activeBudgetCycleId!=null&&!budgetCycles.some(cycle=>cycle.id===activeBudgetCycleId))return null;
-  return {version:1,budgetCycles,expenses,activeBudgetCycleId};
+  return {version:2,budgetCycles,expenses,activeBudgetCycleId};
 }
 function walletStatePayload(state=S){
   return {
-    version:1,
+    version:2,
     budgetCycles:state.budgetCycles,
     expenses:state.expenses,
     activeBudgetCycleId:state.activeBudgetCycleId
@@ -1582,12 +1712,12 @@ function migrateDailyState(state,nextDay){
 const today=()=>localDayKey();
 let currentDayKey=localDayKey();
 const storedLastDay=DB.get('lastDay',currentDayKey);
-const LIFE_STATE_VERSION=1;
+const LIFE_STATE_VERSION=2;
+const LEGACY_LIFE_STATE_VERSION=1;
 const LIFE_BUNDLE_FORMAT='liangli-life';
-const LIFE_BUNDLE_VERSION=1;
+const LIFE_BUNDLE_VERSION=2;
+const LEGACY_LIFE_BUNDLE_VERSION=1;
 const LIFE_BUNDLE_KEYS=['calorieTarget','foodEntries','favoriteFoods','walletState'];
-const MAX_LIFE_CALORIES=1000000,MAX_LIFE_MONEY_CENTS=1000000000000;
-const MAX_LIFE_NAME_LENGTH=500,MAX_LIFE_FAVORITE_LENGTH=120,MAX_LIFE_CATEGORY_LENGTH=120;
 function lifeStatePayload(state=S){
   return {
     version:LIFE_STATE_VERSION,
@@ -1598,9 +1728,10 @@ function lifeStatePayload(state=S){
   };
 }
 function normalizeLifeStatePayload(raw){
-  if(!hasExactKeys(raw,['version','calorieTarget','foodEntries','favoriteFoods','walletState'])||raw.version!==LIFE_STATE_VERSION)return null;
+  if(!hasExactKeys(raw,['version','calorieTarget','foodEntries','favoriteFoods','walletState'])
+    ||![LEGACY_LIFE_STATE_VERSION,LIFE_STATE_VERSION].includes(raw.version))return null;
   try{
-    const life=parseLifeData(JSON.stringify({format:LIFE_BUNDLE_FORMAT,version:LIFE_BUNDLE_VERSION,life:{
+    const life=parseLifeData(JSON.stringify({format:LIFE_BUNDLE_FORMAT,version:raw.version,life:{
       calorieTarget:raw.calorieTarget,foodEntries:raw.foodEntries,favoriteFoods:raw.favoriteFoods,walletState:raw.walletState
     }}));
     return {version:LIFE_STATE_VERSION,...life};
@@ -1636,13 +1767,13 @@ function migrateLegacyWalletState(rawCycles,rawExpenses,rawActiveBudgetCycleId=n
     }catch(error){}
   }
   const activeBudgetCycleId=budgetCycles.some(cycle=>cycle.id===rawActiveBudgetCycleId)?rawActiveBudgetCycleId:null;
-  return {version:1,budgetCycles,expenses,activeBudgetCycleId};
+  return {version:2,budgetCycles,expenses,activeBudgetCycleId};
 }
 function migrateLegacyNutritionState(rawCalorieTarget,rawFoodEntries,rawFavoriteFoods){
   const calorieTarget=normalizeCalorieTarget(rawCalorieTarget);
   const foodEntries=[];
   for(const raw of Array.isArray(rawFoodEntries)?rawFoodEntries:[]){
-    try{foodEntries.push(buildLifeFoodEntry(normalizeFoodEntry(raw,Date.now())));}catch(error){}
+    try{foodEntries.push(buildLifeFoodEntry(normalizeFoodEntry(raw,LEGACY_LIFE_FALLBACK_TIMESTAMP)));}catch(error){}
   }
   const favoriteFoods=[],names=new Set();
   for(const food of Array.isArray(rawFavoriteFoods)?rawFavoriteFoods:[]){
@@ -1653,13 +1784,32 @@ function migrateLegacyNutritionState(rawCalorieTarget,rawFoodEntries,rawFavorite
   }
   return {calorieTarget:Math.min(calorieTarget,MAX_LIFE_CALORIES),foodEntries,favoriteFoods};
 }
-const storedLifeState=normalizeLifeStatePayload(DB.get('lifeState',null));
+function readCanonicalLifeState(){
+  let record;
+  if(typeof DB.read==='function')record=DB.read('lifeState');
+  else{
+    const missing={};
+    const value=DB.get('lifeState',missing);
+    record=value===missing?{status:'missing',value:null,raw:null}:{status:'present',value,raw:null};
+  }
+  if(record.status==='missing')return {status:'missing',state:null};
+  if(record.status==='read-error')return {status:'read-error',state:null};
+  if(record.status!=='present')return {status:'invalid',state:null};
+  const state=normalizeLifeStatePayload(record.value);
+  if(!state)return {status:'invalid',state:null};
+  return {status:record.value.version===LIFE_STATE_VERSION?'valid':'migration-needed',state};
+}
+const canonicalLifeState=readCanonicalLifeState();
+let lifeStateStorageStatus=canonicalLifeState.status;
+const storedLifeState=canonicalLifeState.state;
 const legacyWalletPayload=DB.get('walletState',null);
 const legacyBudgetCycles=Array.isArray(legacyWalletPayload?.budgetCycles)?legacyWalletPayload.budgetCycles:DB.get('budgetCycles',[]);
 const legacyExpenses=Array.isArray(legacyWalletPayload?.expenses)?legacyWalletPayload.expenses:DB.get('expenses',[]);
 const legacyActiveBudgetCycleId=legacyWalletPayload&&Object.hasOwn(legacyWalletPayload,'activeBudgetCycleId')
   ?legacyWalletPayload.activeBudgetCycleId:DB.get('activeBudgetCycleId',null);
-const storedWalletState=storedLifeState?storedLifeState.walletState:migrateLegacyWalletState(legacyBudgetCycles,legacyExpenses,legacyActiveBudgetCycleId);
+const storedWalletState=storedLifeState?storedLifeState.walletState
+  :lifeStateStorageStatus==='missing'?migrateLegacyWalletState(legacyBudgetCycles,legacyExpenses,legacyActiveBudgetCycleId)
+  :{version:2,budgetCycles:[],expenses:[],activeBudgetCycleId:null};
 const storedBudgetCycles=storedWalletState.budgetCycles;
 const storedExpenses=storedWalletState.expenses;
 const legacyNutritionState=migrateLegacyNutritionState(DB.get('calorieTarget',2000),DB.get('foodEntries',[]),DB.get('favoriteFoods',[]));
@@ -1675,9 +1825,9 @@ let S={
   pomo:DB.get('pomo',0),
   week:DB.get('week',[0,0,0,0,0,0,0]),
   lastDay:storedLastDay,
-  calorieTarget:storedLifeState?storedLifeState.calorieTarget:legacyNutritionState.calorieTarget,
-  foodEntries:storedLifeState?storedLifeState.foodEntries:legacyNutritionState.foodEntries,
-  favoriteFoods:storedLifeState?storedLifeState.favoriteFoods:legacyNutritionState.favoriteFoods,
+  calorieTarget:storedLifeState?storedLifeState.calorieTarget:lifeStateStorageStatus==='missing'?legacyNutritionState.calorieTarget:2000,
+  foodEntries:storedLifeState?storedLifeState.foodEntries:lifeStateStorageStatus==='missing'?legacyNutritionState.foodEntries:[],
+  favoriteFoods:storedLifeState?storedLifeState.favoriteFoods:lifeStateStorageStatus==='missing'?legacyNutritionState.favoriteFoods:[],
   budgetCycles:Array.isArray(storedBudgetCycles)?storedBudgetCycles.map(normalizeBudgetCycle).filter(Boolean):[],
   expenses:Array.isArray(storedExpenses)?storedExpenses.map(normalizeExpense).filter(Boolean):[],
   activeBudgetCycleId:null
@@ -1685,107 +1835,38 @@ let S={
 const storedActiveBudgetCycleId=storedWalletState&&Object.hasOwn(storedWalletState,'activeBudgetCycleId')
   ?storedWalletState.activeBudgetCycleId:DB.get('activeBudgetCycleId',null);
 S.activeBudgetCycleId=S.budgetCycles.some(cycle=>cycle.id===storedActiveBudgetCycleId)?storedActiveBudgetCycleId:null;
-function saveLifeState(){
-  return DB.set('lifeState',lifeStatePayload());
+function saveLifeState(options={}){
+  if(['invalid','read-error'].includes(lifeStateStorageStatus)&&options.replaceInvalid!==true)return false;
+  const payload=lifeStatePayload();
+  if(!normalizeLifeStatePayload(payload))return false;
+  if(!DB.set('lifeState',payload))return false;
+  lifeStateStorageStatus='valid';
+  return true;
+}
+if(['missing','migration-needed'].includes(lifeStateStorageStatus)&&!saveLifeState())lifeStateStorageStatus='write-error';
+function showLifeStorageStatus(){
+  if(lifeStateStorageStatus==='invalid')setLifeImportStatus(T('lifeStorageInvalid'));
+  else if(lifeStateStorageStatus==='read-error')setLifeImportStatus(T('lifeStorageReadError'));
+  else if(lifeStateStorageStatus==='write-error')setLifeImportStatus(T('lifeImportStoreError'));
 }
 let pendingLifeImport=null;
 let lifeImportGeneration=0;
-
-function isPlainObject(value){
-  return value!==null&&typeof value==='object'&&!Array.isArray(value);
-}
-function lifeBackupError(message){
-  throw new TypeError(`Life backup ${message}`);
-}
-function hasExactKeys(value,keys){
-  return isPlainObject(value)&&Object.keys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key));
-}
-function hasOnlyKeys(value,keys){
-  return isPlainObject(value)&&Object.keys(value).every(key=>keys.includes(key));
-}
-function validLifeId(value){
-  return (typeof value==='string'||typeof value==='number')&&String(value).trim()!=='';
-}
-function strictLifeText(value,maxLength,allowEmpty=false){
-  return typeof value==='string'&&value.length<=maxLength&&(allowEmpty||value.trim()!=='');
-}
-function strictLifeDay(value){
-  try{budgetDayDate(value);return true;}catch(error){return false;}
-}
-function strictLifeDateTime(value){
-  const match=typeof value==='string'&&value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{3})?)?(Z|[+-](\d{2}):(\d{2}))$/);
-  if(!match||!strictLifeDay(match[1]))return false;
-  const hour=Number(match[2]),minute=Number(match[3]),second=match[4]==null?0:Number(match[4]);
-  if(hour>23||minute>59||second>59)return false;
-  if(match[5]!=='Z'&&(Number(match[6])>23||Number(match[7])>59))return false;
-  return Number.isFinite(Date.parse(value));
-}
-function safeLifeMoney(value,allowNegative=false){
-  return Number.isSafeInteger(value)&&Math.abs(value)<=MAX_LIFE_MONEY_CENTS&&(allowNegative||value>=0);
-}
-function assertUniqueLifeIds(items,label,ids){
-  for(const item of items){
-    if(!validLifeId(item?.id))lifeBackupError(`${label} ID is invalid`);
-    const id=String(item.id);
-    if(ids.has(id))lifeBackupError(`contains duplicate ${label} IDs`);
-    ids.add(id);
-  }
-}
-function buildLifeFoodEntry(raw){
-  if(!hasExactKeys(raw,['id','name','portion','calories','eatenAt','mode'])||!validLifeId(raw.id)
-    ||!strictLifeText(raw.name,MAX_LIFE_NAME_LENGTH)||typeof raw.portion!=='string'||raw.portion.length>MAX_LIFE_NAME_LENGTH
-    ||!strictLifeDateTime(raw.eatenAt)||!['manual','estimate'].includes(raw.mode))lifeBackupError('food record is invalid');
-  if(typeof raw.calories!=='number'||!Number.isFinite(raw.calories)||raw.calories<0||raw.calories>MAX_LIFE_CALORIES)
-    lifeBackupError('food calories are invalid');
-  return {id:raw.id,name:raw.name,portion:raw.portion,calories:raw.calories,eatenAt:raw.eatenAt,mode:raw.mode};
-}
-function optionalLifeDateTime(raw,key){
-  return !Object.hasOwn(raw,key)||strictLifeDateTime(raw[key]);
-}
-function buildLifeBudgetCycle(raw){
-  const keys=['id','startDay','endExclusive','totalCents','savingsBps','openingCarryCents','periodUnit','periodCount','createdAt','updatedAt'];
-  if(!hasOnlyKeys(raw,keys)||!validLifeId(raw.id)||!strictLifeDay(raw.startDay)||!strictLifeDay(raw.endExclusive)
-    ||!safeLifeMoney(raw.totalCents)||!safeLifeMoney(raw.openingCarryCents,true)
-    ||!['day','week','month','year'].includes(raw.periodUnit)||!Number.isInteger(raw.periodCount)||raw.periodCount<=0)
-    lifeBackupError('budget cycle is invalid');
-  if(!Number.isSafeInteger(raw.savingsBps)||raw.savingsBps<0||raw.savingsBps>10000)
-    lifeBackupError('savings basis points are invalid');
-  if(!Number.isSafeInteger(raw.totalCents+raw.openingCarryCents)
-    ||!Number.isSafeInteger(raw.totalCents-Math.round(raw.totalCents*raw.savingsBps/10000)+raw.openingCarryCents))
-    lifeBackupError('money values are unsafe');
-  if(!optionalLifeDateTime(raw,'createdAt')||!optionalLifeDateTime(raw,'updatedAt'))lifeBackupError('budget cycle metadata is invalid');
-  const normalized=normalizeBudgetCycle(raw);
-  if(!normalized||normalized.periodUnit!==raw.periodUnit||normalized.periodCount!==raw.periodCount)
-    lifeBackupError('budget cycle date is invalid');
-  const cycle={id:raw.id,startDay:raw.startDay,endExclusive:raw.endExclusive,totalCents:raw.totalCents,savingsBps:raw.savingsBps,openingCarryCents:raw.openingCarryCents,periodUnit:raw.periodUnit,periodCount:raw.periodCount};
-  if(Object.hasOwn(raw,'createdAt'))cycle.createdAt=raw.createdAt;
-  if(Object.hasOwn(raw,'updatedAt'))cycle.updatedAt=raw.updatedAt;
-  return cycle;
-}
-function buildLifeExpense(raw){
-  const keys=['id','cycleId','name','amountCents','category','spentAt','createdAt','updatedAt','deletedAt'];
-  if(!hasOnlyKeys(raw,keys)||!validLifeId(raw.id)||!validLifeId(raw.cycleId)
-    ||!strictLifeText(raw.name,MAX_LIFE_NAME_LENGTH)||!safeLifeMoney(raw.amountCents)
-    ||!strictLifeText(raw.category,MAX_LIFE_CATEGORY_LENGTH,true)||!strictLifeDateTime(raw.spentAt)
-    ||!optionalLifeDateTime(raw,'createdAt')||!optionalLifeDateTime(raw,'updatedAt')
-    ||(raw.deletedAt!=null&&!strictLifeDateTime(raw.deletedAt)))
-    lifeBackupError('expense record is invalid');
-  const expense={id:raw.id,cycleId:raw.cycleId,name:raw.name,amountCents:raw.amountCents,category:raw.category,spentAt:raw.spentAt,deletedAt:raw.deletedAt??null};
-  if(Object.hasOwn(raw,'createdAt'))expense.createdAt=raw.createdAt;
-  if(Object.hasOwn(raw,'updatedAt'))expense.updatedAt=raw.updatedAt;
-  return expense;
-}
 function parseLifeData(text){
+  if(typeof text!=='string'||text.length>MAX_LIFE_BACKUP_CHARS)lifeBackupError('file exceeds the import limit');
   let raw;
   try{raw=JSON.parse(text);}catch(error){lifeBackupError('JSON is invalid');}
-  if(!hasExactKeys(raw,['format','version','life'])||raw.format!==LIFE_BUNDLE_FORMAT||raw.version!==LIFE_BUNDLE_VERSION)
+  if(!hasExactKeys(raw,['format','version','life'])||raw.format!==LIFE_BUNDLE_FORMAT
+    ||![LEGACY_LIFE_BUNDLE_VERSION,LIFE_BUNDLE_VERSION].includes(raw.version))
     lifeBackupError('format or version is unsupported');
+  const legacy=raw.version===LEGACY_LIFE_BUNDLE_VERSION;
   if(!hasExactKeys(raw.life,LIFE_BUNDLE_KEYS))lifeBackupError('payload shape is invalid');
   const life=raw.life;
   if(typeof life.calorieTarget!=='number'||!Number.isFinite(life.calorieTarget)||life.calorieTarget<0||life.calorieTarget>MAX_LIFE_CALORIES)
     lifeBackupError('calorie target is invalid');
   if(!Array.isArray(life.foodEntries)||!Array.isArray(life.favoriteFoods))lifeBackupError('nutrition data is invalid');
-  const foodEntries=life.foodEntries.map(buildLifeFoodEntry);
+  if(life.foodEntries.length>MAX_LIFE_COLLECTION_ITEMS||life.favoriteFoods.length>MAX_LIFE_COLLECTION_ITEMS)
+    lifeBackupError('nutrition data exceeds the import limit');
+  const foodEntries=life.foodEntries.map(food=>buildLifeFoodEntry(food,legacy));
   if(life.favoriteFoods.some(food=>!strictLifeText(food,MAX_LIFE_FAVORITE_LENGTH)||food.trim()!==food))lifeBackupError('favorite food is invalid');
   const favoriteNames=new Set();
   for(const food of life.favoriteFoods){
@@ -1794,26 +1875,29 @@ function parseLifeData(text){
     favoriteNames.add(normalized);
   }
   const wallet=life.walletState;
-  if(!hasExactKeys(wallet,['version','budgetCycles','expenses','activeBudgetCycleId'])||wallet.version!==1
+  if(!hasExactKeys(wallet,['version','budgetCycles','expenses','activeBudgetCycleId'])||wallet.version!==(legacy?1:2)
     ||!Array.isArray(wallet.budgetCycles)||!Array.isArray(wallet.expenses))lifeBackupError('wallet data is invalid');
+  if(wallet.budgetCycles.length>MAX_LIFE_COLLECTION_ITEMS||wallet.expenses.length>MAX_LIFE_COLLECTION_ITEMS)
+    lifeBackupError('wallet data exceeds the import limit');
   const budgetCycles=wallet.budgetCycles.map(buildLifeBudgetCycle);
-  const expenses=wallet.expenses.map(buildLifeExpense);
+  const expenses=wallet.expenses.map(expense=>buildLifeExpense(expense,legacy));
   const allIds=new Set();
   assertUniqueLifeIds(foodEntries,'food',allIds);
   assertUniqueLifeIds(budgetCycles,'budget cycle',allIds);
   assertUniqueLifeIds(expenses,'expense',allIds);
-  const cycleIds=new Set(budgetCycles.map(cycle=>String(cycle.id)));
+  const cycleById=new Map(budgetCycles.map(cycle=>[String(cycle.id),cycle]));
+  const cycleIds=new Set(cycleById.keys());
   if(wallet.activeBudgetCycleId!==null&&(!validLifeId(wallet.activeBudgetCycleId)||!cycleIds.has(String(wallet.activeBudgetCycleId))))
     lifeBackupError('active budget cycle reference is invalid');
   for(const expense of expenses){
     if(!cycleIds.has(String(expense.cycleId)))
       lifeBackupError('expense cycle reference is invalid');
-    const cycle=budgetCycles.find(item=>String(item.id)===String(expense.cycleId));
-    const spentDay=localDayKey(new Date(expense.spentAt));
+    const cycle=cycleById.get(String(expense.cycleId));
+    const spentDay=expense.spentDay;
     if(!cycle||budgetDayOrdinal(spentDay)<budgetDayOrdinal(cycle.startDay)||budgetDayOrdinal(spentDay)>=budgetDayOrdinal(cycle.endExclusive))
       lifeBackupError('expense date is outside its budget cycle');
   }
-  const normalizedWallet=normalizeWalletStatePayload({version:1,budgetCycles,expenses,activeBudgetCycleId:wallet.activeBudgetCycleId});
+  const normalizedWallet=normalizeWalletStatePayload({version:2,budgetCycles,expenses,activeBudgetCycleId:wallet.activeBudgetCycleId});
   if(!normalizedWallet)lifeBackupError('wallet data is invalid');
   return {
     calorieTarget:life.calorieTarget,
@@ -1892,7 +1976,7 @@ function commitLifeImport(){
     expenses:bundle.walletState.expenses,
     activeBudgetCycleId:bundle.walletState.activeBudgetCycleId,
   };
-  if(!saveLifeState()){
+  if(!saveLifeState({replaceInvalid:true})){
     S=previous;
     setLifeImportStatus(T('lifeImportStoreError'));
     return false;
@@ -2697,6 +2781,10 @@ function currentLocalDateTimeValue(date=new Date()){
   const pad=value=>String(value).padStart(2,'0');
   return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
+function foodLocalDateTimeValue(entry){
+  const local=currentLocalDateTimeValue(new Date(entry.eatenAt));
+  return strictLifeDay(entry.dayKey)?`${entry.dayKey}${local.slice(10)}`:local;
+}
 function persistNutritionState(){
   return saveLifeState();
 }
@@ -2717,6 +2805,7 @@ function applyFoodEstimate(){
   const portion=document.getElementById('foodPortion').value;
   const calories=document.getElementById('foodCalories');
   const status=document.getElementById('foodEstimateStatus');
+  showFoodFormStatus('');
   const estimate=estimateFoodCalories(name,portion);
   if(!estimate.matched){
     setFoodMode('manual');
@@ -2726,6 +2815,7 @@ function applyFoodEstimate(){
   }
   calories.value=String(estimate.calories);
   status.textContent=`≈ ${estimate.calories} ${T('calorieUnit')}`;
+  showFoodFormStatus('');
   return true;
 }
 function resetFoodForm(){
@@ -2744,11 +2834,12 @@ function nutritionEntryFromForm(){
   const calorieText=document.getElementById('foodCalories').value.trim();
   const eatenAtValue=document.getElementById('foodEatenAt').value;
   const calories=Number(calorieText);
-  const eatenAt=new Date(eatenAtValue);
+  const eatenAt=parseLocalDateTimeInput(eatenAtValue);
   if(!name)return {error:T('foodNameNeeded')};
-  if(calorieText===''||!Number.isFinite(calories)||calories<0)return {error:T('foodCaloriesInvalid')};
-  if(!eatenAtValue||!Number.isFinite(eatenAt.getTime()))return {error:T('foodDateInvalid')};
-  return {entry:{name,portion,calories,eatenAt:eatenAt.toISOString(),mode:foodEntryMode}};
+  if(name.length>MAX_LIFE_NAME_LENGTH||portion.length>MAX_LIFE_NAME_LENGTH)return {error:T('lifeTextTooLong')};
+  if(calorieText===''||!Number.isFinite(calories)||calories<0||calories>MAX_LIFE_CALORIES)return {error:T('foodCaloriesInvalid')};
+  if(!eatenAt)return {error:T('foodDateInvalid')};
+  return {entry:{name,portion,calories,eatenAt:eatenAt.timestamp,dayKey:eatenAt.dayKey,mode:foodEntryMode}};
 }
 function addFoodEntry(){
   const result=nutritionEntryFromForm();
@@ -2756,18 +2847,24 @@ function addFoodEntry(){
   const previous=S.foodEntries;
   const editingIndex=previous.findIndex(entry=>entry.id===editingFoodEntryId);
   const updated=editingIndex>=0;
-  if(updated){
-    S.foodEntries=previous.map((entry,index)=>index===editingIndex?{...entry,...result.entry,id:entry.id}:entry);
-  }else{
-    const id=`food-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-    S.foodEntries=[...previous,{id,...result.entry}];
-  }
+  let candidate;
+  try{
+    if(updated){
+      const existing=previous[editingIndex];
+      candidate=buildLifeFoodEntry({...result.entry,id:existing.id,createdAt:existing.createdAt,updatedAt:nextLifeTimestamp(existing.updatedAt)});
+      S.foodEntries=previous.map((entry,index)=>index===editingIndex?candidate:entry);
+    }else{
+      const createdAt=new Date().toISOString(),id=`food-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+      candidate=buildLifeFoodEntry({id,...result.entry,createdAt,updatedAt:createdAt});
+      S.foodEntries=[...previous,candidate];
+    }
+  }catch(error){showFoodFormStatus(T('foodCaloriesInvalid'));return false;}
   if(!persistNutritionState()){
     S.foodEntries=previous;
     showFoodFormStatus(T('foodStoreError'));
     return false;
   }
-  selectedNutritionDay=localDayKey(new Date(result.entry.eatenAt));
+  selectedNutritionDay=candidate.dayKey;
   resetFoodForm();
   showFoodFormStatus(T(updated?'foodUpdated':'foodSaved'));
   renderNutrition();
@@ -2794,7 +2891,7 @@ function setFoodEntryForEdit(id){
   document.getElementById('foodName').value=entry.name;
   document.getElementById('foodPortion').value=entry.portion;
   document.getElementById('foodCalories').value=String(entry.calories);
-  document.getElementById('foodEatenAt').value=currentLocalDateTimeValue(new Date(entry.eatenAt));
+  document.getElementById('foodEatenAt').value=foodLocalDateTimeValue(entry);
   document.getElementById('saveFoodButton').textContent=T('updateFood');
   setFoodMode(entry.mode);
   document.getElementById('foodEstimateStatus').textContent=entry.mode==='estimate'?`≈ ${entry.calories} ${T('calorieUnit')}`:'';
@@ -2804,6 +2901,7 @@ function setFoodEntryForEdit(id){
 function saveFavoriteFood(){
   const name=document.getElementById('foodName').value.trim();
   if(!name){showFoodFormStatus(T('foodNameNeeded'));return false;}
+  if(!strictLifeText(name,MAX_LIFE_FAVORITE_LENGTH)||name.length>MAX_LIFE_FAVORITE_LENGTH){showFoodFormStatus(T('lifeTextTooLong'));return false;}
   if(S.favoriteFoods.some(item=>item.toLocaleLowerCase()===name.toLocaleLowerCase())){
     showFoodFormStatus(T('foodFavoriteSaved'));
     return true;
@@ -2822,7 +2920,7 @@ function saveFavoriteFood(){
 function updateCalorieTarget(){
   const input=document.getElementById('calorieTarget');
   const value=Number(input.value);
-  if(input.value.trim()===''||!Number.isFinite(value)||value<0){
+  if(input.value.trim()===''||!Number.isFinite(value)||value<0||value>MAX_LIFE_CALORIES){
     showFoodFormStatus(T('foodCaloriesInvalid'));
     return false;
   }
@@ -2949,10 +3047,11 @@ function createBudgetCycle(){
     return false;
   }
   const snapshot=walletSnapshot(),createdAt=new Date().toISOString();
-  const cycle={
+  let cycle;
+  try{cycle=buildLifeBudgetCycle({
     id:walletId('cycle'),startDay,endExclusive,totalCents,savingsBps,
     openingCarryCents:0,periodUnit,periodCount,createdAt,updatedAt:createdAt
-  };
+  });}catch(error){showWalletStatus(T('walletCycleInvalid'));return false;}
   S.budgetCycles=[...S.budgetCycles,cycle];
   S.activeBudgetCycleId=cycle.id;
   if(!persistWalletState()){
@@ -2969,14 +3068,15 @@ function expenseFromForm(cycle){
   const name=document.getElementById('expenseName').value.trim();
   const amountCents=moneyToCents(document.getElementById('expenseAmount').value);
   const spentAtValue=document.getElementById('expenseSpentAt').value;
-  const timestamp=new Date(spentAtValue);
+  const timestamp=parseLocalDateTimeInput(spentAtValue);
   const category=document.getElementById('expenseCategory').value.trim();
   if(!name)return {error:T('expenseNameNeeded')};
+  if(name.length>MAX_LIFE_NAME_LENGTH||category.length>MAX_LIFE_CATEGORY_LENGTH)return {error:T('lifeTextTooLong')};
   if(amountCents===null)return {error:T('expenseAmountInvalid')};
-  if(!spentAtValue||!Number.isFinite(timestamp.getTime()))return {error:T('expenseDateInvalid')};
-  const spentDay=budgetDayOrdinal(localDayKey(timestamp));
+  if(!timestamp)return {error:T('expenseDateInvalid')};
+  const spentDay=budgetDayOrdinal(timestamp.dayKey);
   if(spentDay<budgetDayOrdinal(cycle.startDay)||spentDay>=budgetDayOrdinal(cycle.endExclusive))return {error:T('expenseOutsideCycle')};
-  return {expense:{name,amountCents,spentAt:timestamp.toISOString(),category}};
+  return {expense:{name,amountCents,spentAt:timestamp.timestamp,spentDay:timestamp.dayKey,category}};
 }
 function resetExpenseForm(){
   editingExpenseId=null;
@@ -2995,16 +3095,16 @@ function addExpense(){
   const snapshot=walletSnapshot(),now=new Date().toISOString();
   const editingIndex=S.expenses.findIndex(expense=>expense.id===editingExpenseId&&expense.deletedAt==null);
   const updated=editingIndex>=0;
-  if(updated){
-    S.expenses=S.expenses.map((expense,index)=>index===editingIndex?{
-      ...expense,...result.expense,id:expense.id,cycleId:expense.cycleId??cycle.id,updatedAt:now
-    }:expense);
-  }else{
-    S.expenses=[...S.expenses,{
-      id:walletId('expense'),cycleId:cycle.id,...result.expense,
-      createdAt:now,updatedAt:now,deletedAt:null
-    }];
-  }
+  try{
+    if(updated){
+      const existing=S.expenses[editingIndex];
+      const candidate=buildLifeExpense({...existing,...result.expense,id:existing.id,cycleId:existing.cycleId??cycle.id,updatedAt:nextLifeTimestamp(existing.updatedAt||existing.createdAt)});
+      S.expenses=S.expenses.map((expense,index)=>index===editingIndex?candidate:expense);
+    }else{
+      const candidate=buildLifeExpense({id:walletId('expense'),cycleId:cycle.id,...result.expense,createdAt:now,updatedAt:now,deletedAt:null});
+      S.expenses=[...S.expenses,candidate];
+    }
+  }catch(error){showWalletStatus(T('walletCycleInvalid'));return false;}
   if(!persistWalletState()){
     restoreWalletSnapshot(snapshot);
     showWalletStatus(T('walletStoreError'));
@@ -3019,9 +3119,10 @@ function deleteExpense(id){
   const index=S.expenses.findIndex(expense=>expense.id===id&&expense.deletedAt==null);
   if(index<0)return false;
   const snapshot=walletSnapshot(),deletedAt=new Date().toISOString();
-  S.expenses=S.expenses.map((expense,itemIndex)=>itemIndex===index?{
-    ...expense,deletedAt,updatedAt:deletedAt
-  }:expense);
+  let deleted;
+  try{deleted=buildLifeExpense({...S.expenses[index],deletedAt,updatedAt:nextLifeTimestamp(S.expenses[index].updatedAt||S.expenses[index].createdAt)});}
+  catch(error){showWalletStatus(T('walletStoreError'));return false;}
+  S.expenses=S.expenses.map((expense,itemIndex)=>itemIndex===index?deleted:expense);
   if(!persistWalletState()){
     restoreWalletSnapshot(snapshot);
     showWalletStatus(T('walletStoreError'));
@@ -3038,7 +3139,8 @@ function setExpenseForEdit(id){
   editingExpenseId=id;
   document.getElementById('expenseName').value=expense.name||'';
   document.getElementById('expenseAmount').value=(expense.amountCents/100).toFixed(2);
-  document.getElementById('expenseSpentAt').value=currentLocalDateTimeValue(new Date(expense.spentAt));
+  const local=currentLocalDateTimeValue(new Date(expense.spentAt));
+  document.getElementById('expenseSpentAt').value=strictLifeDay(expense.spentDay)?`${expense.spentDay}${local.slice(10)}`:local;
   document.getElementById('expenseCategory').value=expense.category||'';
   document.getElementById('saveExpenseButton').textContent=T('updateExpense');
   document.getElementById('expenseName').focus();
@@ -3130,10 +3232,11 @@ function renewBudgetCycle(mode,carry){
     const finalLedger=computeBudgetLedger(cycle,expensesForBudgetCycle(cycle),null);
     const openingCarryCents=carry&&finalLedger.length?finalLedger[finalLedger.length-1].carryCents:0;
     const createdAt=new Date().toISOString();
-    const nextCycle={
+    let nextCycle;
+    try{nextCycle=buildLifeBudgetCycle({
       id:walletId('cycle'),startDay,endExclusive,totalCents,savingsBps:cycle.savingsBps,
       openingCarryCents,periodUnit,periodCount,createdAt,updatedAt:createdAt
-    };
+    });}catch(error){showWalletStatus(T('walletCycleInvalid'));return false;}
     S.budgetCycles=[...S.budgetCycles,nextCycle];
     S.activeBudgetCycleId=nextCycle.id;
   }
@@ -3181,7 +3284,7 @@ document.getElementById('moodPick').addEventListener('click',e=>{
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function renderAll(){
   renderTasks();renderIdeas();renderGoals();renderLogs();renderStats();renderNutrition();renderWallet();
-  if(!saveLifeState())showWalletStatus(T('walletStoreError'));
+  showLifeStorageStatus();
 }
 document.getElementById('taskName').addEventListener('keydown',e=>{if(e.key==='Enter')addTask()});
 document.getElementById('ideaName').addEventListener('keydown',e=>{if(e.key==='Enter')addIdea()});

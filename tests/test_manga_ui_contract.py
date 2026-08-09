@@ -408,7 +408,7 @@ class MangaUIContractTests(unittest.TestCase):
         self.assertIn("newIntl.NumberFormat(", compact)
         self.assertIn("currency:'CNY'", compact)
         self.assertIn("moneyToCents(", compact)
-        self.assertIn("DB.get('lifeState',null)", compact)
+        self.assertIn("DB.read('lifeState')", compact)
         self.assertRegex(compact, r"functionpersistWalletState\(\)\{\s*returnsaveLifeState\(\);\s*\}")
 
         wallet_controller = re.search(
@@ -428,6 +428,28 @@ class MangaUIContractTests(unittest.TestCase):
         disclosure_end = HTML.index("</div>", disclosure_status_end) + len("</div>")
         form_status = HTML.index('id="foodFormStatus"')
         self.assertLess(disclosure_end, form_status)
+
+    def test_life_inputs_publish_canonical_bounds(self):
+        bounds = {
+            "calorieTarget": ('max="1000000"',),
+            "foodCalories": ('max="1000000"',),
+            "foodName": ('maxlength="500"',),
+            "foodPortion": ('maxlength="500"',),
+            "budgetTotalAmount": ('maxlength="14"',),
+            "budgetRechargeTotal": ('maxlength="14"',),
+            "budgetPeriodCount": ('max="10000"',),
+            "expenseName": ('maxlength="500"',),
+            "expenseAmount": ('maxlength="14"',),
+            "expenseCategory": ('maxlength="120"',),
+        }
+        for element_id, attributes in bounds.items():
+            tag = re.search(rf'<[^>]+\bid="{element_id}"[^>]*>', HTML)
+            self.assertIsNotNone(tag, element_id)
+            for attribute in attributes:
+                self.assertIn(attribute, tag.group(0), f"{element_id} must expose {attribute}")
+
+        for key in ("lifeStorageInvalid", "lifeStorageReadError"):
+            self.assertIn(f'{key}:', HTML)
 
     def test_bilingual_catalogs_have_identical_keys(self):
         catalogs = re.search(
