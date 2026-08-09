@@ -110,3 +110,79 @@ $ git diff --check
 ## Concerns
 
 No known code concerns. `tests/__pycache__/` was already untracked and was not included in this task.
+
+## Fix round 1 — preserve a zero calorie target
+
+### Review finding and root cause
+
+An Important review finding identified that `normalizedCalories(DB.get('calorieTarget',2000))||2000` changes a persisted, valid `0` target to `2000`. `normalizedCalories` intentionally returns `0` for both invalid values and valid zero values, so the truthiness fallback could not distinguish them.
+
+### Fix and added contract coverage
+
+- Added `normalizeCalorieTarget`, which defaults only non-numeric, non-finite, or negative values and retains valid zero.
+- Extended the Life-store behavior harness to execute the production state initialization, `saveLifeState`, and `migrateDailyState` with a mocked DB.
+- The new contract verifies the zero round-trip, filtered `favoriteFoods`, valid active budget ID, legacy budget defaults, malformed-record rejection, exactly six saved Life keys, and preservation of all Life fields through daily rollover.
+
+### RED
+
+```text
+$ python3 -m unittest tests.test_life_store_contract -v
+test_life_state_is_namespaced_and_local_only (tests.test_life_store_contract.LifeStoreContractTests.test_life_state_is_namespaced_and_local_only) ... ok
+test_life_state_round_trips_zero_and_survives_rollover (tests.test_life_store_contract.LifeStoreContractTests.test_life_state_round_trips_zero_and_survives_rollover) ... FAIL
+
+AssertionError [ERR_ASSERTION]: a saved zero target must remain zero
+
+2000 !== 0
+
+Ran 2 tests in 0.089s
+
+FAILED (failures=1)
+```
+
+### GREEN — full required command output
+
+```text
+$ python3 -m unittest tests.test_life_store_contract tests.test_manga_ui_contract -v && node tests/test_task_helpers.js && node tests/test_nutrition_tracker.js && git diff --check
+test_life_state_is_namespaced_and_local_only (tests.test_life_store_contract.LifeStoreContractTests.test_life_state_is_namespaced_and_local_only) ... ok
+test_life_state_round_trips_zero_and_survives_rollover (tests.test_life_store_contract.LifeStoreContractTests.test_life_state_round_trips_zero_and_survives_rollover) ... ok
+test_accessible_companion_stage_contract (tests.test_manga_ui_contract.MangaUIContractTests.test_accessible_companion_stage_contract) ... ok
+test_all_five_views_have_manga_identity (tests.test_manga_ui_contract.MangaUIContractTests.test_all_five_views_have_manga_identity) ... ok
+test_companion_playback_behavior (tests.test_manga_ui_contract.MangaUIContractTests.test_companion_playback_behavior) ... ok
+test_companion_status_localizes_character_and_state (tests.test_manga_ui_contract.MangaUIContractTests.test_companion_status_localizes_character_and_state) ... ok
+test_companion_video_matcher_allows_additional_classes (tests.test_manga_ui_contract.MangaUIContractTests.test_companion_video_matcher_allows_additional_classes) ... ok
+test_daily_energy_uses_local_calendar_and_lifecycle_checks (tests.test_manga_ui_contract.MangaUIContractTests.test_daily_energy_uses_local_calendar_and_lifecycle_checks) ... ok
+test_daily_rollover_behavior (tests.test_manga_ui_contract.MangaUIContractTests.test_daily_rollover_behavior) ... ok
+test_document_declares_a_favicon (tests.test_manga_ui_contract.MangaUIContractTests.test_document_declares_a_favicon) ... ok
+test_flashcard_overlay_is_accessible_and_complete (tests.test_manga_ui_contract.MangaUIContractTests.test_flashcard_overlay_is_accessible_and_complete) ... ok
+test_flashcard_sync_is_optional_and_secret_safe (tests.test_manga_ui_contract.MangaUIContractTests.test_flashcard_sync_is_optional_and_secret_safe) ... ok
+test_goal_cards_have_deterministic_visible_chapters (tests.test_manga_ui_contract.MangaUIContractTests.test_goal_cards_have_deterministic_visible_chapters) ... ok
+test_growth_pool_entry_stacks_without_shrinking_touch_targets (tests.test_manga_ui_contract.MangaUIContractTests.test_growth_pool_entry_stacks_without_shrinking_touch_targets) ... ok
+test_interactive_choices_and_rendered_actions_are_semantic (tests.test_manga_ui_contract.MangaUIContractTests.test_interactive_choices_and_rendered_actions_are_semantic) ... ok
+test_keyframes_do_not_animate_clip_path (tests.test_manga_ui_contract.MangaUIContractTests.test_keyframes_do_not_animate_clip_path) ... ok
+test_load_state_is_visible_and_localized (tests.test_manga_ui_contract.MangaUIContractTests.test_load_state_is_visible_and_localized) ... ok
+test_load_thresholds_are_unchanged (tests.test_manga_ui_contract.MangaUIContractTests.test_load_thresholds_are_unchanged) ... ok
+test_manga_decorations_are_noninteractive (tests.test_manga_ui_contract.MangaUIContractTests.test_manga_decorations_are_noninteractive) ... ok
+test_media_paths_keep_stable_names (tests.test_manga_ui_contract.MangaUIContractTests.test_media_paths_keep_stable_names) ... ok
+test_mood_choices_include_localized_visible_names (tests.test_manga_ui_contract.MangaUIContractTests.test_mood_choices_include_localized_visible_names) ... ok
+test_overload_animation_runs_only_on_state_entry (tests.test_manga_ui_contract.MangaUIContractTests.test_overload_animation_runs_only_on_state_entry) ... ok
+test_playback_controller_is_race_safe (tests.test_manga_ui_contract.MangaUIContractTests.test_playback_controller_is_race_safe) ... ok
+test_playback_invalidates_before_active_source_fast_path (tests.test_manga_ui_contract.MangaUIContractTests.test_playback_invalidates_before_active_source_fast_path) ... ok
+test_pomodoro_completion_has_short_reduced_motion_safe_burst (tests.test_manga_ui_contract.MangaUIContractTests.test_pomodoro_completion_has_short_reduced_motion_safe_burst) ... ok
+test_reduced_motion_css_contract (tests.test_manga_ui_contract.MangaUIContractTests.test_reduced_motion_css_contract) ... ok
+test_reduced_motion_playback_contract (tests.test_manga_ui_contract.MangaUIContractTests.test_reduced_motion_playback_contract) ... ok
+test_standalone_mode_has_standard_and_apple_metadata (tests.test_manga_ui_contract.MangaUIContractTests.test_standalone_mode_has_standard_and_apple_metadata) ... ok
+test_task_entry_has_optional_time_and_study_helpers (tests.test_manga_ui_contract.MangaUIContractTests.test_task_entry_has_optional_time_and_study_helpers) ... ok
+test_theme_color_matches_manga_ink (tests.test_manga_ui_contract.MangaUIContractTests.test_theme_color_matches_manga_ink) ... ok
+test_view_has_one_transition_definition (tests.test_manga_ui_contract.MangaUIContractTests.test_view_has_one_transition_definition) ... ok
+test_visual_tokens_exist (tests.test_manga_ui_contract.MangaUIContractTests.test_visual_tokens_exist) ... ok
+
+Ran 32 tests in 0.318s
+
+OK
+task helper behavior: ok
+nutrition tracker behavior: ok
+```
+
+### Commit
+
+`7349db13ac8bcb8895e6a2c81666addb0550e58b` — `fix: preserve zero calorie targets`
