@@ -98,6 +98,21 @@ const legacyMonth = normalizeBudgetCycle({
 });
 assert.equal(legacyMonth.periodUnit, 'month');
 assert.equal(legacyMonth.periodCount, 1);
+const legacyMonthEnd = normalizeBudgetCycle({
+  id: 'legacy-month-end', startDay: '2026-01-31', endExclusive: '2026-03-03', totalCents: 10000,
+});
+assert.equal(legacyMonthEnd.periodUnit, 'month', 'month-end overflow retains a monthly renewal unit');
+assert.equal(legacyMonthEnd.periodCount, 1, 'Jan 31 to Mar 3 is one JavaScript calendar-month increment');
+const legacyOtherMonthEnd = normalizeBudgetCycle({
+  id: 'legacy-other-month-end', startDay: '2026-08-31', endExclusive: '2026-10-01', totalCents: 10000,
+});
+assert.equal(legacyOtherMonthEnd.periodUnit, 'month');
+assert.equal(legacyOtherMonthEnd.periodCount, 1);
+const legacyCustomMonths = normalizeBudgetCycle({
+  id: 'legacy-custom-months', startDay: '2026-01-31', endExclusive: '2026-05-01', totalCents: 10000,
+});
+assert.equal(legacyCustomMonths.periodUnit, 'month');
+assert.equal(legacyCustomMonths.periodCount, 3);
 const legacyLeapYear = normalizeBudgetCycle({
   id: 'legacy-year', startDay: '2024-02-29', endExclusive: '2025-03-01', totalCents: 10000,
 });
@@ -335,6 +350,15 @@ assert.equal(renewedLegacyMonth.periodUnit,'month');
 assert.equal(renewedLegacyMonth.periodCount,1);
 assert.equal(renewedLegacyMonth.startDay,todayKey);
 assert.equal(renewedLegacyMonth.endExclusive,budgetEndExclusive(todayKey,'month',1));
+
+context.S.budgetCycles.push(legacyMonthEnd);
+context.S.activeBudgetCycleId=legacyMonthEnd.id;
+assert.equal(wallet.renewBudgetCycle('same',false),true);
+const renewedMonthEnd=context.S.budgetCycles.find(item=>item.id===context.S.activeBudgetCycleId);
+assert.equal(renewedMonthEnd.periodUnit,'month');
+assert.equal(renewedMonthEnd.periodCount,1);
+assert.equal(renewedMonthEnd.startDay,todayKey);
+assert.equal(renewedMonthEnd.endExclusive,budgetEndExclusive(todayKey,'month',1));
 
 context.S.activeBudgetCycleId = endedCycle.id;
 assert.equal(wallet.renewBudgetCycle('pause', false), true);
