@@ -1,6 +1,6 @@
 /* 量力 Liangli — service worker
    改了 index.html 之后，把下面的版本号 +1，用户下次打开就会拿到新版本。 */
-const VERSION = 'liangli-v6';
+const VERSION = 'liangli-v7';
 const VIDEO_CACHE = 'liangli-video-v1';
 const ASSETS = [
   './',
@@ -103,6 +103,8 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
 
   const url = new URL(e.request.url);
+  /* Supabase/Auth/CDN requests stay network-only and never enter the private PWA cache. */
+  if (url.origin !== self.location.origin) return;
   if (url.pathname.endsWith('.mp4')) {
     e.respondWith(serveVideo(e.request));
     return;

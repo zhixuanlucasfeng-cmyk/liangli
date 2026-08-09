@@ -36,6 +36,7 @@ function createHarness({videoBody, addAllError, cacheNames, fetchImpl} = {}) {
     );
   }
   const self = {
+    location: {origin: 'https://example.test'},
     addEventListener(type, listener) { listeners[type] = listener; },
     skipWaiting() { skipWaitingCalls += 1; return Promise.resolve(); },
     clients: {claim() { claimCalls += 1; return Promise.resolve(); }},

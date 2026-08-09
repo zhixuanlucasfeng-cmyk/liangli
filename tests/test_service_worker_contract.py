@@ -10,8 +10,12 @@ MANIFEST = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
 
 
 class ServiceWorkerContractTests(unittest.TestCase):
-    def test_shell_cache_version_tracks_daily_rollover_release(self):
-        self.assertIn("const VERSION = 'liangli-v6'", SW)
+    def test_shell_cache_version_tracks_flashcard_release(self):
+        self.assertIn("const VERSION = 'liangli-v7'", SW)
+
+    def test_cross_origin_api_requests_are_never_cached(self):
+        compact = SW.replace(" ", "")
+        self.assertIn("if(url.origin!==self.location.origin)return", compact)
 
     def test_posters_are_precached(self):
         for character in ("cat", "human"):

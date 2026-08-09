@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'">
 <meta name="theme-color" content="#0b0c0f">
 <meta name="description" content="量力 · 反假性自律的个人成长工具">
 <link rel="manifest" href="manifest.json">
@@ -245,6 +246,31 @@ nav button{min-height:54px;color:#4a4742;font-weight:800;transition:transform .1
 nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) rotate(-1deg);border:2px solid var(--line);box-shadow:3px 3px 0 var(--line)}
 .toast{background:var(--warning);border:3px solid var(--line);border-radius:0;color:var(--ink);font-weight:900;box-shadow:4px 4px 0 var(--line)}
 
+/* Flashcards: full-screen manga study room, with stable geometry for recall. */
+.flashcard-overlay{position:fixed;inset:0;z-index:50;background:rgba(5,6,8,.92);display:flex;justify-content:center}
+.flashcard-overlay[hidden]{display:none}
+.flashcard-shell{width:100%;max-width:440px;height:100dvh;overflow-y:auto;background:var(--ink);padding:calc(12px + env(safe-area-inset-top,0px)) 14px calc(24px + env(safe-area-inset-bottom,0px))}
+.flashcard-head{position:sticky;top:-12px;z-index:3;display:flex;align-items:center;gap:8px;padding:10px 0;background:var(--ink);border-bottom:3px solid var(--paper)}
+.flashcard-head h2{margin:0;font-family:Impact,"Arial Black",sans-serif;font-size:25px;letter-spacing:.04em;text-transform:uppercase}
+.sync-badge{margin-left:auto;padding:5px 8px;border:2px solid var(--line);background:var(--warning);color:var(--ink);font-size:11px;font-weight:900}
+.flashcard-close{width:44px;padding:0;font-size:24px}
+.flashcard-panel{margin-top:14px;padding:14px;background:var(--paper);color:var(--ink);border:3px solid var(--line);box-shadow:5px 5px 0 var(--blood)}
+.flashcard-panel h3{margin:0 0 10px;font-family:Impact,"Arial Black",sans-serif;letter-spacing:.04em}
+.flashcard-form{display:grid;gap:8px}.flashcard-form textarea{min-height:82px}
+.flashcard-tools{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px}.flashcard-tools .btn{padding:7px 3px;font-size:11px;white-space:normal}
+.import-preview{margin-top:10px;padding:10px;border:2px dashed var(--blood);background:#fffdf6}.import-preview .row{display:grid;grid-template-columns:1fr 1fr}
+.deck-list{display:grid;gap:8px;margin-top:10px}
+.deck-row{display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center;padding:10px;border:2px solid var(--line);background:#fffdf6}
+.deck-row button:first-child{text-align:left;background:transparent;border:0;font:inherit;color:var(--ink);cursor:pointer}
+.deck-row small{display:block;color:#686058;margin-top:3px}
+.card-list{display:grid;gap:6px;margin-top:10px}.card-list-item{padding:9px;border-left:6px solid var(--blood);background:#fffdf6;white-space:pre-wrap}
+.review-panel{text-align:center}.review-card{min-height:260px;display:flex;flex-direction:column;justify-content:center;padding:24px 18px;background:#fffdf6;border:4px solid var(--line);box-shadow:7px 7px 0 var(--power-pink);cursor:pointer}
+.review-side-label{font-size:11px;font-weight:900;letter-spacing:.18em;color:#756d64;text-transform:uppercase}
+.review-face{font-size:24px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}.review-back{margin-top:22px;padding-top:20px;border-top:3px dashed var(--blood)}
+.review-grades{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:14px}.review-grades button{white-space:normal;padding:8px 4px}.review-grades small{display:block;font-weight:600;margin-top:2px}
+.keyboard-help{text-align:center;margin:12px 0 0;font-size:11px;color:#6d655d}.flash-empty{padding:18px 8px;text-align:center;color:#6d655d}
+.flashcard-account{margin-top:12px;padding:10px;border:2px solid var(--paper);background:var(--panel)}.flashcard-account p{margin:0 0 8px}.account-fields{display:grid;grid-template-columns:1fr;gap:7px}.account-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.account-actions .btn{padding:6px 3px;font-size:11px;white-space:normal}
+
 @media (min-width:390px){
   .focus-view .ring .tm b{font-size:72px}
 }
@@ -442,16 +468,96 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
       <span data-i="navJournal">记录</span></button>
   </nav>
 </div>
+<div class="flashcard-overlay" id="flashcardOverlay" role="dialog" aria-modal="true" aria-labelledby="flashcardTitle" hidden>
+  <div class="flashcard-shell">
+    <div class="flashcard-head">
+      <h2 id="flashcardTitle" data-i="flashcardsTitle">FLASHCARDS</h2>
+      <span class="sync-badge" id="flashcardSyncBadge" data-i="flashcardsLocal">仅此设备</span>
+      <button type="button" class="btn ghost flashcard-close" id="flashcardClose" onclick="closeFlashcards()" data-aria-i="closeFlashcards" aria-label="关闭 Flashcards">×</button>
+    </div>
+    <section class="flashcard-account" id="flashcardAccountPanel">
+      <p class="muted" id="flashcardAccountStatus" data-i="syncNotConfigured">账号同步尚未配置，卡片仍安全保存在本机。</p>
+      <div class="account-fields">
+        <input id="flashcardEmail" type="email" autocomplete="email" data-ph="emailPh" placeholder="邮箱" disabled>
+        <input id="flashcardPassword" type="password" autocomplete="current-password" data-ph="passwordPh" placeholder="登录密码" disabled>
+        <input id="flashcardNewPassword" type="password" autocomplete="new-password" data-ph="newPasswordPh" placeholder="注册新密码" disabled>
+        <div class="account-actions">
+          <button type="button" class="btn" id="flashcardSignIn" onclick="signInFlashcards()" data-i="signIn" disabled>登录</button>
+          <button type="button" class="btn ghost" id="flashcardSignUp" onclick="signUpFlashcards()" data-i="signUp" disabled>注册</button>
+          <button type="button" class="btn ghost" id="flashcardSignOut" onclick="signOutFlashcards()" data-i="signOut" hidden>退出</button>
+        </div>
+        <button type="button" class="btn ghost" id="flashcardSyncNow" onclick="manualFlashcardSync()" data-i="syncNow" disabled>立即同步</button>
+        <button type="button" class="btn ghost" id="copyLocalFlashcards" onclick="copyLocalFlashcardsToAccount()" data-i="copyLocalCards" hidden>把本机卡片复制到此账号</button>
+      </div>
+    </section>
+    <div id="flashcardLibrary">
+      <section class="flashcard-panel">
+        <h3 data-i="decksTitle">牌组</h3>
+        <div class="flashcard-form">
+          <input id="deckName" maxlength="120" data-ph="deckNamePh" placeholder="牌组名称">
+          <button type="button" class="btn" onclick="createDeck()" data-i="createDeck">新建牌组</button>
+        </div>
+        <div class="deck-list" id="deckList"></div>
+        <div class="flashcard-tools">
+          <button type="button" class="btn ghost" onclick="exportFlashcardsJson()" data-i="exportJson">导出 JSON</button>
+          <button type="button" class="btn ghost" onclick="exportFlashcardsCsv()" data-i="exportCsv">导出 CSV</button>
+          <button type="button" class="btn ghost" onclick="document.getElementById('flashcardImportFile').click()" data-i="importCards">导入</button>
+          <input class="sr-only" id="flashcardImportFile" type="file" accept=".json,.csv,application/json,text/csv" onchange="previewFlashcardImport(this.files[0])">
+        </div>
+        <div class="import-preview" id="flashcardImportPreview" hidden>
+          <p id="flashcardImportSummary"></p>
+          <div class="row">
+            <button type="button" class="btn" onclick="commitFlashcardImport()" data-i="confirmImport">确认导入</button>
+            <button type="button" class="btn ghost" onclick="cancelFlashcardImport()" data-i="cancelImport">取消</button>
+          </div>
+        </div>
+      </section>
+      <section class="flashcard-panel" id="deckEditor" hidden>
+        <h3 id="activeDeckName"></h3>
+        <div class="flashcard-form">
+          <textarea id="cardFront" maxlength="10000" data-ph="cardFrontPh" placeholder="正面：问题或提示"></textarea>
+          <textarea id="cardBack" maxlength="10000" data-ph="cardBackPh" placeholder="背面：答案"></textarea>
+          <button type="button" class="btn" onclick="addFlashcard()" data-i="addCard">添加卡片</button>
+          <button type="button" class="btn ghost" onclick="startReview()" data-i="startReview">开始复习</button>
+        </div>
+        <div class="card-list" id="cardList"></div>
+      </section>
+    </div>
+    <section class="flashcard-panel review-panel" id="reviewPanel" hidden>
+      <h3 id="reviewProgress"></h3>
+      <div class="review-card" id="reviewCard" role="button" tabindex="0" onclick="flipCurrentCard()">
+        <span class="review-side-label" data-i="cardFrontLabel">正面</span>
+        <div class="review-face" id="reviewFront"></div>
+        <div class="review-back" id="reviewBack" hidden>
+          <span class="review-side-label" data-i="cardBackLabel">背面</span>
+          <div class="review-face" id="reviewBackText"></div>
+        </div>
+      </div>
+      <button type="button" class="btn full" id="showAnswerBtn" onclick="flipCurrentCard()" data-i="showAnswer">显示答案</button>
+      <div class="review-grades" id="reviewGrades" hidden>
+        <button type="button" class="btn ghost" data-grade="again" onclick="gradeCurrentCard('again')"><span data-i="gradeAgain">重来</span><small id="intervalAgain"></small></button>
+        <button type="button" class="btn ghost" data-grade="hard" onclick="gradeCurrentCard('hard')"><span data-i="gradeHard">困难</span><small id="intervalHard"></small></button>
+        <button type="button" class="btn" data-grade="good" onclick="gradeCurrentCard('good')"><span data-i="gradeGood">良好</span><small id="intervalGood"></small></button>
+        <button type="button" class="btn" data-grade="easy" onclick="gradeCurrentCard('easy')"><span data-i="gradeEasy">简单</span><small id="intervalEasy"></small></button>
+      </div>
+      <p class="keyboard-help" id="flashcardKeyboardHelp" data-i="flashcardKeys">空格翻面 · 1–4 评分</p>
+      <button type="button" class="btn ghost full" id="reviewBackButton" onclick="finishReview()" data-i="backToDecks">返回牌组</button>
+    </section>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
 /* ============ i18n ============ */
+const SUPABASE_URL='';
+const SUPABASE_ANON_KEY='';
 const I18N={
  zh:{tagline:"反假性自律",loadTitle:"今日精力负荷",companionCat:'Power 猫',companionHuman:'人形 Power',
    companionIdle:'待命',companionContent:'状态良好',companionTired:'有些疲惫',companionExhausted:'精力耗尽',
    loadWarn:"⚠️ 已超出今日承载范围。别急着加 —— 把非必要的任务放进成长池吧。",
    addTask:"添加任务",taskPh:"今天想完成什么？",energyLabel:"预估精力消耗",taskMore:"更多安排",taskLess:"收起安排",
    startTime:"开始时间",endTime:"结束时间",studyHelper:"学习助手",helperNone:"不需要",helperPomodoro:"番茄钟",helperFlashcards:"Flashcards",helperQuiz:"自测模式",helperChecklist:"分步清单",timeOrderError:"结束时间要晚于开始时间",openHelper:"打开学习助手",taskPomos:"个番茄",helperComing:"这个学习助手正在接入",
+   flashcardsTitle:"FLASHCARDS",flashcardsLocal:"仅此设备",decksTitle:"牌组",deckNamePh:"牌组名称",createDeck:"新建牌组",cardFrontPh:"正面：问题或提示",cardBackPh:"背面：答案",addCard:"添加卡片",startReview:"开始复习",cardFrontLabel:"正面",cardBackLabel:"背面",showAnswer:"显示答案",gradeAgain:"重来",gradeHard:"困难",gradeGood:"良好",gradeEasy:"简单",flashcardKeys:"空格翻面 · 1–4 评分",backToDecks:"返回牌组",closeFlashcards:"关闭 Flashcards",deleteDeck:"删除牌组",deleteCard:"删除卡片",cardsCount:"张卡",dueCount:"待复习",emptyDecks:"还没有牌组。为一门课建一个吧。",emptyCards:"这个牌组还没有卡片。",reviewDone:"这轮复习完成了。",deckNameNeeded:"先写牌组名称",cardSidesNeeded:"正面和背面都要填写",flashcardStoreError:"本地卡片库暂时无法打开",exportJson:"导出 JSON",exportCsv:"导出 CSV",importCards:"导入",confirmImport:"确认导入",cancelImport:"取消",importReady:"准备导入",importDone:"卡片已导入",importInvalid:"导入文件格式不正确",importCollision:"个重复 ID 将复制为新卡片",selectDeckFirst:"先选择一个牌组",contentTooLong:"牌组名最多 120 字，卡片每面最多 10000 字",syncNotConfigured:"账号同步尚未配置，卡片仍安全保存在本机。",syncSignIn:"登录后可跨设备同步 Flashcards。",emailPh:"邮箱",passwordPh:"登录密码",newPasswordPh:"注册新密码",signIn:"登录",signUp:"注册",signOut:"退出",syncNow:"立即同步",copyLocalCards:"把本机卡片复制到此账号",copyLocalDone:"本机卡片已复制到账号",signedInAs:"已登录",authCheckEmail:"请检查邮箱完成注册",authError:"账号操作失败，请稍后重试",syncLocal:"仅此设备",syncWaiting:"等待同步",syncing:"正在同步",syncDone:"已同步",syncFailed:"同步失败",
    eLight:"轻 10",eMid:"中 25",eHeavy:"重 45",addToday:"加入今日",todayTasks:"今日任务",
    poolTitle:"成长池",poolDesc:"突然冒出来的想法先存这儿，不逼自己马上做。等状态好、精力有富余时，再一键转成今日任务。",
    ideaPh:"比如：想学一点心理学…",save:"存起来",myIdeas:"我的想法",toTask:"转为任务",
@@ -475,6 +581,7 @@ const I18N={
    loadWarn:"⚠️ You're over today's capacity. Don't push — move the non-essential ones to your Growth Pool.",
    addTask:"Add a task",taskPh:"What do you want to get done today?",energyLabel:"Estimated energy cost",taskMore:"More options",taskLess:"Hide options",
    startTime:"Start time",endTime:"End time",studyHelper:"Study helper",helperNone:"None",helperPomodoro:"Pomodoro",helperFlashcards:"Flashcards",helperQuiz:"Self quiz",helperChecklist:"Step checklist",timeOrderError:"End time must be later than start time",openHelper:"Open study helper",taskPomos:"pomodoros",helperComing:"This study helper is being connected",
+   flashcardsTitle:"FLASHCARDS",flashcardsLocal:"On this device",decksTitle:"Decks",deckNamePh:"Deck name",createDeck:"New deck",cardFrontPh:"Front: question or prompt",cardBackPh:"Back: answer",addCard:"Add card",startReview:"Start review",cardFrontLabel:"Front",cardBackLabel:"Back",showAnswer:"Show answer",gradeAgain:"Again",gradeHard:"Hard",gradeGood:"Good",gradeEasy:"Easy",flashcardKeys:"Space to flip · 1–4 to grade",backToDecks:"Back to decks",closeFlashcards:"Close Flashcards",deleteDeck:"Delete deck",deleteCard:"Delete card",cardsCount:"cards",dueCount:"due",emptyDecks:"No decks yet. Make one for a subject.",emptyCards:"This deck has no cards yet.",reviewDone:"This review is complete.",deckNameNeeded:"Name the deck first",cardSidesNeeded:"Fill in both front and back",flashcardStoreError:"The local card library could not open",exportJson:"Export JSON",exportCsv:"Export CSV",importCards:"Import",confirmImport:"Import now",cancelImport:"Cancel",importReady:"Ready to import",importDone:"Cards imported",importInvalid:"The import file is invalid",importCollision:"duplicate IDs will be copied as new cards",selectDeckFirst:"Select a deck first",contentTooLong:"Deck names are limited to 120 characters and card sides to 10,000",syncNotConfigured:"Account sync is not configured. Cards remain safe on this device.",syncSignIn:"Sign in to sync Flashcards across devices.",emailPh:"Email",passwordPh:"Sign-in password",newPasswordPh:"New sign-up password",signIn:"Sign in",signUp:"Sign up",signOut:"Sign out",syncNow:"Sync now",copyLocalCards:"Copy on-device cards to this account",copyLocalDone:"On-device cards copied to the account",signedInAs:"Signed in",authCheckEmail:"Check your email to finish signing up",authError:"Account action failed. Try again later",syncLocal:"On this device",syncWaiting:"Waiting to sync",syncing:"Syncing",syncDone:"Synced",syncFailed:"Sync failed",
    eLight:"Light 10",eMid:"Medium 25",eHeavy:"Heavy 45",addToday:"Add to today",todayTasks:"Today's tasks",
    poolTitle:"Growth pool",poolDesc:"Park sudden ideas here without forcing yourself to act now. Turn them into tasks when you actually have energy to spare.",
    ideaPh:"e.g. I want to learn some psychology…",save:"Save",myIdeas:"My ideas",toTask:"Make a task",
@@ -497,6 +604,111 @@ const I18N={
 let lang = localStorage.getItem('ll_lang') || 'zh';
 const T = k => I18N[lang][k];
 
+function createFlashcardRestClient(session,ownerGeneration=CommunityClient.generation){
+  const allowed=new Set(['flashcard_decks','flashcards','flashcard_reviews']);
+  const request=async(table,method='GET',body=null,query='',prefer='',extraHeaders={})=>{
+    if(!allowed.has(table))throw new Error('Blocked cloud table');
+    const perform=()=>fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`,{
+      method,headers:{apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${CommunityClient.session?.user.id===session.user.id?CommunityClient.session.access_token:session.access_token}`,'Content-Type':'application/json',...(prefer?{Prefer:prefer}:{}),...extraHeaders},body:body==null?undefined:JSON.stringify(body)
+    });
+    let response=await perform();
+    if(response.status===401&&CommunityClient.session?.user.id===session.user.id&&CommunityClient.session.refresh_token){
+      try{await CommunityClient.refreshSession(session.user.id);response=await perform();}catch(error){
+        if(CommunityClient.generation===ownerGeneration&&CommunityClient.session?.user.id===session.user.id)CommunityClient.authInvalid=true;
+      }
+    }
+    const stillOwnsClient=CommunityClient.generation===ownerGeneration&&CommunityClient.session?.user.id===session.user.id;
+    if(response.status===401&&stillOwnsClient)CommunityClient.authInvalid=true;
+    if(response.status===403&&stillOwnsClient)CommunityClient.authorizationBlocked=true;
+    if(!response.ok)return {data:null,error:true,status:response.status};
+    return {data:method==='GET'?await response.json():null,error:null};
+  };
+  return {from(table){return {
+    async select(){
+      const rows=[];let offset=0;
+      while(true){
+        const result=await request(table,'GET',null,'?select=*','',{'Range-Unit':'items',Range:`${offset}-${offset+999}`});
+        if(result.error)return result;
+        rows.push(...result.data);if(result.data.length<1000)return {data:rows,error:null};offset+=1000;
+      }
+    },
+    upsert(rows,options={}){return request(table,'POST',rows,`?on_conflict=${encodeURIComponent(options.onConflict||'id')}`,options.ignoreDuplicates?'resolution=ignore-duplicates,return=minimal':'resolution=merge-duplicates,return=minimal');},
+    update(values){let filters='';return {eq(column,value){filters+=`&${encodeURIComponent(column)}=eq.${encodeURIComponent(value)}`;return this;},lte(column,value){filters+=`&${encodeURIComponent(column)}=lte.${encodeURIComponent(value)}`;return request(table,'PATCH',values,`?${filters.slice(1)}`,'return=minimal');}};}
+  };}};
+}
+const CommunityClient={
+  client:null,session:null,refreshPromises:new Map(),authInvalid:false,authorizationBlocked:false,generation:0,
+  isConfigured(){return /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(SUPABASE_URL)&&SUPABASE_ANON_KEY.length>40;},
+  async authRequest(path,body,token=''){
+    if(!this.isConfigured())throw new Error('Account sync unavailable');
+    const response=await fetch(`${SUPABASE_URL}/auth/v1/${path}`,{
+      method:'POST',headers:{apikey:SUPABASE_ANON_KEY,'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},
+      body:body==null?undefined:JSON.stringify(body)
+    });
+    if(!response.ok)throw new Error('Authentication failed');
+    return response.status===204?{}:response.json();
+  },
+  sessionFromPayload(data){
+    if(!data||!data.access_token||!data.user)return null;
+    return {access_token:data.access_token,refresh_token:data.refresh_token,expires_at:Math.floor(Date.now()/1000)+(data.expires_in||3600),user:data.user};
+  },
+  async refreshSession(expectedUserId=this.session?.user.id){
+    if(!expectedUserId)throw new Error('Session changed');
+    if(this.refreshPromises.has(expectedUserId))return this.refreshPromises.get(expectedUserId);
+    const expectedGeneration=this.generation,expectedRefreshToken=this.session?.refresh_token;
+    const refresh=async()=>{
+      const latest=DB.get('supabaseSession',null);
+      if(this.generation!==expectedGeneration||this.session?.user.id!==expectedUserId)throw new Error('Session changed');
+      if(latest?.user.id!==expectedUserId&&latest)throw new Error('Session changed');
+      if(latest&&latest.access_token!==this.session?.access_token&&(latest.expires_at||0)>Math.floor(Date.now()/1000)+60)return await this.activate(latest,false);
+      if(!expectedRefreshToken)throw new Error('Session expired');
+      const data=await this.authRequest('token?grant_type=refresh_token',{refresh_token:expectedRefreshToken}),session=this.sessionFromPayload(data);
+      if(!session)throw new Error('Session expired');
+      if(this.generation!==expectedGeneration||this.session?.user.id!==expectedUserId)throw new Error('Session changed');
+      return await this.activate(session);
+    };
+    const promise=(navigator.locks?navigator.locks.request(`liangli-auth-refresh-${expectedUserId}`,refresh):refresh()).finally(()=>{
+      if(this.refreshPromises.get(expectedUserId)===promise)this.refreshPromises.delete(expectedUserId);
+    });
+    this.refreshPromises.set(expectedUserId,promise);return promise;
+  },
+  async activate(session,persist=true){
+    const nextScope=session?session.user.id:'local',scopeChanged=ActiveFlashcardStore.scope!==FlashcardStore.normalizeScope(nextScope);
+    this.generation++;
+    this.session=session;this.client=session?createFlashcardRestClient(session,this.generation):null;this.authInvalid=false;this.authorizationBlocked=false;
+    ActiveFlashcardStore=FlashcardStore.forScope(nextScope);if(persist)DB.set('supabaseSession',session);updateFlashcardAccountUI(session);
+    if(scopeChanged&&typeof resetFlashcardScopeUI==='function')resetFlashcardScopeUI();
+    return session;
+  },
+  async restoreSession(){
+    if(!this.isConfigured()){updateFlashcardAccountUI(null);return null;}
+    const restoreGeneration=this.generation;let expectedUserId=null;
+    try{
+      let session=DB.get('supabaseSession',null);
+      if(!session||!session.refresh_token||!session.user)return await this.activate(null);
+      expectedUserId=session.user.id;
+      if((session.expires_at||0)<=Math.floor(Date.now()/1000)+60){
+        this.session=session;return await this.refreshSession(expectedUserId);
+      }
+      return await this.activate(session);
+    }catch(error){
+      if(this.generation!==restoreGeneration||this.session?.user.id!==expectedUserId)return this.session;
+      await this.activate(null);throw error;
+    }
+  },
+  async signIn(email,password){
+    const session=this.sessionFromPayload(await this.authRequest('token?grant_type=password',{email,password}));
+    if(!session)throw new Error('Authentication failed');return await this.activate(session);
+  },
+  async signUp(email,password){
+    const data=await this.authRequest('signup',{email,password}),session=this.sessionFromPayload(data);
+    if(session)await this.activate(session);return {session,user:data.user||null};
+  },
+  async signOut(){
+    try{if(this.session)await this.authRequest('logout',null,this.session.access_token);}finally{await this.activate(null);}
+  }
+};
+
 function applyLang(){
   document.documentElement.lang = lang==='zh'?'zh-CN':'en';
   document.getElementById('langBtn').textContent = lang==='zh'?'EN':'中';
@@ -506,6 +718,9 @@ function applyLang(){
   });
   document.querySelectorAll('[data-ph]').forEach(el=>{
     const v=I18N[lang][el.dataset.ph]; if(v!==undefined) el.placeholder=v;
+  });
+  document.querySelectorAll('[data-aria-i]').forEach(el=>{
+    const v=I18N[lang][el.dataset.ariaI];if(v!==undefined)el.setAttribute('aria-label',v);
   });
   renderAll();
 }
@@ -528,6 +743,8 @@ function dayOrdinal(dayKey){
 }
 function normalizeTask(task,fallbackDay){
   const helpers=new Set(['none','pomodoro','flashcards','quiz','checklist']);
+  const helperRefs=task.helperRefs&&typeof task.helperRefs==='object'&&!Array.isArray(task.helperRefs)?{...task.helperRefs}:{};
+  if(task.helperRef&&!helperRefs.local)helperRefs.local=task.helperRef;
   return {
     ...task,
     dayKey:task.dayKey||fallbackDay,
@@ -535,6 +752,7 @@ function normalizeTask(task,fallbackDay){
     endTime:task.endTime||null,
     helper:helpers.has(task.helper)?task.helper:'none',
     helperRef:task.helperRef||null,
+    helperRefs,
     pomodoroCount:Number.isInteger(task.pomodoroCount)&&task.pomodoroCount>=0?task.pomodoroCount:0
   };
 }
@@ -546,6 +764,7 @@ function validateTaskTimes(startTime,endTime){
 function taskHelperRoute(task){
   return ['pomodoro','flashcards','quiz','checklist'].includes(task.helper)?task.helper==='pomodoro'?'focus':task.helper:'none';
 }
+function taskFlashcardRef(task){const scope=ActiveFlashcardStore.scope;return task.helperRefs?.[scope]||(scope==='local'?task.helperRef:null)||null;}
 function recordPomodoroCompletion(state,taskId){
   const week=[...state.week];
   week[6]=(week[6]||0)+25;
@@ -553,6 +772,381 @@ function recordPomodoroCompletion(state,taskId){
     ?{...task,pomodoroCount:(task.pomodoroCount||0)+1}
     :task);
   return {...state,tasks,week,pomo:state.pomo+1,focusMin:state.focusMin+25};
+}
+function flashcardOffset(cardId){
+  let hash=0;
+  for(const char of String(cardId||''))hash=(hash*31+char.charCodeAt(0))>>>0;
+  return 0.97+(hash%7)/100;
+}
+function flashcardIntervals(card){
+  const current=Math.max(0,Number(card.intervalDays)||0);
+  if(current===0)return {againMinutes:10,hardDays:1,goodDays:1,easyDays:4};
+  const ease=Math.max(1.3,Number(card.ease)||2.5);
+  const offset=flashcardOffset(card.id);
+  const hard=Math.max(current+1,Math.round(current*1.2*offset));
+  const good=Math.max(hard+1,Math.round(current*ease*offset));
+  const easy=Math.max(good+1,Math.round(current*4*offset));
+  return {
+    againMinutes:10,
+    hardDays:Math.min(36500,hard),
+    goodDays:Math.min(36500,good),
+    easyDays:Math.min(36500,easy)
+  };
+}
+function previewIntervals(card,now){
+  void now;
+  const intervals=flashcardIntervals(card);
+  return {again:`${intervals.againMinutes}m`,hard:`${intervals.hardDays}d`,good:`${intervals.goodDays}d`,easy:`${intervals.easyDays}d`};
+}
+function scheduleReview(card,grade,now){
+  if(!['again','hard','good','easy'].includes(grade))throw new Error('Invalid flashcard grade');
+  const intervals=flashcardIntervals(card);
+  const reviewedAt=Number(now);
+  if(!Number.isFinite(reviewedAt))throw new Error('Invalid review time');
+  if(grade==='again')return {
+    ...card,intervalDays:0,ease:Math.max(1.3,(Number(card.ease)||2.5)-0.2),repetitions:0,
+    dueAt:reviewedAt+intervals.againMinutes*60000,lastReviewedAt:reviewedAt,updatedAt:reviewedAt
+  };
+  const intervalDays=intervals[`${grade}Days`];
+  const easeDelta=grade==='hard'?-0.15:grade==='easy'?0.15:0;
+  return {
+    ...card,intervalDays,ease:Math.max(1.3,(Number(card.ease)||2.5)+easeDelta),
+    repetitions:(Number(card.repetitions)||0)+1,dueAt:reviewedAt+intervalDays*86400000,
+    lastReviewedAt:reviewedAt,updatedAt:reviewedAt
+  };
+}
+const FlashcardStore={
+  dbPromise:null,scope:'local',
+  normalizeScope(scope){return scope&&scope!=='local'?String(scope).replace(/[^a-z0-9-]/gi,''):'local';},
+  forScope(scope){const store=Object.create(this);store.scope=this.normalizeScope(scope);store.dbPromise=null;return store;},
+  setScope(scope){
+    const next=this.normalizeScope(scope);
+    if(next===this.scope)return;
+    if(this.dbPromise)this.dbPromise.then(db=>db.close()).catch(()=>{});
+    this.dbPromise=null;this.scope=next;
+  },
+  open(){
+    if(this.dbPromise)return this.dbPromise;
+    this.dbPromise=new Promise((resolve,reject)=>{
+      const databaseName=this.scope==='local'?'liangli-flashcards-v1':`liangli-flashcards-v1-${this.scope}`;
+      const request=indexedDB.open(databaseName,1);
+      request.onupgradeneeded=()=>{
+        const db=request.result;
+        const decks=db.createObjectStore('decks',{keyPath:'id'});
+        decks.createIndex('updatedAt','updatedAt');
+        const cards=db.createObjectStore('cards',{keyPath:'id'});
+        cards.createIndex('deckId','deckId');
+        cards.createIndex('dueAt','dueAt');
+        cards.createIndex('updatedAt','updatedAt');
+        const reviews=db.createObjectStore('reviews',{keyPath:'id'});
+        reviews.createIndex('deckId','deckId');
+        reviews.createIndex('updatedAt','reviewedAt');
+        const syncOps=db.createObjectStore('syncOps',{keyPath:'id',autoIncrement:true});
+        syncOps.createIndex('updatedAt','updatedAt');
+      };
+      request.onsuccess=()=>resolve(request.result);
+      request.onerror=()=>{this.dbPromise=null;reject(request.error);};
+    });
+    return this.dbPromise;
+  },
+  request(request){
+    return new Promise((resolve,reject)=>{
+      request.onsuccess=()=>resolve(request.result);
+      request.onerror=()=>reject(request.error);
+    });
+  },
+  complete(tx){
+    return new Promise((resolve,reject)=>{
+      tx.oncomplete=()=>resolve();
+      tx.onerror=()=>reject(tx.error);
+      tx.onabort=()=>reject(tx.error||new Error('Flashcard transaction aborted'));
+    });
+  },
+  async listDecks(){
+    const decks=await this.listAllDecks();
+    return decks.filter(deck=>!deck.deletedAt).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  },
+  async listAllDecks(){
+    const db=await this.open();
+    return this.request(db.transaction('decks').objectStore('decks').getAll());
+  },
+  async putDeck(deck){
+    const db=await this.open(),tx=db.transaction(['decks','syncOps'],'readwrite');
+    tx.objectStore('decks').put(deck);
+    tx.objectStore('syncOps').add({type:'deck',entityId:deck.id,payload:deck,updatedAt:deck.updatedAt});
+    await this.complete(tx);
+    return deck;
+  },
+  async putCard(card){
+    const db=await this.open(),tx=db.transaction(['cards','syncOps'],'readwrite');
+    tx.objectStore('cards').put(card);
+    tx.objectStore('syncOps').add({type:'card',entityId:card.id,payload:card,updatedAt:card.updatedAt});
+    await this.complete(tx);
+    return card;
+  },
+  async listCards(deckId){
+    const db=await this.open();
+    const cards=await this.request(db.transaction('cards').objectStore('cards').index('deckId').getAll(deckId));
+    return cards.filter(card=>!card.deletedAt);
+  },
+  async listAllCards(){
+    const db=await this.open();
+    return this.request(db.transaction('cards').objectStore('cards').getAll());
+  },
+  async listReviews(){
+    const db=await this.open();
+    return this.request(db.transaction('reviews').objectStore('reviews').getAll());
+  },
+  async countNewReviews(deckId,startAt,endAt){
+    const reviews=await this.listReviews();
+    return new Set(reviews.filter(review=>review.deckId===deckId&&review.wasNew&&review.reviewedAt>=startAt&&review.reviewedAt<endAt).map(review=>review.cardId)).size;
+  },
+  async listDue(deckId,now,limit=20){
+    const cards=await this.listCards(deckId);
+    const due=cards.filter(card=>card.dueAt!=null&&card.dueAt<=now).sort((a,b)=>a.dueAt-b.dueAt);
+    const fresh=cards.filter(card=>card.dueAt==null).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0)).slice(0,limit);
+    return [...due,...fresh.slice(0,limit)];
+  },
+  async putReview(review){
+    if(!review.card)throw new Error('Review requires updated card');
+    const db=await this.open();
+    const tx=db.transaction(['cards','reviews','syncOps'],'readwrite');
+    tx.objectStore('cards').put(review.card);
+    tx.objectStore('reviews').put({...review,card:undefined});
+    tx.objectStore('syncOps').add({type:'card',entityId:review.card.id,payload:review.card,updatedAt:review.card.updatedAt});
+    tx.objectStore('syncOps').add({type:'review',entityId:review.id,payload:review,updatedAt:review.reviewedAt});
+    await this.complete(tx);
+    return review.card;
+  },
+  async enqueueSync(op){
+    const db=await this.open(),tx=db.transaction('syncOps','readwrite');
+    const id=await this.request(tx.objectStore('syncOps').add({...op,updatedAt:op.updatedAt||Date.now()}));
+    await this.complete(tx);
+    return id;
+  },
+  async deleteCard(cardId){
+    const db=await this.open();
+    const card=await this.request(db.transaction('cards').objectStore('cards').get(cardId));
+    if(!card)return;
+    const updatedAt=Date.now(),tombstone={...card,deletedAt:updatedAt,updatedAt};
+    const tx=db.transaction(['cards','syncOps'],'readwrite');
+    tx.objectStore('cards').put(tombstone);
+    tx.objectStore('syncOps').add({type:'delete-card',entityId:cardId,payload:tombstone,updatedAt});
+    await this.complete(tx);
+  },
+  async deleteDeck(deckId){
+    const cards=await this.listCards(deckId),db=await this.open();
+    const deck=await this.request(db.transaction('decks').objectStore('decks').get(deckId));
+    if(!deck)return;
+    const updatedAt=Date.now(),tx=db.transaction(['decks','cards','syncOps'],'readwrite');
+    tx.objectStore('decks').put({...deck,deletedAt:updatedAt,updatedAt});
+    tx.objectStore('syncOps').add({type:'delete-deck',entityId:deckId,payload:{...deck,deletedAt:updatedAt,updatedAt},updatedAt});
+    cards.forEach(card=>{
+      const tombstone={...card,deletedAt:updatedAt,updatedAt};
+      tx.objectStore('cards').put(tombstone);
+      tx.objectStore('syncOps').add({type:'delete-card',entityId:card.id,payload:tombstone,updatedAt});
+    });
+    await this.complete(tx);
+  },
+  async importBundle(bundle){
+    const db=await this.open(),tx=db.transaction(['decks','cards','reviews','syncOps'],'readwrite');
+    bundle.decks.forEach(deck=>{tx.objectStore('decks').put(deck);tx.objectStore('syncOps').add({type:'deck',entityId:deck.id,payload:deck,updatedAt:deck.updatedAt||Date.now()});});
+    bundle.cards.forEach(card=>{tx.objectStore('cards').put(card);tx.objectStore('syncOps').add({type:'card',entityId:card.id,payload:card,updatedAt:card.updatedAt||Date.now()});});
+    bundle.reviews.forEach(review=>{tx.objectStore('reviews').put(review);tx.objectStore('syncOps').add({type:'review',entityId:review.id,payload:review,updatedAt:review.reviewedAt||Date.now()});});
+    await this.complete(tx);
+  },
+  async listSyncOps(){
+    const db=await this.open();
+    return this.request(db.transaction('syncOps').objectStore('syncOps').getAll());
+  },
+  async deleteSyncOps(ids){
+    if(!ids.length)return;
+    const db=await this.open(),tx=db.transaction('syncOps','readwrite');
+    ids.forEach(id=>tx.objectStore('syncOps').delete(id));
+    await this.complete(tx);
+  },
+  async applyRemoteBundle(bundle){
+    const db=await this.open(),tx=db.transaction(['decks','cards','reviews'],'readwrite');
+    bundle.decks.forEach(deck=>tx.objectStore('decks').put(deck));
+    bundle.cards.forEach(card=>tx.objectStore('cards').put(card));
+    bundle.reviews.forEach(review=>tx.objectStore('reviews').put(review));
+    await this.complete(tx);
+  }
+};
+let ActiveFlashcardStore=FlashcardStore.forScope('local');
+function serializeDecks(decks,cards,reviews){
+  return JSON.stringify({format:'liangli-flashcards',version:1,exportedAt:new Date().toISOString(),decks,cards,reviews},null,2);
+}
+function isFlashcardUuid(value){return typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);}
+function parseLiangliDeckJson(text){
+  let value;
+  try{value=JSON.parse(text);}catch(error){throw new Error('Invalid flashcard format');}
+  if(!value||value.format!=='liangli-flashcards')throw new Error('Invalid flashcard format');
+  if(value.version!==1)throw new Error('Unsupported flashcard version');
+  if(!Array.isArray(value.decks)||!Array.isArray(value.cards)||!Array.isArray(value.reviews))throw new Error('Invalid flashcard format');
+  const deckIds=new Set(value.decks.map(deck=>deck&&deck.id)),cardIds=new Set(value.cards.map(card=>card&&card.id)),reviewIds=new Set(value.reviews.map(review=>review&&review.id));
+  const cardDecks=new Map(value.cards.map(card=>[card&&card.id,card&&card.deckId]));
+  const uniqueIds=deckIds.size===value.decks.length&&cardIds.size===value.cards.length&&reviewIds.size===value.reviews.length;
+  const validTime=time=>time==null||(Number.isFinite(time)&&time>=0);
+  const validSchedule=card=>(card.intervalDays==null||(Number.isInteger(card.intervalDays)&&card.intervalDays>=0&&card.intervalDays<=36500))&&
+    (card.ease==null||(Number.isFinite(card.ease)&&card.ease>=1.3&&card.ease<=5))&&
+    (card.repetitions==null||(Number.isInteger(card.repetitions)&&card.repetitions>=0))&&validTime(card.dueAt)&&validTime(card.lastReviewedAt)&&validTime(card.updatedAt);
+  if(!uniqueIds||value.decks.some(deck=>!deck||!isFlashcardUuid(deck.id)||typeof deck.name!=='string'||!deck.name.trim()||deck.name.length>120||!validTime(deck.createdAt)||!validTime(deck.updatedAt)||!validTime(deck.deletedAt))||
+     value.cards.some(card=>!card||!isFlashcardUuid(card.id)||!deckIds.has(card.deckId)||typeof card.front!=='string'||!card.front.trim()||card.front.length>10000||typeof card.back!=='string'||!card.back.trim()||card.back.length>10000||!validSchedule(card)||!validTime(card.createdAt)||!validTime(card.deletedAt))||
+     value.reviews.some(review=>!review||!isFlashcardUuid(review.id)||!deckIds.has(review.deckId)||!cardIds.has(review.cardId)||cardDecks.get(review.cardId)!==review.deckId||!['again','hard','good','easy'].includes(review.grade)||!Number.isFinite(review.reviewedAt)||review.reviewedAt<0||(review.wasNew!==undefined&&typeof review.wasNew!=='boolean')||!Number.isInteger(review.previousIntervalDays||0)||(review.previousIntervalDays||0)<0||(review.previousIntervalDays||0)>36500)){
+    throw new Error('Invalid flashcard format');
+  }
+  return {decks:value.decks.map(deck=>({...deck})),cards:value.cards.map(card=>({...card})),reviews:value.reviews.map(review=>({...review,wasNew:Boolean(review.wasNew)}))};
+}
+function parseTwoColumnCsv(text){
+  const rows=[];let row=[],field='',quoted=false,malformed=false;
+  const source=String(text).replace(/^\uFEFF/,'');
+  for(let index=0;index<source.length;index++){
+    const char=source[index];
+    if(char==='"'){
+      if(quoted&&source[index+1]==='"'){field+='"';index++;}
+      else quoted=!quoted;
+    }else if(char===','&&!quoted){row.push(field);field='';}
+    else if((char==='\n'||char==='\r')&&!quoted){
+      if(char==='\r'&&source[index+1]==='\n')index++;
+      row.push(field);rows.push(row);row=[];field='';
+    }else field+=char;
+  }
+  if(quoted)malformed=true;
+  if(field||row.length){row.push(field);rows.push(row);}
+  if(rows.length&&rows[0].length===2&&rows[0][0].trim().toLowerCase()==='front'&&rows[0][1].trim().toLowerCase()==='back')rows.shift();
+  const invalidRows=[],cards=[];
+  rows.forEach((values,index)=>{
+    const front=(values[0]||'').trim(),back=(values[1]||'').trim();
+    if(values.length!==2||!front||!back||front.length>10000||back.length>10000)invalidRows.push(index+1);
+    else cards.push({front,back});
+  });
+  if(malformed)invalidRows.push(rows.length||1);
+  return {valid:invalidRows.length===0,cards:invalidRows.length?[]:cards,invalidRows};
+}
+function serializeCardsCsv(cards){
+  const quote=value=>`"${String(value).replace(/"/g,'""')}"`;
+  return `front,back\r\n${cards.map(card=>`${quote(card.front)},${quote(card.back)}`).join('\r\n')}`;
+}
+function newFlashcardId(){
+  if(globalThis.crypto&&crypto.randomUUID)return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,char=>{
+    const random=Math.floor(Math.random()*16),value=char==='x'?random:(random&3)|8;
+    return value.toString(16);
+  });
+}
+function countBundleCollisions(bundle,existingIds){
+  return [...bundle.decks,...bundle.cards,...bundle.reviews].filter(item=>existingIds.has(item.id)).length;
+}
+function remapFlashcardBundle(bundle,forceAll=false,existingIds=new Set()){
+  const deckMap=new Map(),cardMap=new Map();
+  const decks=bundle.decks.map(deck=>{
+    const id=forceAll||existingIds.has(deck.id)?newFlashcardId():deck.id;deckMap.set(deck.id,id);return {...deck,id};
+  });
+  const cards=bundle.cards.map(card=>{
+    const id=forceAll||existingIds.has(card.id)?newFlashcardId():card.id;cardMap.set(card.id,id);return {...card,id,deckId:deckMap.get(card.deckId)||card.deckId};
+  });
+  const reviews=bundle.reviews.map(review=>({
+    ...review,id:forceAll||existingIds.has(review.id)?newFlashcardId():review.id,
+    deckId:deckMap.get(review.deckId)||review.deckId,cardId:cardMap.get(review.cardId)||review.cardId
+  }));
+  return {decks,cards,reviews};
+}
+function mergeFlashcard(local,remote){
+  if(!local)return remote?{...remote}:null;
+  if(!remote)return {...local};
+  const contentSource=(local.updatedAt||0)>=(remote.updatedAt||0)?local:remote;
+  const scheduleSource=(local.lastReviewedAt||0)>=(remote.lastReviewedAt||0)?local:remote;
+  const merged={...remote,...local};
+  for(const key of ['deckId','front','back','createdAt','updatedAt'])if(contentSource[key]!==undefined)merged[key]=contentSource[key];
+  for(const key of ['intervalDays','ease','repetitions','dueAt','lastReviewedAt'])if(scheduleSource[key]!==undefined)merged[key]=scheduleSource[key];
+  const deletedAt=Math.max(Number(local.deletedAt)||0,Number(remote.deletedAt)||0);
+  merged.deletedAt=deletedAt||null;
+  return merged;
+}
+function mergeReviews(localReviews,remoteReviews){
+  const reviews=new Map();
+  [...localReviews,...remoteReviews].forEach(review=>{if(review&&review.id&&!reviews.has(review.id))reviews.set(review.id,{...review});});
+  return [...reviews.values()];
+}
+function coalesceSyncOps(ops){
+  const decks=new Map(),cards=new Map(),reviews=new Map();
+  for(const op of ops){
+    const target=op.type==='deck'||op.type==='delete-deck'?decks:op.type==='card'||op.type==='delete-card'?cards:op.type==='review'?reviews:null;
+    if(!target)continue;
+    const current=target.get(op.entityId);
+    if(!current||(op.updatedAt||0)>(current.updatedAt||0)||((op.updatedAt||0)===(current.updatedAt||0)&&(op.id||0)>(current.id||0)))target.set(op.entityId,op);
+  }
+  return [...decks.values(),...cards.values(),...reviews.values()];
+}
+function mergeSyncEntities(localItems,remoteItems){
+  const merged=new Map(localItems.map(item=>[item.id,{...item}]));
+  remoteItems.forEach(remote=>{
+    const local=merged.get(remote.id);
+    if(!local){merged.set(remote.id,{...remote});return;}
+    merged.set(remote.id,(local.updatedAt||0)>=(remote.updatedAt||0)?local:{...local,...remote});
+  });
+  return [...merged.values()].map(item=>{const copy={...item};delete copy.pendingSync;return copy;});
+}
+const isoTime=value=>value==null?null:new Date(value).toISOString();
+const epochTime=value=>value?Date.parse(value):null;
+function deckToRemote(deck,userId){return {id:deck.id,user_id:userId,name:deck.name,client_updated_at:deck.updatedAt||0,deleted_at:isoTime(deck.deletedAt)};}
+function cardToRemote(card,userId){return {
+  id:card.id,user_id:userId,deck_id:card.deckId,front:card.front,back:card.back,interval_days:card.intervalDays||0,
+  ease:card.ease||2.5,repetitions:card.repetitions||0,due_at:isoTime(card.dueAt),last_reviewed_at:isoTime(card.lastReviewedAt),
+  client_updated_at:card.updatedAt||0,deleted_at:isoTime(card.deletedAt)
+};}
+function reviewToRemote(review,userId){return {id:review.id,user_id:userId,deck_id:review.deckId,card_id:review.cardId,grade:review.grade,previous_interval_days:review.previousIntervalDays||0,was_new:Boolean(review.wasNew),reviewed_at:isoTime(review.reviewedAt)};}
+function deckFromRemote(row){return {id:row.id,name:row.name,updatedAt:row.client_updated_at||epochTime(row.updated_at)||0,deletedAt:epochTime(row.deleted_at),createdAt:epochTime(row.created_at)};}
+function cardFromRemote(row){return {
+  id:row.id,deckId:row.deck_id,front:row.front,back:row.back,intervalDays:row.interval_days,ease:row.ease,repetitions:row.repetitions,
+  dueAt:epochTime(row.due_at),lastReviewedAt:epochTime(row.last_reviewed_at),updatedAt:row.client_updated_at||epochTime(row.updated_at)||0,
+  deletedAt:epochTime(row.deleted_at),createdAt:epochTime(row.created_at)
+};}
+function reviewFromRemote(row){return {id:row.id,deckId:row.deck_id,cardId:row.card_id,grade:row.grade,previousIntervalDays:row.previous_interval_days,wasNew:Boolean(row.was_new),reviewedAt:epochTime(row.reviewed_at)};}
+async function syncFlashcards(session,now){
+  if(!session||!CommunityClient.client)throw new Error('No flashcard session');
+  void now;
+  const client=createFlashcardRestClient(session,CommunityClient.generation),userId=session.user.id,store=FlashcardStore.forScope(userId),rawOps=await store.listSyncOps(),ops=coalesceSyncOps(rawOps);
+  const [initialDeckResult,initialCardResult]=await Promise.all([
+    client.from('flashcard_decks').select('*'),client.from('flashcards').select('*')
+  ]);
+  if(initialDeckResult.error||initialCardResult.error)throw new Error('Flashcard conflict check failed');
+  const initialDecks=new Map(initialDeckResult.data.map(row=>{const deck=deckFromRemote(row);return [deck.id,deck];}));
+  const initialCards=new Map(initialCardResult.data.map(row=>{const card=cardFromRemote(row);return [card.id,card];}));
+  for(let offset=0;offset<ops.length;offset+=100){
+    const batch=ops.slice(offset,offset+100);
+    const deckRows=batch.filter(op=>op.type==='deck').map(op=>{
+      const merged=mergeSyncEntities([op.payload],initialDecks.has(op.entityId)?[initialDecks.get(op.entityId)]:[])[0];
+      return deckToRemote(merged,userId);
+    });
+    const cardRows=batch.filter(op=>op.type==='card').map(op=>cardToRemote(mergeFlashcard(op.payload,initialCards.get(op.entityId)),userId));
+    const reviewRows=batch.filter(op=>op.type==='review').map(op=>reviewToRemote(op.payload,userId));
+    for(const [table,rows] of [['flashcard_decks',deckRows],['flashcards',cardRows],['flashcard_reviews',reviewRows]]){
+      if(rows.length){
+        const options=table==='flashcard_reviews'?{onConflict:'id',ignoreDuplicates:true}:{onConflict:'id'};
+        const {error}=await client.from(table).upsert(rows,options);if(error)throw new Error('Flashcard upload failed');
+      }
+    }
+    for(const op of batch.filter(item=>item.type==='delete-card'||item.type==='delete-deck')){
+      const table=op.type==='delete-card'?'flashcards':'flashcard_decks';
+      const {error}=await client.from(table).update({deleted_at:isoTime(op.payload.deletedAt),client_updated_at:op.updatedAt}).eq('id',op.entityId).lte('client_updated_at',op.updatedAt);
+      if(error)throw new Error('Flashcard deletion sync failed');
+    }
+  }
+  await store.deleteSyncOps(rawOps.map(op=>op.id));
+  const [deckResult,cardResult,reviewResult]=await Promise.all([
+    client.from('flashcard_decks').select('*'),client.from('flashcards').select('*'),client.from('flashcard_reviews').select('*')
+  ]);
+  if(deckResult.error||cardResult.error||reviewResult.error)throw new Error('Flashcard download failed');
+  const localDecks=await store.listAllDecks(),localCards=await store.listAllCards(),localReviews=await store.listReviews();
+  const remoteDecks=deckResult.data.map(deckFromRemote),remoteCards=cardResult.data.map(cardFromRemote),remoteReviews=reviewResult.data.map(reviewFromRemote);
+  const mergedCards=new Map(localCards.map(card=>[card.id,card]));
+  remoteCards.forEach(card=>mergedCards.set(card.id,mergeFlashcard(mergedCards.get(card.id),card)));
+  await store.applyRemoteBundle({
+    decks:mergeSyncEntities(localDecks,remoteDecks),cards:[...mergedCards.values()],reviews:mergeReviews(localReviews,remoteReviews)
+  });
+  return {uploaded:rawOps.length,decks:remoteDecks.length,cards:remoteCards.length,reviews:remoteReviews.length};
 }
 function normalizeTaskDays(tasks,fallbackDay){
   return tasks.map(task=>normalizeTask(task,fallbackDay));
@@ -829,7 +1423,7 @@ function addTask(){
   if(!validateTaskTimes(startTime,endTime)){toast(T('timeOrderError'));return;}
   S.tasks.push(normalizeTask({
     id:Date.now(),name,energy:pickedEnergy,done:false,dayKey:currentDayKey,
-    startTime:startTime||null,endTime:endTime||null,helper,helperRef:null,pomodoroCount:0
+    startTime:startTime||null,endTime:endTime||null,helper,helperRef:null,helperRefs:{},pomodoroCount:0
   },currentDayKey));
   el.value='';
   document.getElementById('taskStartTime').value='';
@@ -846,17 +1440,391 @@ let activeTaskId=null;
 function openTaskHelper(taskId){
   const task=S.tasks.find(item=>item.id===taskId);
   if(!task)return;
+  activeTaskId=taskId;
   const route=taskHelperRoute(task);
   if(route==='focus'){
-    activeTaskId=taskId;
     go('focus',document.querySelector('nav button[data-v=focus]'));
     return;
   }
-  if(route==='flashcards'&&typeof openFlashcards==='function'){openFlashcards(task.helperRef);return;}
+  if(route==='flashcards'&&typeof openFlashcards==='function'){openFlashcards(taskFlashcardRef(task));return;}
   if(route==='quiz'&&typeof openQuiz==='function'){openQuiz(task.helperRef);return;}
   if(route==='checklist'&&typeof openChecklist==='function'){openChecklist(task.helperRef);return;}
   toast(T(route==='none'?'helperNone':'helperComing'));
 }
+
+/* ============ Flashcards ============ */
+let flashcardState={decks:[],activeDeckId:null,reviewQueue:[],reviewIndex:0,flipped:false};
+let pendingFlashcardImport=null,pendingFlashcardImportScope=null;
+let flashcardReturnFocus=null;
+function resetFlashcardScopeUI(){
+  flashcardState={decks:[],activeDeckId:null,reviewQueue:[],reviewIndex:0,flipped:false};
+  document.getElementById('deckEditor').hidden=true;cancelFlashcardImport();finishReview();
+}
+function setFlashcardSyncStatus(key){
+  document.getElementById('flashcardSyncBadge').textContent=T(key);
+}
+function updateFlashcardAccountUI(session){
+  const configured=CommunityClient.isConfigured(),signedIn=Boolean(session);
+  document.getElementById('flashcardEmail').disabled=!configured||signedIn;
+  document.getElementById('flashcardPassword').disabled=!configured||signedIn;
+  document.getElementById('flashcardNewPassword').disabled=!configured||signedIn;
+  document.getElementById('flashcardSignIn').disabled=!configured||signedIn;
+  document.getElementById('flashcardSignUp').disabled=!configured||signedIn;
+  document.getElementById('flashcardSignOut').hidden=!signedIn;
+  document.getElementById('flashcardSyncNow').disabled=!signedIn||!navigator.onLine;
+  document.getElementById('copyLocalFlashcards').hidden=!signedIn;
+  document.getElementById('flashcardAccountStatus').textContent=signedIn
+    ?`${T('signedInAs')} ${session.user.email||''}`
+    :T(configured?'syncSignIn':'syncNotConfigured');
+  setFlashcardSyncStatus(signedIn?'syncWaiting':'syncLocal');
+}
+async function signInFlashcards(){
+  const password=document.getElementById('flashcardPassword');
+  try{
+    const session=await CommunityClient.signIn(document.getElementById('flashcardEmail').value.trim(),password.value);
+    updateFlashcardAccountUI(session);await manualFlashcardSync();
+  }catch(error){toast(T('authError'));}finally{password.value='';}
+}
+async function signUpFlashcards(){
+  const password=document.getElementById('flashcardNewPassword');
+  try{
+    const result=await CommunityClient.signUp(document.getElementById('flashcardEmail').value.trim(),password.value);
+    if(result.session){updateFlashcardAccountUI(result.session);await manualFlashcardSync();}
+    else toast(T('authCheckEmail'));
+  }catch(error){toast(T('authError'));}finally{password.value='';}
+}
+async function signOutFlashcards(){await CommunityClient.signOut();}
+async function copyLocalFlashcardsToAccount(){
+  const session=CommunityClient.session;if(!session)return;
+  const accountScope=session.user.id;
+  if(flashcardCopyInFlight)return flashcardCopyInFlight;
+  flashcardCopyInFlight=(async()=>{
+    if(flashcardSyncInFlight)await flashcardSyncInFlight.catch(()=>null);
+    const shell=document.querySelector('.flashcard-shell');shell.inert=true;
+    try{
+      const localStore=FlashcardStore.forScope('local'),accountStore=FlashcardStore.forScope(accountScope);
+      const decks=await localStore.listDecks(),cardGroups=await Promise.all(decks.map(deck=>localStore.listCards(deck.id))),cards=cardGroups.flat();
+      const activeCardIds=new Set(cards.map(card=>card.id)),reviews=(await localStore.listReviews()).filter(review=>activeCardIds.has(review.cardId));
+      const destinationDecks=new Map((await accountStore.listAllDecks()).map(deck=>[deck.id,deck]));
+      const destinationCards=new Map((await accountStore.listAllCards()).map(card=>[card.id,card]));
+      const destinationReviews=new Map((await accountStore.listReviews()).map(review=>[review.id,review]));
+      const saved=DB.get(`flashCopyMap_${accountScope}`,{decks:{},cards:{},reviews:{}}),deckMap=new Map(),cardMap=new Map();
+      const copiedDecks=decks.map(deck=>{const id=saved.decks[deck.id]||newFlashcardId();saved.decks[deck.id]=id;deckMap.set(deck.id,id);const mapped={...deck,id};return mergeSyncEntities([mapped],destinationDecks.has(id)?[destinationDecks.get(id)]:[])[0];});
+      const copiedCards=cards.map(card=>{const id=saved.cards[card.id]||newFlashcardId();saved.cards[card.id]=id;cardMap.set(card.id,id);return mergeFlashcard({...card,id,deckId:deckMap.get(card.deckId)},destinationCards.get(id));});
+      const copiedReviews=reviews.map(review=>{const id=saved.reviews[review.id]||newFlashcardId();saved.reviews[review.id]=id;return destinationReviews.get(id)||{...review,id,deckId:deckMap.get(review.deckId),cardId:cardMap.get(review.cardId)};});
+      await accountStore.importBundle({decks:copiedDecks,cards:copiedCards,reviews:copiedReviews});
+      DB.set(`flashCopyMap_${accountScope}`,saved);
+      S.tasks=S.tasks.map(task=>{
+        const localRef=task.helperRefs?.local||task.helperRef,mapped=deckMap.get(localRef);return mapped?{...task,helperRefs:{...(task.helperRefs||{}),[accountScope]:mapped}}:task;
+      });
+      DB.set('tasks',S.tasks);renderTasks();if(ActiveFlashcardStore.scope===FlashcardStore.normalizeScope(accountScope))await renderDecks();toast(T('copyLocalDone'));return true;
+    }catch(error){toast(T('flashcardStoreError'));return false;}
+    finally{shell.inert=false;}
+  })().finally(()=>{flashcardCopyInFlight=null;});
+  const copied=await flashcardCopyInFlight;if(copied&&CommunityClient.session?.user.id===accountScope)queueFlashcardSync();return copied;
+}
+function flashId(prefix){
+  void prefix;
+  return newFlashcardId();
+}
+async function openFlashcards(deckId=null){
+  const overlay=document.getElementById('flashcardOverlay');
+  flashcardReturnFocus=document.activeElement;
+  overlay.hidden=false;
+  document.querySelector('.app').inert=true;
+  document.querySelector('.app').setAttribute('aria-hidden','true');
+  document.body.style.overflow='hidden';
+  CommunityClient.restoreSession().then(session=>{if(session)manualFlashcardSync();}).catch(()=>updateFlashcardAccountUI(null));
+  try{
+    await renderDecks();
+    if(deckId&&flashcardState.decks.some(deck=>deck.id===deckId))await selectDeck(deckId);
+    document.getElementById('flashcardClose').focus();
+  }catch(error){
+    closeFlashcards();
+    toast(T('flashcardStoreError'));
+  }
+}
+function closeFlashcards(){
+  document.getElementById('flashcardOverlay').hidden=true;
+  document.querySelector('.app').inert=false;
+  document.querySelector('.app').removeAttribute('aria-hidden');
+  document.body.style.overflow='';
+  finishReview();
+  if(flashcardReturnFocus&&typeof flashcardReturnFocus.focus==='function')flashcardReturnFocus.focus();
+  flashcardReturnFocus=null;
+}
+async function renderDecks(){
+  const store=ActiveFlashcardStore,decks=await store.listDecks();
+  if(store!==ActiveFlashcardStore)return [];
+  flashcardState.decks=decks;
+  const now=Date.now();
+  const summaries=await Promise.all(decks.map(async deck=>{
+    const cards=await store.listCards(deck.id);
+    return {deck,cards:cards.length,due:cards.filter(card=>card.dueAt==null||card.dueAt<=now).length};
+  }));
+  if(store!==ActiveFlashcardStore)return [];
+  document.getElementById('deckList').innerHTML=summaries.length?summaries.map(({deck,cards,due})=>`
+    <div class="deck-row">
+      <button type="button" data-deck="${esc(deck.id)}" onclick="selectDeck(this.dataset.deck)"><b>${esc(deck.name)}</b><small>${cards} ${T('cardsCount')} · ${due} ${T('dueCount')}</small></button>
+      <button type="button" class="btn ghost" data-deck="${esc(deck.id)}" onclick="deleteFlashcardDeck(this.dataset.deck)" aria-label="${esc(T('deleteDeck'))}">×</button>
+    </div>`).join(''):`<div class="flash-empty">${T('emptyDecks')}</div>`;
+  if(flashcardState.activeDeckId&&!decks.some(deck=>deck.id===flashcardState.activeDeckId)){
+    flashcardState.activeDeckId=null;document.getElementById('deckEditor').hidden=true;
+  }
+  return decks;
+}
+async function createDeck(){
+  const store=ActiveFlashcardStore;
+  const input=document.getElementById('deckName'),name=input.value.trim();
+  if(!name){toast(T('deckNameNeeded'));return;}
+  if(name.length>120){toast(T('contentTooLong'));return;}
+  const now=Date.now(),deck={id:flashId('deck'),name,createdAt:now,updatedAt:now};
+  await store.putDeck(deck);
+  if(store!==ActiveFlashcardStore)return;
+  queueFlashcardSync();
+  input.value='';
+  const linkedTask=S.tasks.find(task=>task.id===activeTaskId&&task.helper==='flashcards');
+  if(linkedTask&&!taskFlashcardRef(linkedTask)){
+    linkedTask.helperRefs={...(linkedTask.helperRefs||{}),[store.scope]:deck.id};
+    if(store.scope==='local')linkedTask.helperRef=deck.id;
+    DB.set('tasks',S.tasks);renderTasks();
+  }
+  await renderDecks();
+  await selectDeck(deck.id);
+}
+async function selectDeck(deckId){
+  const deck=flashcardState.decks.find(item=>item.id===deckId);
+  if(!deck)return;
+  flashcardState.activeDeckId=deckId;
+  document.getElementById('deckEditor').hidden=false;
+  document.getElementById('activeDeckName').textContent=deck.name;
+  await renderFlashcards();
+}
+async function renderFlashcards(){
+  const store=ActiveFlashcardStore,cards=await store.listCards(flashcardState.activeDeckId);
+  if(store!==ActiveFlashcardStore)return;
+  document.getElementById('cardList').innerHTML=cards.length?cards.map(card=>`
+    <div class="card-list-item"><b>${esc(card.front)}</b><br>${esc(card.back)}
+      <button type="button" class="btn ghost sm" data-card="${esc(card.id)}" onclick="deleteFlashcard(this.dataset.card)" aria-label="${esc(T('deleteCard'))}">×</button>
+    </div>`).join(''):`<div class="flash-empty">${T('emptyCards')}</div>`;
+}
+async function addFlashcard(){
+  const store=ActiveFlashcardStore;
+  const frontInput=document.getElementById('cardFront'),backInput=document.getElementById('cardBack');
+  const front=frontInput.value.trim(),back=backInput.value.trim();
+  if(!flashcardState.activeDeckId||!front||!back){toast(T('cardSidesNeeded'));return;}
+  if(front.length>10000||back.length>10000){toast(T('contentTooLong'));return;}
+  const now=Date.now();
+  await store.putCard({
+    id:flashId('card'),deckId:flashcardState.activeDeckId,front,back,intervalDays:0,ease:2.5,
+    repetitions:0,dueAt:null,createdAt:now,updatedAt:now
+  });
+  if(store!==ActiveFlashcardStore)return;
+  queueFlashcardSync();
+  frontInput.value='';backInput.value='';
+  await renderFlashcards();await renderDecks();
+}
+async function deleteFlashcard(cardId){
+  const store=ActiveFlashcardStore;await store.deleteCard(cardId);
+  if(store!==ActiveFlashcardStore)return;
+  queueFlashcardSync();
+  await renderFlashcards();await renderDecks();
+}
+async function deleteFlashcardDeck(deckId){
+  if(!confirm(lang==='zh'?'删除这个牌组和其中所有卡片？':'Delete this deck and all its cards?'))return;
+  const store=ActiveFlashcardStore;await store.deleteDeck(deckId);
+  if(store!==ActiveFlashcardStore)return;
+  queueFlashcardSync();
+  if(flashcardState.activeDeckId===deckId){flashcardState.activeDeckId=null;document.getElementById('deckEditor').hidden=true;}
+  S.tasks=S.tasks.map(task=>{
+    if(taskFlashcardRef(task)!==deckId)return task;
+    const helperRefs={...(task.helperRefs||{})};delete helperRefs[store.scope];
+    return {...task,helperRefs,helperRef:store.scope==='local'?null:task.helperRef};
+  });
+  DB.set('tasks',S.tasks);renderTasks();await renderDecks();
+}
+async function startReview(deckId=flashcardState.activeDeckId){
+  const store=ActiveFlashcardStore;
+  if(deckId)flashcardState.activeDeckId=deckId;
+  const now=Date.now(),startOfDay=new Date(),endOfDay=new Date();startOfDay.setHours(0,0,0,0);endOfDay.setHours(0,0,0,0);endOfDay.setDate(endOfDay.getDate()+1);
+  const reviewedNew=await store.countNewReviews(flashcardState.activeDeckId,startOfDay.getTime(),endOfDay.getTime());
+  if(store!==ActiveFlashcardStore)return;
+  flashcardState.reviewQueue=await store.listDue(flashcardState.activeDeckId,now,Math.max(0,20-reviewedNew));
+  if(store!==ActiveFlashcardStore)return;
+  flashcardState.reviewIndex=0;flashcardState.flipped=false;
+  document.getElementById('flashcardLibrary').hidden=true;
+  document.getElementById('reviewPanel').hidden=false;
+  renderReviewCard();
+  document.getElementById(flashcardState.reviewQueue.length?'reviewCard':'reviewBackButton').focus();
+}
+function renderReviewCard(){
+  const card=flashcardState.reviewQueue[flashcardState.reviewIndex];
+  if(!card){
+    document.getElementById('reviewProgress').textContent=T('reviewDone');
+    document.getElementById('reviewCard').hidden=true;
+    document.getElementById('showAnswerBtn').hidden=true;
+    document.getElementById('reviewGrades').hidden=true;
+    return;
+  }
+  flashcardState.flipped=false;
+  document.getElementById('reviewCard').hidden=false;
+  document.getElementById('showAnswerBtn').hidden=false;
+  document.getElementById('reviewGrades').hidden=true;
+  document.getElementById('reviewBack').hidden=true;
+  document.getElementById('reviewProgress').textContent=`${flashcardState.reviewIndex+1} / ${flashcardState.reviewQueue.length}`;
+  document.getElementById('reviewFront').textContent=card.front;
+  document.getElementById('reviewBackText').textContent=card.back;
+  const preview=previewIntervals(card,Date.now());
+  for(const grade of ['Again','Hard','Good','Easy'])document.getElementById(`interval${grade}`).textContent=preview[grade.toLowerCase()];
+}
+function flipCurrentCard(){
+  if(!flashcardState.reviewQueue[flashcardState.reviewIndex]||flashcardState.flipped)return;
+  flashcardState.flipped=true;
+  document.getElementById('reviewBack').hidden=false;
+  document.getElementById('showAnswerBtn').hidden=true;
+  document.getElementById('reviewGrades').hidden=false;
+}
+async function gradeCurrentCard(grade){
+  if(!flashcardState.flipped)return;
+  const card=flashcardState.reviewQueue[flashcardState.reviewIndex],reviewedAt=Date.now();
+  if(!card)return;
+  const updated=scheduleReview(card,grade,reviewedAt);
+  const store=ActiveFlashcardStore;
+  await store.putReview({id:flashId('review'),deckId:card.deckId,cardId:card.id,grade,reviewedAt,previousIntervalDays:card.intervalDays||0,wasNew:card.lastReviewedAt==null&&Number(card.repetitions||0)===0,card:updated});
+  if(store!==ActiveFlashcardStore)return;
+  queueFlashcardSync();
+  flashcardState.reviewIndex++;
+  renderReviewCard();
+}
+function finishReview(){
+  const panel=document.getElementById('reviewPanel');
+  if(!panel)return;
+  panel.hidden=true;
+  document.getElementById('flashcardLibrary').hidden=false;
+  flashcardState.reviewQueue=[];flashcardState.reviewIndex=0;flashcardState.flipped=false;
+  if(!document.getElementById('flashcardOverlay').hidden)renderDecks();
+}
+function downloadFlashcardFile(filename,type,contents){
+  const url=URL.createObjectURL(new Blob([contents],{type}));
+  const link=document.createElement('a');link.href=url;link.download=filename;link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+async function exportFlashcardsJson(){
+  const store=ActiveFlashcardStore,decks=await store.listDecks();
+  const cardGroups=await Promise.all(decks.map(deck=>store.listCards(deck.id)));
+  const reviews=await store.listReviews();
+  if(store!==ActiveFlashcardStore)return;
+  downloadFlashcardFile(`liangli-flashcards-${localDayKey()}.json`,'application/json;charset=utf-8',serializeDecks(decks,cardGroups.flat(),reviews));
+}
+async function exportFlashcardsCsv(){
+  const store=ActiveFlashcardStore;
+  const deck=flashcardState.decks.find(item=>item.id===flashcardState.activeDeckId);
+  if(!deck){toast(T('selectDeckFirst'));return;}
+  const cards=await store.listCards(deck.id);
+  if(store!==ActiveFlashcardStore)return;
+  downloadFlashcardFile(`${deck.name.replace(/[^\p{L}\p{N}_-]+/gu,'-')||'deck'}.csv`,'text/csv;charset=utf-8',`\uFEFF${serializeCardsCsv(cards)}`);
+}
+async function previewFlashcardImport(file){
+  const store=ActiveFlashcardStore;
+  if(!file)return;
+  try{
+    const text=await file.text(),now=Date.now();let candidate;
+    if(file.name.toLowerCase().endsWith('.csv')){
+      const parsed=parseTwoColumnCsv(text);
+      if(!parsed.valid)throw new Error('Invalid CSV');
+      const deck={id:flashId('deck'),name:(file.name.replace(/\.csv$/i,'')||'Imported').slice(0,120),createdAt:now,updatedAt:now};
+      candidate={decks:[deck],cards:parsed.cards.map(card=>({
+        ...card,id:flashId('card'),deckId:deck.id,intervalDays:0,ease:2.5,repetitions:0,dueAt:null,createdAt:now,updatedAt:now
+      })),reviews:[]};
+    }else candidate=parseLiangliDeckJson(text);
+    const [existingDecks,existingCards,existingReviews]=await Promise.all([store.listAllDecks(),store.listAllCards(),store.listReviews()]);
+    if(store!==ActiveFlashcardStore){cancelFlashcardImport();return;}
+    const existingIds=new Set([...existingDecks,...existingCards,...existingReviews].map(item=>item.id));
+    const collisions=countBundleCollisions(candidate,existingIds);
+    if(collisions)candidate=remapFlashcardBundle(candidate,false,existingIds);
+    pendingFlashcardImport=candidate;pendingFlashcardImportScope=store.scope;
+    document.getElementById('flashcardImportSummary').textContent=`${T('importReady')}：${pendingFlashcardImport.decks.length} ${T('decksTitle')} · ${pendingFlashcardImport.cards.length} ${T('cardsCount')}${collisions?` · ${collisions} ${T('importCollision')}`:''}`;
+    document.getElementById('flashcardImportPreview').hidden=false;
+  }catch(error){cancelFlashcardImport();toast(T('importInvalid'));}
+}
+async function commitFlashcardImport(){
+  if(!pendingFlashcardImport)return;
+  const store=ActiveFlashcardStore;
+  if(pendingFlashcardImportScope!==store.scope){cancelFlashcardImport();return;}
+  await store.importBundle(pendingFlashcardImport);
+  if(store!==ActiveFlashcardStore)return;
+  queueFlashcardSync();
+  cancelFlashcardImport();await renderDecks();toast(T('importDone'));
+}
+function cancelFlashcardImport(){
+  pendingFlashcardImport=null;pendingFlashcardImportScope=null;
+  document.getElementById('flashcardImportPreview').hidden=true;
+  document.getElementById('flashcardImportFile').value='';
+}
+let flashcardSyncAttempt=0,flashcardSyncTimer=null,flashcardSyncInFlight=null,flashcardCopyInFlight=null;
+async function waitForFlashcardStoreIdle(){
+  if(flashcardSyncInFlight)await flashcardSyncInFlight.catch(()=>null);
+  if(flashcardCopyInFlight)await flashcardCopyInFlight.catch(()=>null);
+}
+function queueFlashcardSync(){
+  if(!CommunityClient.session){setFlashcardSyncStatus('syncLocal');return;}
+  setFlashcardSyncStatus('syncWaiting');
+  if(navigator.onLine)manualFlashcardSync();
+}
+function scheduleFlashcardSyncRetry(){
+  clearTimeout(flashcardSyncTimer);
+  const delay=Math.min(300000,15000*(2**Math.min(flashcardSyncAttempt,4)));
+  flashcardSyncAttempt++;
+  flashcardSyncTimer=setTimeout(()=>manualFlashcardSync(),delay);
+}
+async function manualFlashcardSync(){
+  if(flashcardCopyInFlight)await flashcardCopyInFlight.catch(()=>null);
+  if(!CommunityClient.session){setFlashcardSyncStatus('syncLocal');return null;}
+  if(!navigator.onLine){setFlashcardSyncStatus('syncWaiting');return null;}
+  if(flashcardSyncInFlight)return flashcardSyncInFlight;
+  if((CommunityClient.session.expires_at||0)<=Math.floor(Date.now()/1000)+60){
+    const refreshGeneration=CommunityClient.generation,refreshUserId=CommunityClient.session.user.id;
+    try{await CommunityClient.refreshSession(refreshUserId);}catch(error){
+      if(CommunityClient.generation!==refreshGeneration||CommunityClient.session?.user.id!==refreshUserId){if(CommunityClient.session)queueMicrotask(()=>manualFlashcardSync());return null;}
+      CommunityClient.authInvalid=true;setFlashcardSyncStatus('syncFailed');return null;
+    }
+    if(!CommunityClient.session)return null;
+  }
+  setFlashcardSyncStatus('syncing');
+  const syncGeneration=CommunityClient.generation,syncSession=CommunityClient.session;
+  flashcardSyncInFlight=syncFlashcards(syncSession,Date.now()).then(async result=>{
+    if(syncGeneration!==CommunityClient.generation)return result;
+    flashcardSyncAttempt=0;CommunityClient.authorizationBlocked=false;clearTimeout(flashcardSyncTimer);setFlashcardSyncStatus('syncDone');
+    await renderDecks();if(flashcardState.activeDeckId)await renderFlashcards();return result;
+  }).catch(error=>{
+    if(syncGeneration!==CommunityClient.generation)return null;
+    setFlashcardSyncStatus('syncFailed');if(!CommunityClient.authInvalid&&!CommunityClient.authorizationBlocked)scheduleFlashcardSyncRetry();return null;
+  }).finally(()=>{
+    flashcardSyncInFlight=null;
+    if(syncGeneration!==CommunityClient.generation){if(CommunityClient.session)queueMicrotask(()=>manualFlashcardSync());return;}
+    if(CommunityClient.authInvalid){CommunityClient.authInvalid=false;CommunityClient.activate(null);}
+  });
+  return flashcardSyncInFlight;
+}
+document.addEventListener('keydown',event=>{
+  const overlay=document.getElementById('flashcardOverlay');
+  if(overlay.hidden)return;
+  if(event.key==='Escape'){closeFlashcards();return;}
+  if(event.key==='Tab'){
+    const focusable=[...overlay.querySelectorAll('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),[tabindex="0"]')].filter(element=>!element.hidden&&element.offsetParent!==null);
+    if(focusable.length){
+      const first=focusable[0],last=focusable[focusable.length-1];
+      if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();return;}
+      if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();return;}
+    }
+  }
+  if(document.getElementById('reviewPanel').hidden)return;
+  if(event.key==='Enter'&&event.target.id==='reviewCard'){event.preventDefault();flipCurrentCard();return;}
+  if(event.target.closest&&event.target.closest('button,input,textarea,select,a'))return;
+  if(event.code==='Space'){event.preventDefault();flipCurrentCard();return;}
+  const grade={1:'again',2:'hard',3:'good',4:'easy'}[event.key];
+  if(grade)gradeCurrentCard(grade);
+});
 document.getElementById('energyPick').addEventListener('click',e=>{
   const d=e.target.closest('[data-e]'); if(!d)return;
   pickedEnergy=+d.dataset.e;
@@ -1017,12 +1985,21 @@ document.getElementById('goalName').addEventListener('keydown',e=>{if(e.key==='E
 
 /* ============ init ============ */
 applyLang(); drawRing();
+updateFlashcardAccountUI(null);
+if(CommunityClient.isConfigured())CommunityClient.restoreSession().then(session=>{if(session)manualFlashcardSync();}).catch(()=>updateFlashcardAccountUI(null));
 if(rolledOverAtStartup)toast(T('newDayReset'));
 scheduleNextRollover();
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible'){rolloverIfNeeded(true);scheduleNextRollover();}
 });
 window.addEventListener('focus',()=>{rolloverIfNeeded(true);scheduleNextRollover();});
+window.addEventListener('online',()=>{if(CommunityClient.session)manualFlashcardSync();});
+window.addEventListener('storage',async event=>{
+  if(event.key!=='ll_supabaseSession')return;
+  let session=null;try{session=event.newValue?JSON.parse(event.newValue):null;}catch(error){}
+  if((session?.access_token||null)===(CommunityClient.session?.access_token||null))return;
+  await CommunityClient.activate(session,false);if(session)manualFlashcardSync();
+});
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }

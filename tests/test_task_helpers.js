@@ -24,6 +24,7 @@ assert.equal(legacy.startTime, null);
 assert.equal(legacy.endTime, null);
 assert.equal(legacy.helper, 'none');
 assert.equal(legacy.helperRef, null);
+assert.deepEqual(JSON.parse(JSON.stringify(legacy.helperRefs)), {});
 assert.equal(legacy.pomodoroCount, 0);
 
 assert.equal(validateTaskTimes('', ''), true);

@@ -68,6 +68,41 @@ class MangaUIContractTests(unittest.TestCase):
         for helper in ("none", "pomodoro", "flashcards", "quiz", "checklist"):
             self.assertIn(f'value="{helper}"', HTML)
 
+    def test_flashcard_overlay_is_accessible_and_complete(self):
+        self.assertIn('id="flashcardOverlay"', HTML)
+        self.assertIn('role="dialog"', HTML)
+        self.assertIn('aria-modal="true"', HTML)
+        for element_id in (
+            "flashcardClose", "flashcardSyncBadge", "deckList", "deckName",
+            "cardFront", "cardBack", "reviewPanel", "reviewFront", "reviewBack",
+            "flashcardKeyboardHelp",
+        ):
+            self.assertIn(f'id="{element_id}"', HTML)
+        for grade in ("again", "hard", "good", "easy"):
+            self.assertIn(f'data-grade="{grade}"', HTML)
+        for function_name in ("openFlashcards", "renderDecks", "startReview", "gradeCurrentCard"):
+            self.assertIn(f"function {function_name}(", HTML)
+        compact = HTML.replace(" ", "")
+        self.assertIn("querySelector('.app').inert=true", compact)
+        self.assertIn("querySelector('.app').inert=false", compact)
+        self.assertIn("event.key==='Enter'&&event.target.id==='reviewCard'", compact)
+
+    def test_flashcard_sync_is_optional_and_secret_safe(self):
+        compact = HTML.replace(" ", "")
+        self.assertIn("constSUPABASE_URL=''", compact)
+        self.assertIn("constSUPABASE_ANON_KEY=''", compact)
+        self.assertNotIn("service_role", HTML.lower())
+        self.assertIn('id="flashcardAccountPanel"', HTML)
+        self.assertIn('id="flashcardSyncNow"', HTML)
+        self.assertNotIn("cdn.jsdelivr.net", HTML)
+        self.assertIn('Content-Security-Policy', HTML)
+        for method in ("isConfigured", "restoreSession", "signIn", "signUp", "signOut"):
+            self.assertRegex(HTML, rf"\b{method}\(")
+        self.assertIn("helperRefs", HTML)
+        self.assertIn("flashCopyMap_", HTML)
+        self.assertIn("liangli-auth-refresh", HTML)
+        self.assertIn("addEventListener('storage'", HTML)
+
     def test_all_five_views_have_manga_identity(self):
         for view in ("today", "pool", "goals", "focus", "journal"):
             self.assertRegex(HTML, rf'<section class="view manga-view [^"]*" id="v-{view}"')

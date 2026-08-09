@@ -36,7 +36,7 @@
 
 ## 技术现状
 
-纯前端 PWA，**零后端**，所有数据在 `localStorage`。
+纯前端 PWA。任务、精力、目标、专注与心情在 `localStorage`；Flashcards 在 IndexedDB，本地优先，并预留可选 Supabase Auth/Postgres 同步（默认配置为空）。
 
 ```
 liangli/
@@ -47,6 +47,7 @@ liangli/
 ├── assets/power-human/     # 粉发人形 Power 四态同名 MP4 + WebP poster
 ├── scripts/                # 伙伴动画生成器与媒体验收器
 ├── tests/                  # UI、播放控制器、Service Worker 合同/行为测试
+├── supabase/               # Flashcards schema、RLS 与两用户隔离测试
 ├── icon-192.png / icon-512.png / icon-maskable-512.png
 ├── README.md               # 部署说明
 └── CLAUDE.md               # 本文件
@@ -57,7 +58,7 @@ liangli/
 - **单文件代码架构是刻意的**，不要拆成多文件框架项目。视频等二进制素材可以放在 `assets/`，但应用代码仍保持在 `index.html` 一个文件里。用户是初学者，单文件他能看懂全貌。除非他明确要求，否则不要引入 React/Vue/构建工具/npm
 - **中英双语**：`I18N` 对象里 `zh` 和 `en` 两份词条**必须一一对应**。加任何新文案都要两边都加，改完请检查两边 key 数量一致
 - **改了 `index.html` 就要把 `sw.js` 里的 `VERSION` 号 +1**，否则用户拿到的是缓存旧版。这是最容易忘的一步，请每次主动提醒
-- 数据读写统一走 `DB.get/DB.set` 封装，不要直接调 `localStorage`
+- 普通功能数据读写统一走 `DB.get/DB.set`；Flashcards 统一走 `FlashcardStore`，不要直接操作 IndexedDB
 - 跨天重置逻辑在 `rollover()` 里，改动时注意别破坏 `week` 数组左移的行为
 - 所有用户输入渲染前必须过 `esc()` 转义
 
@@ -80,8 +81,9 @@ liangli/
 
 ### 离线缓存约定
 
-- `sw.js` 当前应用壳缓存为 `liangli-v5`，安装阶段预缓存页面、manifest、图标和 8 张 WebP poster，不预缓存 MP4。
+- `sw.js` 当前应用壳缓存为 `liangli-v7`，安装阶段预缓存页面、manifest、图标和 8 张 WebP poster，不预缓存 MP4。
 - MP4 首次请求后写入独立的 `liangli-video-v1`；`serveVideo()` 将 Range 请求归一化为整段缓存，再返回正确的 206/416 响应。不要直接把带 Range 的 206 响应作为完整视频缓存。
+- 跨域 Supabase/Auth/CDN 请求必须 network-only，Service Worker 不能缓存。
 - 激活时只清理本项目旧的 `liangli-vN` / `liangli-video-vN`，不能删除同源的其他缓存。
 - 修改 Service Worker 后运行 Python 合同测试和 `node tests/test_service_worker.js` 行为测试。
 
@@ -108,6 +110,15 @@ git diff --check
 阿联酋 PDPL（Federal Decree-Law No. 45 of 2021）把儿童数据和健康数据都列为敏感数据；儿童数字安全法（Federal Decree-Law No. 26 of 2025）2027 年 1 月起强制合规。开发者本人是未成年人，无法作为 data controller 承担这些责任。
 
 **替代方向**：如果要做求助功能，方向必须是「学生主动发起」——一个「我需要帮助」按钮，分享什么内容、什么时候、发给谁，全部由学生决定。
+
+### Flashcards 同步边界
+
+- `SUPABASE_URL` 与 `SUPABASE_ANON_KEY` 默认为空；迁移与两用户 RLS 测试通过前不得填写生产配置。
+- 匿名牌库与每个账号的 IndexedDB 必须分区；不得在登录时自动认领匿名卡片，复制必须由用户明确点击。
+- 只允许同步 `flashcard_decks`、`flashcards`、`flashcard_reviews`。其他本地数据不能进入请求 payload。
+- 本地写入必须先成功，再排入 `syncOps`；断网不能阻塞学习。
+- 浏览器客户端只允许 public anon key，绝不能加入任何管理凭据。
+- 不加载 Supabase CDN SDK；继续使用受 CSP 限制的原生 Auth/PostgREST `fetch` 封装。
 
 ## 工作方式
 

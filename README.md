@@ -1,6 +1,6 @@
 # 量力 Liangli · 荒诞电影漫画 PWA
 
-反假性自律的个人成长工具。纯前端、零后端、数据只存在用户自己的设备上。
+反假性自律的个人成长工具。默认本地优先：任务、精力、目标、专注和心情始终只存在用户设备；Flashcards 可在用户主动登录后通过 Supabase 跨设备同步。
 
 ## 文件
 
@@ -15,6 +15,9 @@ liangli/
 │   ├── generate_companion_media.py  # 从已确认 poster 生成确定性循环动画
 │   └── verify_companion_media.py    # 检查格式、体积、黑帧、循环和局部动作
 ├── tests/                  # UI、播放控制器和 Service Worker 合同/行为测试
+├── supabase/
+│   ├── migrations/002_flashcards.sql # Flashcards 表结构与严格 RLS
+│   └── tests/flashcards_rls.sql       # 两用户隔离测试（需 Supabase 环境）
 ├── icon-192.png            # 图标
 ├── icon-512.png
 └── icon-maskable-512.png   # 安卓自适应图标
@@ -24,11 +27,13 @@ liangli/
 
 | 模块 | 说明 |
 |---|---|
-| **今日** | 负荷系统。加任务时估精力值，进度条实时变色（绿→黄→红），超载时提醒但不阻止；伴随负荷状态切换的 Power 猫 / 人形 Power 视频伙伴，可自由选择，选择本地保存 |
+| **今日** | 负荷系统。任务可选起止时间和学习助手；进度条实时变色，超载提醒但不阻止；Power 猫 / 人形 Power 伙伴可自由选择 |
 | **成长池** | 想法暂存区，不占负荷。一键「转为任务」 |
 | **目标** | 长期目标 + 进度条，用 +/− 手动推进 |
 | **专注** | 25 分钟番茄钟 + 数据看板（今日专注/番茄数/完成任务 + 近 7 天趋势柱状图） |
 | **记录** | 每日做了什么 + 心情。**明确告知用户：只存本地，无人可见** |
+
+学习助手目前包含任务关联番茄钟，以及离线 Anki 式 Flashcards。Flashcards 支持牌组/卡片管理、到期优先、每天每牌组最多 20 张新卡、空格翻面、`1–4` 评分，以及 JSON/CSV 导入导出。简化复习间隔为：重来约 10 分钟；困难约 `1.2×`；良好新卡 1 天/成熟卡约 `2.5×`；简单新卡 4 天/成熟卡约 `4×`，最长 36500 天。它借用 Anki 的四按钮语义，但不宣称兼容 FSRS。
 
 其他：中英文一键切换（右上角按钮）、跨天自动重置、番茄完成震动反馈。
 
@@ -53,7 +58,7 @@ liangli/
 assets/power-{cat|human}/{idle|content|tired|exhausted}.{mp4|webp}
 ```
 
-Service Worker 的应用壳缓存当前为 `liangli-v5`。安装时只预缓存 HTML、manifest、图标和 8 张 WebP poster；MP4 第一次播放后写入 `liangli-video-v1`，并正确响应浏览器的 Range 请求。这样既保留已播放视频的离线能力，也避免首次安装同时下载全部视频。
+Service Worker 的应用壳缓存当前为 `liangli-v7`。安装时只预缓存 HTML、manifest、图标和 8 张 WebP poster；MP4 第一次播放后写入 `liangli-video-v1`，并正确响应浏览器的 Range 请求。跨域的 Supabase/Auth/CDN 请求不会进入 Service Worker 缓存。
 
 ### 素材生成与验收
 
@@ -136,6 +141,21 @@ gh repo create liangli --public --source=. --push
 
 「今天」按设备的本地日历日期计算。App 启动、从后台回来、窗口重新获得焦点以及本地午夜都会检查换日：今日精力与专注统计归零，昨天未完成的任务会自动放回成长池，已完成任务继续保存在本机历史中。重复刷新不会重复迁移同一任务。
 
+### Flashcards 本地存储与账号同步
+
+卡片数据保存在 IndexedDB：匿名本机库名为 `liangli-flashcards-v1`，每个已登录账号使用独立的账号库；库内有 `decks`、`cards`、`reviews` 和 `syncOps` 四个 store。切换账号不会混用卡片。匿名卡片只有在用户明确点击「把本机卡片复制到此账号」后才会复制并换成新的 UUID。每次评分会在同一个事务里保存新排期、不可变复习记录、卡片同步操作和复习同步操作，所以断网或刷新不会丢进度。
+
+同步默认关闭。启用前必须：
+
+1. 在 Supabase 项目执行 `supabase/migrations/002_flashcards.sql`。
+2. 在一次性测试项目运行 `supabase/tests/flashcards_rls.sql`，确认两个账号互相看不到数据。
+3. 只把项目 URL 和 **anon public key** 填到 `index.html` 顶部的 `SUPABASE_URL` / `SUPABASE_ANON_KEY`；客户端绝不能放管理密钥。认证和数据请求由原生 `fetch` 完成，不加载第三方 JavaScript，CSP 只允许连接 Supabase 域名。
+4. 再做两台设备、断网编辑、重新上线合并的实机验收，最后才部署。
+
+只有 `flashcard_decks`、`flashcards`、`flashcard_reviews` 会同步。任务、精力、目标、番茄统计、心情、测验和清单永远不会进入云端同步路径。冲突分别按内容更新时间与最后复习时间合并；删除使用软删除，复习记录按 UUID 做不可变并集。退出账号只停止同步，不会删除本机副本；如需清空设备，应另做带二次确认的显式操作。
+
+若怀疑 anon key 暴露或项目被滥用，应先在 Supabase 轮换 public key，再更新客户端配置并升级 `sw.js` 缓存版本。把两个配置重新设为空字符串即可立刻禁用账号入口而不影响本地卡片。
+
 ### 常见改动
 
 ```js
@@ -172,4 +192,5 @@ loadMax: DB.get('loadMax', 100)    // 100 改成你想要的数
 - [ ] 找 10-20 个同学试用，重点问：负荷值估得准吗？超载提醒是帮助还是烦人？
 - [ ] 根据反馈调整默认负荷上限（100 可能不适合所有人）
 - [ ] v2 考虑：负荷上限根据历史数据自动校准 —— 这是真正的护城河
-- [ ] 想加云同步/社区时再上后端（推荐 Supabase），那时候转 Claude Code 更顺手
+- [ ] 配置独立 Supabase 测试项目，跑通 Flashcards 两账号 RLS 与离线合并后再启用生产同步
+- [ ] 校园墙、好友和聊天作为独立后端阶段设计；不能复用或上传任务、精力、心情等私人数据
