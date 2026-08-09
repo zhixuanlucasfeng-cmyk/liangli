@@ -25,7 +25,7 @@
 | **成长池** | 想法暂存区，不占负荷、不产生压力。可一键「转为任务」 |
 | **目标** | 长期目标 + 进度条 |
 | **专注** | 25 分钟番茄钟 + 数据看板（今日专注/番茄数/完成任务 + 近 7 天趋势） |
-| **记录** | 每日做了什么 + 心情。数据只存本地 |
+| **生活** | 可键盘切换的营养、钱包、记录三栏；营养/钱包/记录都只存本地 |
 
 ### 设计原则（改任何功能都要遵守）
 
@@ -36,7 +36,7 @@
 
 ## 技术现状
 
-纯前端 PWA。任务、精力、目标、专注与心情在 `localStorage`；Flashcards 在 IndexedDB，本地优先，并预留可选 Supabase Auth/Postgres 同步（默认配置为空）。
+纯前端 PWA。任务、精力、目标、专注、心情和 Life（营养/钱包）数据在 `localStorage`；Flashcards 在 IndexedDB，本地优先，并预留可选 Supabase Auth/Postgres 同步（默认配置为空）。
 
 ```
 liangli/
@@ -81,11 +81,20 @@ liangli/
 
 ### 离线缓存约定
 
-- `sw.js` 当前应用壳缓存为 `liangli-v7`，安装阶段预缓存页面、manifest、图标和 8 张 WebP poster，不预缓存 MP4。
+- `sw.js` 当前应用壳缓存为 `liangli-v8`，安装阶段预缓存页面、manifest、图标和 8 张 WebP poster，不预缓存 MP4。
 - MP4 首次请求后写入独立的 `liangli-video-v1`；`serveVideo()` 将 Range 请求归一化为整段缓存，再返回正确的 206/416 响应。不要直接把带 Range 的 206 响应作为完整视频缓存。
 - 跨域 Supabase/Auth/CDN 请求必须 network-only，Service Worker 不能缓存。
 - 激活时只清理本项目旧的 `liangli-vN` / `liangli-video-vN`，不能删除同源的其他缓存。
 - 修改 Service Worker 后运行 Python 合同测试和 `node tests/test_service_worker.js` 行为测试。
+
+### Life（营养与钱包）约定
+
+- Life 页保留营养、钱包、记录三个可键盘切换的面板。营养估算只匹配内置离线常见食物表，是记录时的近似值，不是医疗或营养建议；匹配不到时必须允许用户手动填写热量，超过目标只能显示差额，不能阻止记录。
+- Life 的权威本地数据是 `localStorage` 中的 `lifeState`：热量目标、饮食记录、收藏食物、预算周期和消费记录在同一个 payload 中原子保存。不要恢复独立 `walletState` / `foodEntries` 等写入路径。
+- 钱包中的「建议储蓄」只用于从周期总额计算可花额度，绝不代表转账、锁定资金或投资建议。每日基础额度均分 `周期总额 − 建议储蓄 + 上期结转`；当天结转为 `当天基础额度 + 前一天结转 − 当天消费`。正负结转都必须影响下一天，编辑/删除消费必须重新计算余额。
+- 预算结束后不得自动续期。用户可选择沿用设置、充值后续期，或暂停；只有明确选择「带入」时，上一周期最终（可为负数）余额才作为新周期的 opening carry。
+- Life JSON 导出/导入只包括热量目标、饮食记录/收藏、预算周期和消费；导入必须严格验证、先预览摘要、经确认后才替换 Life 数据。任务、账号、Flashcards 不在这个文件内，也不能被导入改动。
+- 营养、钱包、消费和 Life JSON 备份绝不能进入 Supabase 请求或 Flashcards 同步 payload。更换设备或清理浏览器数据前提醒用户先导出 Life JSON。
 
 ### 发布前完整检查
 
@@ -115,7 +124,7 @@ git diff --check
 
 - `SUPABASE_URL` 与 `SUPABASE_ANON_KEY` 默认为空；迁移与两用户 RLS 测试通过前不得填写生产配置。
 - 匿名牌库与每个账号的 IndexedDB 必须分区；不得在登录时自动认领匿名卡片，复制必须由用户明确点击。
-- 只允许同步 `flashcard_decks`、`flashcards`、`flashcard_reviews`。其他本地数据不能进入请求 payload。
+- 只允许同步 `flashcard_decks`、`flashcards`、`flashcard_reviews`。任务、营养、钱包、消费和其他本地数据不能进入请求 payload。
 - 本地写入必须先成功，再排入 `syncOps`；断网不能阻塞学习。
 - 浏览器客户端只允许 public anon key，绝不能加入任何管理凭据。
 - 不加载 Supabase CDN SDK；继续使用受 CSP 限制的原生 Auth/PostgREST `fetch` 封装。

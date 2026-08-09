@@ -26,6 +26,7 @@ function createHarness({videoBody, addAllError, cacheNames, fetchImpl} = {}) {
   const listeners = {};
   const shellCache = new FakeCache({addAllError});
   const videoCache = new FakeCache();
+  const opened = [];
   const deleted = [];
   let skipWaitingCalls = 0;
   let claimCalls = 0;
@@ -42,7 +43,10 @@ function createHarness({videoBody, addAllError, cacheNames, fetchImpl} = {}) {
     clients: {claim() { claimCalls += 1; return Promise.resolve(); }},
   };
   const caches = {
-    open(name) { return Promise.resolve(name === 'liangli-video-v1' ? videoCache : shellCache); },
+    open(name) {
+      opened.push(name);
+      return Promise.resolve(name === 'liangli-video-v1' ? videoCache : shellCache);
+    },
     keys() { return Promise.resolve(cacheNames || []); },
     delete(name) { deleted.push(name); return Promise.resolve(true); },
     match() { return Promise.resolve(undefined); },
@@ -52,7 +56,7 @@ function createHarness({videoBody, addAllError, cacheNames, fetchImpl} = {}) {
     Request, Response, Headers, URL, Promise, console,
   });
   return {
-    listeners, shellCache, videoCache, deleted,
+    listeners, shellCache, videoCache, deleted, opened,
     skipWaitingCalls: () => skipWaitingCalls,
     claimCalls: () => claimCalls,
   };
@@ -110,6 +114,12 @@ async function testInstallFailureKeepsPreviousWorkerActive() {
   assert.equal(harness.skipWaitingCalls(), 0);
 }
 
+async function testInstallUsesV8ShellCache() {
+  const harness = createHarness();
+  await dispatch(harness, 'install');
+  assert.deepEqual(harness.opened, ['liangli-v8']);
+}
+
 async function testActivationDeletesOnlyOwnedStaleCaches() {
   const harness = createHarness({
     cacheNames: [
@@ -126,6 +136,7 @@ async function testActivationDeletesOnlyOwnedStaleCaches() {
   await testCachedRangeReturnsValidPartialResponse();
   await testRangeMissFetchesAndCachesFullResponse();
   await testInstallFailureKeepsPreviousWorkerActive();
+  await testInstallUsesV8ShellCache();
   await testActivationDeletesOnlyOwnedStaleCaches();
   console.log('service worker behavior: ok');
 })().catch(error => {
