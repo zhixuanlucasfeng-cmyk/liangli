@@ -1156,6 +1156,7 @@ const OFFLINE_FOODS=[
   {keys:['香蕉','banana'],labelZh:'香蕉',labelEn:'Banana',unit:'piece',calories:105},
 ];
 function normalizedCalories(value){return typeof value==='number'&&Number.isFinite(value)&&value>=0?value:0;}
+function normalizeCalorieTarget(value){return typeof value==='number'&&Number.isFinite(value)&&value>=0?value:2000;}
 function normalizeFoodEntry(raw,fallbackTimestamp){
   const entry=raw&&typeof raw==='object'?raw:{};
   return {
@@ -1333,7 +1334,7 @@ let S={
   pomo:DB.get('pomo',0),
   week:DB.get('week',[0,0,0,0,0,0,0]),
   lastDay:storedLastDay,
-  calorieTarget:normalizedCalories(DB.get('calorieTarget',2000))||2000,
+  calorieTarget:normalizeCalorieTarget(DB.get('calorieTarget',2000)),
   foodEntries:Array.isArray(DB.get('foodEntries',[]))?DB.get('foodEntries',[]).filter(entry=>entry&&typeof entry==='object').map(entry=>normalizeFoodEntry(entry,Date.now())):[],
   favoriteFoods:Array.isArray(DB.get('favoriteFoods',[]))?DB.get('favoriteFoods',[]).filter(food=>typeof food==='string'):[],
   budgetCycles:Array.isArray(DB.get('budgetCycles',[]))?DB.get('budgetCycles',[]).map(normalizeBudgetCycle).filter(Boolean):[],
