@@ -124,6 +124,27 @@ const legacyIrregular = normalizeBudgetCycle({
 assert.equal(legacyIrregular.periodUnit, 'day');
 assert.equal(legacyIrregular.periodCount, 9);
 
+const budgetBlock = script.slice(start, end);
+const countedBudgetBlock = budgetBlock.replace(
+  'function budgetEndExclusive(startDay,unit,count){',
+  'let budgetEndExclusiveCallCount=0;\nfunction budgetEndExclusive(startDay,unit,count){budgetEndExclusiveCallCount++;',
+);
+assert.notEqual(countedBudgetBlock, budgetBlock, 'budget helper instrumentation must attach to real code');
+const countContext = {Date};
+vm.createContext(countContext);
+vm.runInContext(
+  `${script.slice(localDayStart, localDayEnd)}\n${countedBudgetBlock}\n;globalThis.countedBudget={normalizeBudgetCycle,getCallCount:()=>budgetEndExclusiveCallCount};`,
+  countContext,
+);
+const farLegacy = countContext.countedBudget.normalizeBudgetCycle({
+  id: 'far-legacy', startDay: '1000-01-31', endExclusive: '9999-12-30', totalCents: 10000,
+});
+assert.equal(farLegacy.periodUnit, 'day');
+assert.ok(
+  countContext.countedBudget.getCallCount() <= 3,
+  `far legacy inference must stay O(1), received ${countContext.countedBudget.getCallCount()} end-date helper calls`,
+);
+
 const walletStart = script.indexOf('/* ============ 钱包 ============ */');
 const walletEnd = script.indexOf('/* ============ 记录 ============ */', walletStart);
 assert.notEqual(walletStart, -1, 'Wallet timeline UI controller must exist');

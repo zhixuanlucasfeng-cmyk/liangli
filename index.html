@@ -1432,20 +1432,21 @@ function budgetDayCount(startDay,endExclusive){
   if(days<=0)throw new RangeError('Budget period must span at least one day');
   return days;
 }
-function findBudgetPeriodCount(startDay,endExclusive,unit,maxCandidate){
-  for(let candidate=1;candidate<=maxCandidate;candidate++){
+function findBudgetPeriodCount(startDay,endExclusive,unit,candidates){
+  for(const candidate of candidates){
+    if(!Number.isInteger(candidate)||candidate<=0)continue;
     if(budgetEndExclusive(startDay,unit,candidate)===endExclusive)return candidate;
   }
   return null;
 }
 function inferBudgetPeriod(startDay,endExclusive){
   const start=budgetDayDate(startDay),end=budgetDayDate(endExclusive);
-  const maxYearCandidate=Math.max(0,end.getFullYear()-start.getFullYear());
-  const yearCount=findBudgetPeriodCount(startDay,endExclusive,'year',maxYearCandidate);
+  const yearDifference=end.getFullYear()-start.getFullYear();
+  const yearCount=findBudgetPeriodCount(startDay,endExclusive,'year',[yearDifference]);
   if(yearCount!==null)return {periodUnit:'year',periodCount:yearCount};
-  const maxMonthCandidate=Math.max(0,
-    (end.getFullYear()-start.getFullYear())*12+end.getMonth()-start.getMonth());
-  const monthCount=findBudgetPeriodCount(startDay,endExclusive,'month',maxMonthCandidate);
+  const monthDifference=yearDifference*12+end.getMonth()-start.getMonth();
+  const monthCount=findBudgetPeriodCount(startDay,endExclusive,'month',
+    [monthDifference,monthDifference-1]);
   if(monthCount!==null)return {periodUnit:'month',periodCount:monthCount};
   return {periodUnit:'day',periodCount:budgetDayCount(startDay,endExclusive)};
 }
