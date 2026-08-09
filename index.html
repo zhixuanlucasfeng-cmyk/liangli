@@ -1222,9 +1222,11 @@ function budgetDayOrdinal(dayKey){
 function budgetEndExclusive(startDay,unit,count){
   if(!Number.isInteger(count)||count<=0)throw new RangeError('Budget period count must be positive');
   const end=budgetDayDate(startDay);
-  if(unit==='month')end.setMonth(end.getMonth()+count);
+  if(unit==='day')end.setDate(end.getDate()+count);
+  else if(unit==='week')end.setDate(end.getDate()+count*7);
+  else if(unit==='month')end.setMonth(end.getMonth()+count);
   else if(unit==='year')end.setFullYear(end.getFullYear()+count);
-  else throw new RangeError('Budget period unit must be month or year');
+  else throw new RangeError('Budget period unit must be day, week, month, or year');
   return budgetDayKey(end);
 }
 function budgetDayCount(startDay,endExclusive){
@@ -1240,17 +1242,18 @@ function allocateDailyCents(spendableCents,days){
   return Array.from({length:days},(_,index)=>sign*(quotient+(index<remainder?1:0)));
 }
 function budgetExpenseDay(expense){
-  const match=typeof expense?.spentAt==='string'&&expense.spentAt.match(/^(\d{4}-\d{2}-\d{2})(?:T|$)/);
-  if(!match)return null;
-  try{return budgetDayKey(budgetDayDate(match[1]));}catch(error){return null;}
+  if(typeof expense?.spentAt!=='string')return null;
+  const timestamp=new Date(expense.spentAt);
+  return Number.isFinite(timestamp.getTime())?localDayKey(timestamp):null;
 }
 function computeBudgetLedger(cycle,expenses,throughDay){
   if(!cycle||typeof cycle!=='object')throw new TypeError('Budget cycle is required');
-  const totalCents=cycle.totalCents,savingsBps=cycle.savingsBps,openingCarryCents=cycle.openingCarryCents||0;
+  const totalCents=cycle.totalCents,savingsBps=cycle.savingsBps??2000,openingCarryCents=cycle.openingCarryCents??0;
   if(!Number.isSafeInteger(totalCents)||!Number.isSafeInteger(savingsBps)||!Number.isSafeInteger(openingCarryCents))throw new TypeError('Budget values must be integer cents or basis points');
+  if(savingsBps<0||savingsBps>10000)throw new RangeError('Savings basis points must be between 0 and 10000');
   const totalDays=budgetDayCount(cycle.startDay,cycle.endExclusive);
-  const savedCents=Math.round(cycle.totalCents*cycle.savingsBps/10000);
-  const dailyCents=allocateDailyCents(cycle.totalCents-savedCents+openingCarryCents,totalDays);
+  const savedCents=Math.round(totalCents*savingsBps/10000);
+  const dailyCents=allocateDailyCents(totalCents-savedCents+openingCarryCents,totalDays);
   const finalDayOrdinal=budgetDayOrdinal(cycle.endExclusive)-1;
   const requestedDay=throughDay==null?finalDayOrdinal:budgetDayOrdinal(throughDay);
   const lastDayOrdinal=Math.min(finalDayOrdinal,requestedDay);
