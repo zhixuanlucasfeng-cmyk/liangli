@@ -267,6 +267,11 @@ class MangaUIContractTests(unittest.TestCase):
             HTML,
             r'<[^>]+\bid="nutritionSummary"[^>]+\baria-live="polite"[^>]*>',
         )
+        self.assertRegex(
+            HTML,
+            r'<div\b(?=[^>]*\bid="foodFormStatus")(?=[^>]*\brole="status")'
+            r'(?=[^>]*\baria-live="polite")[^>]*>',
+        )
 
         compact = HTML.replace(" ", "")
         for function_name in (

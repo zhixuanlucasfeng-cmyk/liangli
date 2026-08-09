@@ -2273,7 +2273,7 @@ function applyFoodEstimate(){
   const estimate=estimateFoodCalories(name,portion);
   if(!estimate.matched){
     setFoodMode('manual');
-    status.textContent=T('foodManualNeeded');
+    showFoodFormStatus(T('foodManualNeeded'));
     calories.focus();
     return false;
   }

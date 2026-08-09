@@ -161,7 +161,16 @@ elements.get('foodName').value='完全未知食物';
 elements.get('foodCalories').value='321';
 ui.applyFoodEstimate();
 assert.equal(elements.get('foodCalories').value, '321', 'unmatched estimates keep editable calories');
-assert.equal(elements.get('foodEstimateStatus').textContent, messages.foodManualNeeded);
+assert.equal(
+  elements.get('foodFormStatus').textContent,
+  messages.foodManualNeeded,
+  'manual-entry guidance is announced in the always-visible form status',
+);
+assert.equal(
+  elements.get('foodEstimateStatus').textContent,
+  '',
+  'the hidden estimate disclosure does not retain the unmatched guidance',
+);
 assert.equal(elements.get('foodCalories').focusCount, 1);
 assert.equal(elements.get('foodModeManual').checked, true, 'unmatched estimates select manual mode');
 assert.equal(elements.get('foodModeEstimate').checked, false);
