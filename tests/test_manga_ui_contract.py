@@ -1,4 +1,5 @@
 from pathlib import Path
+from html.parser import HTMLParser
 import re
 import subprocess
 import unittest
@@ -6,6 +7,55 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML = (ROOT / "index.html").read_text(encoding="utf-8")
+
+
+class HiddenAncestorParser(HTMLParser):
+    VOID_ELEMENTS = {
+        "area", "base", "br", "col", "embed", "hr", "img", "input",
+        "link", "meta", "param", "source", "track", "wbr",
+    }
+
+    def __init__(self, target_id):
+        super().__init__()
+        self.target_id = target_id
+        self.stack = []
+        self.found = False
+        self.hidden_ancestors = []
+
+    def handle_starttag(self, tag, attrs):
+        attributes = dict(attrs)
+        if attributes.get("id") == self.target_id:
+            self.found = True
+            self.hidden_ancestors = [
+                frame["id"] or frame["tag"]
+                for frame in self.stack
+                if frame["hidden"]
+            ]
+        if tag not in self.VOID_ELEMENTS:
+            self.stack.append(
+                {"tag": tag, "id": attributes.get("id"), "hidden": "hidden" in attributes}
+            )
+
+    def handle_startendtag(self, tag, attrs):
+        self.handle_starttag(tag, attrs)
+        if tag not in self.VOID_ELEMENTS:
+            self.handle_endtag(tag)
+
+    def handle_endtag(self, tag):
+        for index in range(len(self.stack) - 1, -1, -1):
+            if self.stack[index]["tag"] == tag:
+                del self.stack[index:]
+                return
+
+
+def hidden_ancestors_for_id(markup, target_id):
+    parser = HiddenAncestorParser(target_id)
+    parser.feed(markup)
+    if not parser.found:
+        raise AssertionError(f"Missing target element: {target_id}")
+    return parser.hidden_ancestors
+
+
 LIFE_TAB_HARNESS = r"""
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -281,6 +331,16 @@ class MangaUIContractTests(unittest.TestCase):
             self.assertIn(f"function{function_name}(", compact)
         self.assertIn('<buttontype="button"class="food-action"', compact)
         self.assertNotIn('<divclass="food-action"', compact)
+
+    def test_food_form_status_is_outside_initially_hidden_ancestors(self):
+        self.assertEqual(hidden_ancestors_for_id(HTML, "foodFormStatus"), [])
+
+        disclosure_start = HTML.index('id="foodEstimateControls"')
+        disclosure_status = HTML.index('id="foodEstimateStatus"', disclosure_start)
+        disclosure_status_end = HTML.index("</div>", disclosure_status) + len("</div>")
+        disclosure_end = HTML.index("</div>", disclosure_status_end) + len("</div>")
+        form_status = HTML.index('id="foodFormStatus"')
+        self.assertLess(disclosure_end, form_status)
 
     def test_bilingual_catalogs_have_identical_keys(self):
         catalogs = re.search(
