@@ -332,6 +332,65 @@ class MangaUIContractTests(unittest.TestCase):
         self.assertIn('<buttontype="button"class="food-action"', compact)
         self.assertNotIn('<divclass="food-action"', compact)
 
+    def test_wallet_panel_contract(self):
+        for element_id in (
+            "budgetTotalAmount", "budgetSavingsPercent", "budgetStartDate",
+            "budgetPeriodUnit", "budgetPeriodCount", "walletTotal",
+            "walletSaved", "walletSpendable", "walletToday", "walletSpent",
+            "expenseName", "expenseAmount", "expenseSpentAt", "expenseCategory",
+            "expenseTimeline", "walletCycleEnd", "budgetCarryForward",
+            "budgetRechargeTotal", "walletFormStatus",
+        ):
+            self.assertIn(f'id="{element_id}"', HTML)
+
+        self.assertRegex(
+            HTML,
+            r'<input\b(?=[^>]*\bid="budgetSavingsPercent")'
+            r'(?=[^>]*\btype="number")(?=[^>]*\bvalue="20")'
+            r'(?=[^>]*\bmin="0")(?=[^>]*\bmax="100")[^>]*>',
+        )
+        self.assertRegex(
+            HTML,
+            r'<input\b(?=[^>]*\bid="budgetPeriodCount")'
+            r'(?=[^>]*\btype="number")(?=[^>]*\bmin="1")[^>]*>',
+        )
+        self.assertRegex(
+            HTML,
+            r'<input\b(?=[^>]*\bid="expenseSpentAt")'
+            r'(?=[^>]*\btype="datetime-local")[^>]*>',
+        )
+        self.assertRegex(
+            HTML,
+            r'<div\b(?=[^>]*\bid="walletFormStatus")(?=[^>]*\brole="status")'
+            r'(?=[^>]*\baria-live="polite")[^>]*>',
+        )
+        self.assertRegex(
+            HTML,
+            r'<section\b(?=[^>]*\bid="walletCycleEnd")(?=[^>]*\bhidden)[^>]*>',
+        )
+        for mode in ("same", "recharge", "pause"):
+            self.assertIn(f"renewBudgetCycle('{mode}'", HTML)
+
+        compact = HTML.replace(" ", "")
+        for function_name in (
+            "createBudgetCycle", "renderWallet", "addExpense",
+            "deleteExpense", "setExpenseForEdit", "renewBudgetCycle",
+        ):
+            self.assertIn(f"function{function_name}(", compact)
+        self.assertIn("newIntl.NumberFormat(", compact)
+        self.assertIn("currency:'CNY'", compact)
+        self.assertIn("moneyToCents(", compact)
+        self.assertIn("constWALLET_STORAGE_KEY='walletState'", compact)
+        self.assertIn("DB.get('walletState',null)", compact)
+
+        wallet_controller = re.search(
+            r"/\* ============ 钱包 ============ \*/(?P<body>[\s\S]*?)"
+            r"/\* ============ 记录 ============ \*/",
+            HTML,
+        )
+        self.assertIsNotNone(wallet_controller)
+        self.assertNotRegex(wallet_controller.group("body"), r"\b(?:confirm|alert)\s*\(")
+
     def test_food_form_status_is_outside_initially_hidden_ancestors(self):
         self.assertEqual(hidden_ancestors_for_id(HTML, "foodFormStatus"), [])
 

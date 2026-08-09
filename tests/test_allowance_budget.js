@@ -93,4 +93,226 @@ const timezoneLedger = computeBudgetLedger({
 assert.equal(timezoneLedger.find(day => day.dayKey === localOffsetDay).spentCents, 25);
 assert.equal(timezoneLedger.reduce((total, day) => total + day.spentCents, 0), 25);
 
+const walletStart = script.indexOf('/* ============ 钱包 ============ */');
+const walletEnd = script.indexOf('/* ============ 记录 ============ */', walletStart);
+assert.notEqual(walletStart, -1, 'Wallet timeline UI controller must exist');
+assert.notEqual(walletEnd, -1, 'Wallet controller end marker must exist');
+
+function element(value = '') {
+  return {
+    value,
+    textContent: '',
+    innerHTML: '',
+    hidden: false,
+    checked: false,
+    focused: false,
+    attributes: {},
+    classList: {
+      values: new Set(),
+      toggle(name, enabled) {
+        if (enabled) this.values.add(name);
+        else this.values.delete(name);
+      },
+      contains(name) { return this.values.has(name); },
+    },
+    focus() { this.focused = true; },
+    setAttribute(name, valueToSet) { this.attributes[name] = String(valueToSet); },
+  };
+}
+
+const elements = Object.fromEntries([
+  'budgetTotalAmount', 'budgetSavingsPercent', 'budgetStartDate', 'budgetPeriodUnit',
+  'budgetPeriodCount', 'walletTotal', 'walletSaved', 'walletSpendable', 'walletToday',
+  'walletSpent', 'walletNegativeNote', 'walletCycleDates', 'expenseName', 'expenseAmount',
+  'expenseSpentAt', 'expenseCategory', 'expenseTimeline', 'walletCycleEnd',
+  'budgetCarryForward', 'budgetRechargeTotal', 'walletFormStatus', 'saveExpenseButton',
+  'budgetCycleForm', 'walletActiveCycle', 'walletEmptyState',
+].map(id => [id, element()]));
+
+const storage = new Map();
+const storageFaults = {get: false, failSetAt: 0, setCalls: 0, rollback: false};
+const localStorage = {
+  getItem(key) {
+    if (storageFaults.get) throw new Error('storage read failed');
+    return storage.has(key) ? storage.get(key) : null;
+  },
+  setItem(key, value) {
+    storageFaults.setCalls += 1;
+    if (storageFaults.failSetAt === storageFaults.setCalls || storageFaults.rollback) {
+      throw new Error('storage write failed');
+    }
+    storage.set(key, String(value));
+  },
+  removeItem(key) {
+    if (storageFaults.rollback) throw new Error('storage rollback failed');
+    storage.delete(key);
+  },
+};
+function resetStorageFaults() {
+  storageFaults.get = false;
+  storageFaults.failSetAt = 0;
+  storageFaults.setCalls = 0;
+  storageFaults.rollback = false;
+}
+
+context.Intl = Intl;
+context.lang = 'en';
+context.S = {budgetCycles: [], expenses: [], activeBudgetCycleId: null};
+context.localStorage = localStorage;
+context.document = {getElementById(id) { return elements[id]; }};
+context.T = key => key;
+context.esc = value => String(value).replace(/[&<>\"]/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[char]));
+context.currentLocalDateTimeValue = (date = new Date()) => {
+  const pad = value => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+vm.runInContext(`${script.slice(walletStart, walletEnd)}\n;globalThis.wallet={createBudgetCycle,renderWallet,addExpense,deleteExpense,setExpenseForEdit,renewBudgetCycle,formatCny};`, context);
+const wallet = context.wallet;
+
+elements.budgetTotalAmount.value = '875.00';
+elements.budgetSavingsPercent.value = '20';
+elements.budgetStartDate.value = '2026-08-10';
+elements.budgetPeriodUnit.value = 'week';
+elements.budgetPeriodCount.value = '1';
+assert.equal(wallet.createBudgetCycle(), true);
+assert.equal(context.S.budgetCycles.length, 1);
+const weeklyCycle = context.S.budgetCycles[0];
+assert.equal(weeklyCycle.totalCents, 87500);
+assert.equal(weeklyCycle.savingsBps, 2000);
+assert.equal(weeklyCycle.startDay, '2026-08-10');
+assert.equal(weeklyCycle.endExclusive, '2026-08-17');
+assert.equal(weeklyCycle.periodUnit, 'week');
+assert.equal(weeklyCycle.periodCount, 1);
+assert.equal(context.S.activeBudgetCycleId, weeklyCycle.id);
+assert.match(elements.walletTotal.textContent, /875[.,]00/);
+assert.match(wallet.formatCny(1234), /12[.,]34/);
+assert.equal(JSON.parse(storage.get('ll_walletState')).budgetCycles[0].totalCents, 87500);
+assert.equal(storage.has('ll_budgetCycles'), false, 'Wallet mutations commit through one atomic payload');
+
+const todayKey = context.localDayKey(new Date());
+elements.budgetTotalAmount.value = '3.00';
+elements.budgetSavingsPercent.value = '0';
+elements.budgetStartDate.value = todayKey;
+elements.budgetPeriodUnit.value = 'day';
+elements.budgetPeriodCount.value = '2';
+assert.equal(wallet.createBudgetCycle(), true);
+const activeCycle = context.S.budgetCycles.find(item => item.id === context.S.activeBudgetCycleId);
+
+elements.expenseName.value = '<b>Lunch & tea</b>';
+elements.expenseAmount.value = '2.00';
+elements.expenseSpentAt.value = `${todayKey}T12:00`;
+elements.expenseCategory.value = 'food';
+assert.equal(wallet.addExpense(), true);
+const expenseId = context.S.expenses.at(-1).id;
+assert.equal(context.S.expenses.at(-1).amountCents, 200);
+assert.equal(context.S.expenses.at(-1).cycleId, activeCycle.id);
+assert.equal(context.S.expenses.at(-1).category, 'food');
+assert.match(elements.walletToday.textContent, /-.*0[.,]50/);
+assert.equal(elements.walletNegativeNote.hidden, false);
+assert.match(elements.expenseTimeline.innerHTML, /&lt;b&gt;Lunch &amp; tea&lt;\/b&gt;/);
+
+const dayBeforeDate = new Date(`${todayKey}T12:00`);
+dayBeforeDate.setDate(dayBeforeDate.getDate() - 1);
+const dayBeforeCycle = context.localDayKey(dayBeforeDate);
+elements.expenseName.value = 'Before cycle';
+elements.expenseAmount.value = '0.10';
+elements.expenseSpentAt.value = `${dayBeforeCycle}T12:00`;
+const expenseCountBeforeBoundaryChecks = context.S.expenses.length;
+assert.equal(wallet.addExpense(), false, 'an expense before the cycle is rejected');
+assert.equal(context.S.expenses.length, expenseCountBeforeBoundaryChecks);
+assert.equal(elements.walletFormStatus.textContent, 'expenseOutsideCycle');
+elements.expenseSpentAt.value = `${activeCycle.endExclusive}T00:00`;
+assert.equal(wallet.addExpense(), false, 'endExclusive is outside the cycle');
+assert.equal(context.S.expenses.length, expenseCountBeforeBoundaryChecks);
+
+assert.equal(wallet.setExpenseForEdit(expenseId), true);
+assert.equal(elements.expenseName.value, '<b>Lunch & tea</b>');
+elements.expenseAmount.value = '1.00';
+assert.equal(wallet.addExpense(), true);
+assert.equal(context.S.expenses.filter(item => item.id === expenseId).length, 1, 'edit preserves the stable ID');
+assert.equal(context.S.expenses.find(item => item.id === expenseId).amountCents, 100);
+assert.match(elements.walletToday.textContent, /0[.,]50/);
+
+assert.equal(wallet.deleteExpense(expenseId), true);
+assert.ok(context.S.expenses.find(item => item.id === expenseId).deletedAt, 'delete leaves a stable-ID tombstone');
+assert.match(elements.walletToday.textContent, /1[.,]50/);
+assert.doesNotMatch(elements.expenseTimeline.innerHTML, /Lunch/);
+
+elements.expenseName.value = 'Keep this form';
+elements.expenseAmount.value = '0.25';
+elements.expenseSpentAt.value = `${todayKey}T13:00`;
+elements.expenseCategory.value = 'other';
+const expensesBeforeFailure = JSON.stringify(context.S.expenses);
+const payloadBeforeExpenseFailure = storage.get('ll_walletState');
+resetStorageFaults();
+storageFaults.failSetAt = 1;
+assert.equal(wallet.addExpense(), false);
+assert.equal(JSON.stringify(context.S.expenses), expensesBeforeFailure, 'storage failures roll back memory');
+assert.equal(storage.get('ll_walletState'), payloadBeforeExpenseFailure, 'a failed atomic write leaves persisted state unchanged');
+assert.equal(elements.expenseName.value, 'Keep this form');
+assert.equal(elements.expenseAmount.value, '0.25');
+assert.equal(elements.walletFormStatus.textContent, 'walletStoreError');
+resetStorageFaults();
+
+const endedCycle = {
+  id: 'ended-cycle', startDay: '2000-01-01', endExclusive: '2000-01-03',
+  totalCents: 300, savingsBps: 0, openingCarryCents: 0,
+  periodUnit: 'day', periodCount: 2, createdAt: '2000-01-01T00:00:00.000Z',
+};
+context.S.budgetCycles.push(endedCycle);
+context.S.expenses.push({
+  id: 'ended-expense', cycleId: endedCycle.id, name: 'Old', category: '',
+  amountCents: 100, spentAt: '2000-01-01T12:00:00.000Z', deletedAt: null,
+});
+context.S.activeBudgetCycleId = endedCycle.id;
+assert.equal(wallet.renderWallet(), true);
+assert.equal(elements.walletCycleEnd.hidden, false, 'ended cycles wait on an inline decision');
+assert.equal(context.S.activeBudgetCycleId, endedCycle.id, 'rendering never auto-renews');
+elements.expenseName.value = 'After ended cycle';
+elements.expenseAmount.value = '1.00';
+elements.expenseSpentAt.value = `${todayKey}T14:00`;
+assert.equal(wallet.addExpense(), false, 'a current expense cannot be attached to an ended historical cycle');
+assert.equal(elements.walletFormStatus.textContent, 'expenseOutsideCycle');
+
+assert.equal(wallet.renewBudgetCycle('same', true), true);
+const carriedCycle = context.S.budgetCycles.find(item => item.id === context.S.activeBudgetCycleId);
+assert.equal(carriedCycle.startDay, '2000-01-03');
+assert.equal(carriedCycle.endExclusive, '2000-01-05');
+assert.equal(carriedCycle.totalCents, 300);
+assert.equal(carriedCycle.openingCarryCents, 200);
+
+context.S.activeBudgetCycleId = endedCycle.id;
+elements.budgetRechargeTotal.value = '5.00';
+assert.equal(wallet.renewBudgetCycle('recharge', false), true);
+const rechargedCycle = context.S.budgetCycles.find(item => item.id === context.S.activeBudgetCycleId);
+assert.equal(rechargedCycle.totalCents, 500);
+assert.equal(rechargedCycle.openingCarryCents, 0);
+
+context.S.activeBudgetCycleId = endedCycle.id;
+assert.equal(wallet.renewBudgetCycle('pause', false), true);
+assert.equal(context.S.activeBudgetCycleId, null);
+
+context.S.activeBudgetCycleId = endedCycle.id;
+elements.budgetRechargeTotal.value = '9.00';
+const cyclesBeforeRenewFailure = JSON.stringify(context.S.budgetCycles);
+resetStorageFaults();
+storage.set('ll_walletState', JSON.stringify({
+  version: 1,
+  budgetCycles: context.S.budgetCycles,
+  expenses: context.S.expenses,
+  activeBudgetCycleId: context.S.activeBudgetCycleId,
+}));
+const payloadBeforeRenewFailure = storage.get('ll_walletState');
+storageFaults.failSetAt = 1;
+assert.equal(wallet.renewBudgetCycle('recharge', true), false);
+assert.equal(JSON.stringify(context.S.budgetCycles), cyclesBeforeRenewFailure, 'partial storage failures roll back memory');
+assert.equal(context.S.activeBudgetCycleId, endedCycle.id);
+assert.equal(elements.budgetRechargeTotal.value, '9.00');
+assert.equal(elements.walletFormStatus.textContent, 'walletStoreError');
+assert.equal(storage.get('ll_walletState'), payloadBeforeRenewFailure, 'failed renewal cannot leave a reload-visible partial commit');
+const reloadedWallet = JSON.parse(storage.get('ll_walletState'));
+assert.equal(reloadedWallet.activeBudgetCycleId, endedCycle.id);
+assert.equal(JSON.stringify(reloadedWallet.budgetCycles), cyclesBeforeRenewFailure);
+resetStorageFaults();
+
 console.log('allowance budget behavior: ok');

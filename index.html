@@ -255,6 +255,27 @@ button,input,textarea,select{min-height:44px}
 .life-tab[aria-selected="true"]{background:#ff7f6b;color:var(--ink);transform:translate(2px,2px);box-shadow:none}
 .life-panel[hidden]{display:none}
 .life-shell-panel{min-height:150px;background:repeating-linear-gradient(135deg,var(--paper) 0 17px,#fff8e8 17px 34px)}
+.wallet-field label{display:block;margin:0 0 5px;color:#5f5a54;font-size:11px;font-weight:900}
+.wallet-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.wallet-grid .wallet-wide{grid-column:1/-1}
+.wallet-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:11px}
+.wallet-stat{padding:10px;background:#fffdf6;border:2px solid var(--line)}
+.wallet-stat small{display:block;color:#5f5a54;font-size:10px;font-weight:900}
+.wallet-stat b{display:block;margin-top:3px;font-size:17px;overflow-wrap:anywhere}
+.wallet-stat.wallet-today{grid-column:1/-1;background:var(--warning)}
+.wallet-stat.wallet-today.is-negative{background:#ff8f83;color:var(--ink)}
+.wallet-negative-note{margin-top:8px;padding:9px;background:#ffe0d9;border-left:5px solid #ff6f61;color:#5f3c38;font-size:11px;font-weight:800;line-height:1.45}
+.wallet-form-status{min-height:1.5em;margin-top:8px;color:#5f5a54;font-size:11px;font-weight:800;line-height:1.45}
+.expense-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:11px;margin-bottom:8px;background:#fffdf6;border:2px solid var(--line)}
+.expense-entry-main{min-width:0}.expense-entry-name{font-size:13px;font-weight:900;overflow-wrap:anywhere}
+.expense-entry-meta{margin-top:4px;color:#5f5a54;font-size:11px;font-weight:700;overflow-wrap:anywhere}
+.expense-entry-actions{display:flex;gap:4px;align-items:center}
+.wallet-cycle-end{background:var(--warning);border:3px solid var(--line);padding:12px;margin-top:12px}
+.wallet-cycle-end[hidden],.wallet-active-cycle[hidden],.wallet-empty-state[hidden]{display:none}
+.wallet-cycle-end h3{margin:0 0 6px;font-size:15px}.wallet-cycle-end p{margin:0 0 9px;font-size:11px;line-height:1.45;font-weight:700}
+.wallet-carry{display:flex;align-items:center;gap:8px;padding:8px;background:#fffdf6;border:2px solid var(--line);font-size:11px;font-weight:900}
+.wallet-carry input{width:auto;min-height:auto;margin:0;box-shadow:none}
+.wallet-renew-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}.wallet-renew-actions .wallet-pause{grid-column:1/-1}
 
 /* Journal: level film frames; the written copy never tilts. */
 .film-decor{background:radial-gradient(circle at 8px 8px,var(--ink) 0 3px,transparent 4px) 0 0/24px 24px;opacity:.08}
@@ -512,8 +533,85 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
       </section>
 
       <section class="life-panel" id="lifeWallet" role="tabpanel" aria-labelledby="lifeTabWallet" tabindex="0" hidden>
-        <div class="card manga-panel life-shell-panel">
+        <div class="card manga-panel wallet-cycle-panel">
           <h2 class="manga-title" data-i="walletTitle">钱包</h2>
+          <div class="wallet-grid" id="budgetCycleForm">
+            <div class="wallet-field wallet-wide">
+              <label for="budgetTotalAmount" data-i="budgetTotalLabel">周期总金额</label>
+              <input id="budgetTotalAmount" type="text" inputmode="decimal" data-ph="moneyAmountPh" placeholder="例如：875.00">
+            </div>
+            <div class="wallet-field">
+              <label for="budgetSavingsPercent" data-i="budgetSavingsLabel">建议储蓄比例 (%)</label>
+              <input id="budgetSavingsPercent" type="number" value="20" min="0" max="100" step="0.01" inputmode="decimal">
+            </div>
+            <div class="wallet-field">
+              <label for="budgetStartDate" data-i="budgetStartLabel">开始日期</label>
+              <input id="budgetStartDate" type="date">
+            </div>
+            <div class="wallet-field">
+              <label for="budgetPeriodUnit" data-i="budgetPeriodLabel">周期单位</label>
+              <select id="budgetPeriodUnit">
+                <option value="day" data-i="budgetPeriodDay">天</option>
+                <option value="week" data-i="budgetPeriodWeek">周</option>
+                <option value="month" data-i="budgetPeriodMonth">月</option>
+                <option value="year" data-i="budgetPeriodYear">年</option>
+              </select>
+            </div>
+            <div class="wallet-field">
+              <label for="budgetPeriodCount" data-i="budgetPeriodCountLabel">周期数量</label>
+              <input id="budgetPeriodCount" type="number" value="1" min="1" step="1" inputmode="numeric">
+            </div>
+          </div>
+          <div class="row"><button type="button" class="btn full" id="createBudgetButton" onclick="createBudgetCycle()" data-i="createBudget">开始预算周期</button></div>
+          <div class="wallet-form-status" id="walletFormStatus" role="status" aria-live="polite"></div>
+        </div>
+
+        <div class="wallet-empty-state empty" id="walletEmptyState" data-i="walletNoCycle">还没有进行中的预算周期。</div>
+
+        <div class="wallet-active-cycle" id="walletActiveCycle" hidden>
+          <div class="card manga-panel wallet-summary-panel">
+            <h2 class="manga-title" data-i="walletSummaryTitle">本周期</h2>
+            <div class="muted" id="walletCycleDates"></div>
+            <div class="wallet-summary">
+              <div class="wallet-stat"><small data-i="walletTotalLabel">总额</small><b id="walletTotal"></b></div>
+              <div class="wallet-stat"><small data-i="walletSavedLabel">建议储蓄</small><b id="walletSaved"></b></div>
+              <div class="wallet-stat"><small data-i="walletSpendableLabel">可用零花钱</small><b id="walletSpendable"></b></div>
+              <div class="wallet-stat"><small data-i="walletSpentLabel">今日已花</small><b id="walletSpent"></b></div>
+              <div class="wallet-stat wallet-today" id="walletTodayCard"><small data-i="walletTodayLabel">今日剩余</small><b id="walletToday"></b></div>
+            </div>
+            <div class="wallet-negative-note" id="walletNegativeNote" hidden data-i="walletNegativeNote">今天暂时超出额度也没关系，这个差额会平静地结转到下一天。</div>
+
+            <section class="wallet-cycle-end" id="walletCycleEnd" hidden>
+              <h3 data-i="walletCycleEndTitle">这个周期已经结束</h3>
+              <p data-i="walletCycleEndDesc">选择下一步前不会自动续期，也不会影响你继续使用其他页面。</p>
+              <label class="wallet-carry"><input id="budgetCarryForward" type="checkbox"><span data-i="walletCarryLabel">把最终余额（包括负数）带到下一周期</span></label>
+              <div class="wallet-field" style="margin-top:8px">
+                <label for="budgetRechargeTotal" data-i="walletRechargeLabel">充值后的新总额</label>
+                <input id="budgetRechargeTotal" type="text" inputmode="decimal" data-ph="moneyAmountPh" placeholder="例如：875.00">
+              </div>
+              <div class="wallet-renew-actions">
+                <button type="button" class="btn ghost" onclick="renewBudgetCycle('same',document.getElementById('budgetCarryForward').checked)" data-i="walletRenewSame">沿用设置</button>
+                <button type="button" class="btn" onclick="renewBudgetCycle('recharge',document.getElementById('budgetCarryForward').checked)" data-i="walletRenewRecharge">充值并续期</button>
+                <button type="button" class="btn ghost wallet-pause" onclick="renewBudgetCycle('pause',document.getElementById('budgetCarryForward').checked)" data-i="walletRenewPause">暂停预算</button>
+              </div>
+            </section>
+          </div>
+
+          <div class="card manga-panel wallet-expense-panel">
+            <h2 class="manga-title" data-i="expenseTitle">记一笔消费</h2>
+            <div class="wallet-field"><label for="expenseName" data-i="expenseNameLabel">消费名称</label><input id="expenseName" data-ph="expenseNamePh" placeholder="例如：午餐"></div>
+            <div class="wallet-grid" style="margin-top:9px">
+              <div class="wallet-field"><label for="expenseAmount" data-i="expenseAmountLabel">金额</label><input id="expenseAmount" type="text" inputmode="decimal" data-ph="moneyAmountPh" placeholder="例如：25.00"></div>
+              <div class="wallet-field"><label for="expenseCategory" data-i="expenseCategoryLabel">分类（可选）</label><input id="expenseCategory" data-ph="expenseCategoryPh" placeholder="例如：餐饮"></div>
+              <div class="wallet-field wallet-wide"><label for="expenseSpentAt" data-i="expenseTimeLabel">消费时间</label><input id="expenseSpentAt" type="datetime-local"></div>
+            </div>
+            <div class="row"><button type="button" class="btn full" id="saveExpenseButton" onclick="addExpense()" data-i="saveExpense">保存消费</button></div>
+          </div>
+
+          <div class="card manga-panel wallet-timeline-panel">
+            <h2 class="manga-title" data-i="expenseTimelineTitle">消费时间线</h2>
+            <div id="expenseTimeline"></div>
+          </div>
         </div>
       </section>
 
@@ -665,6 +763,7 @@ const I18N={
    navToday:"今日",navPool:"成长池",navGoals:"目标",navFocus:"专注",navLife:"生活",
    nutritionTitle:"营养",walletTitle:"钱包",journalTitle:"记录",
    calorieTargetLabel:"每日热量目标",saveFavoriteFood:"收藏食物",foodNameLabel:"食物",foodNamePh:"例如：鸡蛋",foodPortionLabel:"份量",foodPortionPh:"例如：2 个",foodModeLabel:"热量录入方式",foodModeManual:"手动",foodModeEstimate:"估算",estimateCalories:"估算热量",foodCaloriesLabel:"热量 (kcal)",foodEatenAtLabel:"进食时间",saveFood:"保存食物",updateFood:"更新食物",previousDate:"前一天",nextDate:"后一天",editFood:"编辑食物",deleteFood:"删除食物",foodManualNeeded:"未找到可用估算，请手动填写热量。",foodNameNeeded:"请填写食物名称。",foodCaloriesInvalid:"请填写有效热量。",foodDateInvalid:"请选择有效进食时间。",foodStoreError:"保存失败，表单内容已保留。",foodSaved:"食物已保存。",foodUpdated:"食物已更新。",foodDeleted:"食物已删除。",foodFavoriteSaved:"已收藏这个食物。",foodEmptyDay:"这一天还没有饮食记录。",caloriesConsumed:"已摄入",caloriesRemaining:"剩余",calorieUnit:"千卡",
+   budgetTotalLabel:"周期总金额",budgetSavingsLabel:"建议储蓄比例 (%)",budgetStartLabel:"开始日期",budgetPeriodLabel:"周期单位",budgetPeriodCountLabel:"周期数量",budgetPeriodDay:"天",budgetPeriodWeek:"周",budgetPeriodMonth:"月",budgetPeriodYear:"年",moneyAmountPh:"例如：875.00",createBudget:"开始预算周期",walletNoCycle:"还没有进行中的预算周期。",walletSummaryTitle:"本周期",walletTotalLabel:"总额",walletSavedLabel:"建议储蓄",walletSpendableLabel:"可用零花钱",walletTodayLabel:"今日剩余",walletSpentLabel:"今日已花",walletNegativeNote:"今天暂时超出额度也没关系，这个差额会平静地结转到下一天。",walletCycleEndTitle:"这个周期已经结束",walletCycleEndDesc:"选择下一步前不会自动续期，也不会影响你继续使用其他页面。",walletCarryLabel:"把最终余额（包括负数）带到下一周期",walletRechargeLabel:"充值后的新总额",walletRenewSame:"沿用设置",walletRenewRecharge:"充值并续期",walletRenewPause:"暂停预算",expenseTitle:"记一笔消费",expenseNameLabel:"消费名称",expenseNamePh:"例如：午餐",expenseAmountLabel:"金额",expenseCategoryLabel:"分类（可选）",expenseCategoryPh:"例如：餐饮",expenseTimeLabel:"消费时间",saveExpense:"保存消费",updateExpense:"更新消费",expenseTimelineTitle:"消费时间线",editExpense:"编辑消费",deleteExpense:"删除消费",expenseEmpty:"这个周期还没有消费记录。",walletCycleDates:"周期",walletCycleInvalid:"请填写有效的金额、储蓄比例、开始日期和正数周期。",walletNoActiveCycle:"请先开始一个预算周期。",expenseNameNeeded:"请填写消费名称。",expenseAmountInvalid:"请填写有效金额。",expenseDateInvalid:"请选择有效消费时间。",expenseOutsideCycle:"消费时间需要在当前预算周期内。",walletRechargeInvalid:"请填写有效的新总额。",walletCycleNotEnded:"当前周期还没有结束。",walletStoreError:"保存失败，表单内容已保留。",walletCycleSaved:"预算周期已开始。",expenseSaved:"消费已保存。",expenseUpdated:"消费已更新。",expenseDeleted:"消费已删除。",walletRenewed:"新预算周期已开始。",walletPaused:"预算已暂停。",
    emptyTask:"还没有任务，加一个吧",emptyIdea:"成长池是空的～想法随手记这里",
    emptyGoal:"还没有目标。目标是方向，不是压力。",emptyLog:"还没有记录。从今天开始吧。",
    savedLog:"记录已保存",movedTask:"已移到今日任务",newDayReset:"新的一天，精力已经重新归零。昨天没做完的事放回成长池了。",days:["一","二","三","四","五","六","日"],
@@ -691,6 +790,7 @@ const I18N={
    navToday:"Today",navPool:"Pool",navGoals:"Goals",navFocus:"Focus",navLife:"Life",
    nutritionTitle:"Nutrition",walletTitle:"Wallet",journalTitle:"Journal",
    calorieTargetLabel:"Daily calorie target",saveFavoriteFood:"Favorite food",foodNameLabel:"Food",foodNamePh:"e.g. Eggs",foodPortionLabel:"Portion",foodPortionPh:"e.g. 2 pieces",foodModeLabel:"Calorie entry mode",foodModeManual:"Manual",foodModeEstimate:"Estimate",estimateCalories:"Estimate calories",foodCaloriesLabel:"Calories (kcal)",foodEatenAtLabel:"Eaten at",saveFood:"Save food",updateFood:"Update food",previousDate:"Previous day",nextDate:"Next day",editFood:"Edit food",deleteFood:"Delete food",foodManualNeeded:"No estimate found. Enter calories manually.",foodNameNeeded:"Enter a food name.",foodCaloriesInvalid:"Enter valid calories.",foodDateInvalid:"Choose a valid time.",foodStoreError:"Could not save. Your form is unchanged.",foodSaved:"Food saved.",foodUpdated:"Food updated.",foodDeleted:"Food deleted.",foodFavoriteSaved:"Favorite saved.",foodEmptyDay:"No food logged for this day.",caloriesConsumed:"consumed",caloriesRemaining:"remaining",calorieUnit:"kcal",
+   budgetTotalLabel:"Cycle total",budgetSavingsLabel:"Suggested savings (%)",budgetStartLabel:"Start date",budgetPeriodLabel:"Period unit",budgetPeriodCountLabel:"Period count",budgetPeriodDay:"Day",budgetPeriodWeek:"Week",budgetPeriodMonth:"Month",budgetPeriodYear:"Year",moneyAmountPh:"e.g. 875.00",createBudget:"Start budget cycle",walletNoCycle:"No budget cycle is active yet.",walletSummaryTitle:"This cycle",walletTotalLabel:"Total",walletSavedLabel:"Suggested savings",walletSpendableLabel:"Spending allowance",walletTodayLabel:"Left today",walletSpentLabel:"Spent today",walletNegativeNote:"It is okay to be over today's amount. The difference will carry calmly into the next day.",walletCycleEndTitle:"This cycle has ended",walletCycleEndDesc:"Nothing renews until you choose. You can keep using every other page.",walletCarryLabel:"Carry the final balance (including a negative one) into the next cycle",walletRechargeLabel:"New total after recharge",walletRenewSame:"Use same settings",walletRenewRecharge:"Recharge and renew",walletRenewPause:"Pause budgeting",expenseTitle:"Log an expense",expenseNameLabel:"Expense name",expenseNamePh:"e.g. Lunch",expenseAmountLabel:"Amount",expenseCategoryLabel:"Category (optional)",expenseCategoryPh:"e.g. Food",expenseTimeLabel:"Spent at",saveExpense:"Save expense",updateExpense:"Update expense",expenseTimelineTitle:"Expense timeline",editExpense:"Edit expense",deleteExpense:"Delete expense",expenseEmpty:"No expenses in this cycle yet.",walletCycleDates:"Cycle",walletCycleInvalid:"Enter a valid amount, savings percentage, start date, and positive period.",walletNoActiveCycle:"Start a budget cycle first.",expenseNameNeeded:"Enter an expense name.",expenseAmountInvalid:"Enter a valid amount.",expenseDateInvalid:"Choose a valid expense time.",expenseOutsideCycle:"The expense time must be within the active budget cycle.",walletRechargeInvalid:"Enter a valid new total.",walletCycleNotEnded:"The current cycle has not ended yet.",walletStoreError:"Could not save. Your form is unchanged.",walletCycleSaved:"Budget cycle started.",expenseSaved:"Expense saved.",expenseUpdated:"Expense updated.",expenseDeleted:"Expense deleted.",walletRenewed:"New budget cycle started.",walletPaused:"Budgeting paused.",
    emptyTask:"No tasks yet. Add one.",emptyIdea:"Your growth pool is empty — jot ideas here.",
    emptyGoal:"No goals yet. A goal is a direction, not pressure.",emptyLog:"No entries yet. Start today.",
    savedLog:"Entry saved",movedTask:"Moved to today's tasks",newDayReset:"A new day starts with fresh energy. Yesterday's unfinished tasks are back in your Growth Pool.",days:["M","T","W","T","F","S","S"],
@@ -1417,6 +1517,11 @@ function migrateDailyState(state,nextDay){
 const today=()=>localDayKey();
 let currentDayKey=localDayKey();
 const storedLastDay=DB.get('lastDay',currentDayKey);
+const storedWalletState=DB.get('walletState',null);
+const storedBudgetCycles=storedWalletState&&Array.isArray(storedWalletState.budgetCycles)
+  ?storedWalletState.budgetCycles:DB.get('budgetCycles',[]);
+const storedExpenses=storedWalletState&&Array.isArray(storedWalletState.expenses)
+  ?storedWalletState.expenses:DB.get('expenses',[]);
 
 let S={
   companion:DB.get('companion', 'cat')==='human'?'human':'cat',
@@ -1432,11 +1537,12 @@ let S={
   calorieTarget:normalizeCalorieTarget(DB.get('calorieTarget',2000)),
   foodEntries:Array.isArray(DB.get('foodEntries',[]))?DB.get('foodEntries',[]).filter(entry=>entry&&typeof entry==='object').map(entry=>normalizeFoodEntry(entry,Date.now())):[],
   favoriteFoods:Array.isArray(DB.get('favoriteFoods',[]))?DB.get('favoriteFoods',[]).filter(food=>typeof food==='string'):[],
-  budgetCycles:Array.isArray(DB.get('budgetCycles',[]))?DB.get('budgetCycles',[]).map(normalizeBudgetCycle).filter(Boolean):[],
-  expenses:Array.isArray(DB.get('expenses',[]))?DB.get('expenses',[]).map(normalizeExpense).filter(Boolean):[],
+  budgetCycles:Array.isArray(storedBudgetCycles)?storedBudgetCycles.map(normalizeBudgetCycle).filter(Boolean):[],
+  expenses:Array.isArray(storedExpenses)?storedExpenses.map(normalizeExpense).filter(Boolean):[],
   activeBudgetCycleId:null
 };
-const storedActiveBudgetCycleId=DB.get('activeBudgetCycleId',null);
+const storedActiveBudgetCycleId=storedWalletState&&Object.hasOwn(storedWalletState,'activeBudgetCycleId')
+  ?storedWalletState.activeBudgetCycleId:DB.get('activeBudgetCycleId',null);
 S.activeBudgetCycleId=S.budgetCycles.some(cycle=>cycle.id===storedActiveBudgetCycleId)?storedActiveBudgetCycleId:null;
 function saveLifeState(){
   for(const key of ['calorieTarget','foodEntries','favoriteFoods','budgetCycles','expenses','activeBudgetCycleId'])DB.set(key,S[key]);
@@ -2423,6 +2529,281 @@ function renderNutrition(){
   }).join(''):`<div class="empty">${esc(T('foodEmptyDay'))}</div>`;
 }
 
+/* ============ 钱包 ============ */
+let editingExpenseId=null;
+const WALLET_STORAGE_KEY='walletState';
+
+function showWalletStatus(message){
+  document.getElementById('walletFormStatus').textContent=message;
+}
+function formatCny(cents){
+  const safeCents=Number.isSafeInteger(cents)?cents:0;
+  return new Intl.NumberFormat(lang==='zh'?'zh-CN':'en-US',{
+    style:'currency',currency:'CNY',minimumFractionDigits:2,maximumFractionDigits:2
+  }).format(safeCents/100);
+}
+function walletId(prefix){
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
+}
+function percentToBasisPoints(value){
+  const text=typeof value==='string'?value.trim():String(value??'');
+  const match=text.match(/^(?:100(?:\.0{1,2})?|(?:0|[1-9]\d?)(?:\.\d{1,2})?)$/);
+  if(!match)return null;
+  const bps=Math.round(Number(text)*100);
+  return Number.isSafeInteger(bps)&&bps>=0&&bps<=10000?bps:null;
+}
+function walletSnapshot(){
+  return {
+    budgetCycles:S.budgetCycles,
+    expenses:S.expenses,
+    activeBudgetCycleId:S.activeBudgetCycleId
+  };
+}
+function restoreWalletSnapshot(snapshot){
+  S.budgetCycles=snapshot.budgetCycles;
+  S.expenses=snapshot.expenses;
+  S.activeBudgetCycleId=snapshot.activeBudgetCycleId;
+}
+function persistWalletState(){
+  try{
+    localStorage.setItem(`ll_${WALLET_STORAGE_KEY}`,JSON.stringify({
+      version:1,
+      budgetCycles:S.budgetCycles,
+      expenses:S.expenses,
+      activeBudgetCycleId:S.activeBudgetCycleId
+    }));
+    return true;
+  }catch(error){
+    return false;
+  }
+}
+function activeBudgetCycle(){
+  return S.budgetCycles.find(cycle=>cycle.id===S.activeBudgetCycleId)||null;
+}
+function expenseBelongsToCycle(expense,cycle){
+  if(!expense||!cycle)return false;
+  if(expense.cycleId!=null)return String(expense.cycleId)===String(cycle.id);
+  const dayKey=budgetExpenseDay(expense);
+  if(!dayKey)return false;
+  const day=budgetDayOrdinal(dayKey);
+  return day>=budgetDayOrdinal(cycle.startDay)&&day<budgetDayOrdinal(cycle.endExclusive);
+}
+function expensesForBudgetCycle(cycle){
+  return S.expenses.filter(expense=>expenseBelongsToCycle(expense,cycle));
+}
+function createBudgetCycle(){
+  const totalCents=moneyToCents(document.getElementById('budgetTotalAmount').value);
+  const savingsBps=percentToBasisPoints(document.getElementById('budgetSavingsPercent').value);
+  const startDay=document.getElementById('budgetStartDate').value;
+  const periodUnit=document.getElementById('budgetPeriodUnit').value;
+  const periodCount=Number(document.getElementById('budgetPeriodCount').value);
+  let endExclusive;
+  try{
+    if(totalCents===null||savingsBps===null||!Number.isInteger(periodCount)||periodCount<=0)throw new Error('invalid');
+    endExclusive=budgetEndExclusive(startDay,periodUnit,periodCount);
+  }catch(error){
+    showWalletStatus(T('walletCycleInvalid'));
+    return false;
+  }
+  const snapshot=walletSnapshot(),createdAt=new Date().toISOString();
+  const cycle={
+    id:walletId('cycle'),startDay,endExclusive,totalCents,savingsBps,
+    openingCarryCents:0,periodUnit,periodCount,createdAt,updatedAt:createdAt
+  };
+  S.budgetCycles=[...S.budgetCycles,cycle];
+  S.activeBudgetCycleId=cycle.id;
+  if(!persistWalletState()){
+    restoreWalletSnapshot(snapshot);
+    showWalletStatus(T('walletStoreError'));
+    return false;
+  }
+  resetExpenseForm();
+  showWalletStatus(T('walletCycleSaved'));
+  renderWallet();
+  return true;
+}
+function expenseFromForm(cycle){
+  const name=document.getElementById('expenseName').value.trim();
+  const amountCents=moneyToCents(document.getElementById('expenseAmount').value);
+  const spentAtValue=document.getElementById('expenseSpentAt').value;
+  const timestamp=new Date(spentAtValue);
+  const category=document.getElementById('expenseCategory').value.trim();
+  if(!name)return {error:T('expenseNameNeeded')};
+  if(amountCents===null)return {error:T('expenseAmountInvalid')};
+  if(!spentAtValue||!Number.isFinite(timestamp.getTime()))return {error:T('expenseDateInvalid')};
+  const spentDay=budgetDayOrdinal(localDayKey(timestamp));
+  if(spentDay<budgetDayOrdinal(cycle.startDay)||spentDay>=budgetDayOrdinal(cycle.endExclusive))return {error:T('expenseOutsideCycle')};
+  return {expense:{name,amountCents,spentAt:timestamp.toISOString(),category}};
+}
+function resetExpenseForm(){
+  editingExpenseId=null;
+  document.getElementById('expenseName').value='';
+  document.getElementById('expenseAmount').value='';
+  document.getElementById('expenseCategory').value='';
+  document.getElementById('expenseSpentAt').value=currentLocalDateTimeValue();
+  document.getElementById('saveExpenseButton').textContent=T('saveExpense');
+}
+function addExpense(){
+  const cycle=activeBudgetCycle();
+  if(!cycle){showWalletStatus(T('walletNoActiveCycle'));return false;}
+  const result=expenseFromForm(cycle);
+  if(result.error){showWalletStatus(result.error);return false;}
+  const snapshot=walletSnapshot(),now=new Date().toISOString();
+  const editingIndex=S.expenses.findIndex(expense=>expense.id===editingExpenseId&&expense.deletedAt==null);
+  const updated=editingIndex>=0;
+  if(updated){
+    S.expenses=S.expenses.map((expense,index)=>index===editingIndex?{
+      ...expense,...result.expense,id:expense.id,cycleId:expense.cycleId??cycle.id,updatedAt:now
+    }:expense);
+  }else{
+    S.expenses=[...S.expenses,{
+      id:walletId('expense'),cycleId:cycle.id,...result.expense,
+      createdAt:now,updatedAt:now,deletedAt:null
+    }];
+  }
+  if(!persistWalletState()){
+    restoreWalletSnapshot(snapshot);
+    showWalletStatus(T('walletStoreError'));
+    return false;
+  }
+  resetExpenseForm();
+  showWalletStatus(T(updated?'expenseUpdated':'expenseSaved'));
+  renderWallet();
+  return true;
+}
+function deleteExpense(id){
+  const index=S.expenses.findIndex(expense=>expense.id===id&&expense.deletedAt==null);
+  if(index<0)return false;
+  const snapshot=walletSnapshot(),deletedAt=new Date().toISOString();
+  S.expenses=S.expenses.map((expense,itemIndex)=>itemIndex===index?{
+    ...expense,deletedAt,updatedAt:deletedAt
+  }:expense);
+  if(!persistWalletState()){
+    restoreWalletSnapshot(snapshot);
+    showWalletStatus(T('walletStoreError'));
+    return false;
+  }
+  if(editingExpenseId===id)resetExpenseForm();
+  showWalletStatus(T('expenseDeleted'));
+  renderWallet();
+  return true;
+}
+function setExpenseForEdit(id){
+  const expense=S.expenses.find(item=>item.id===id&&item.deletedAt==null);
+  if(!expense)return false;
+  editingExpenseId=id;
+  document.getElementById('expenseName').value=expense.name||'';
+  document.getElementById('expenseAmount').value=(expense.amountCents/100).toFixed(2);
+  document.getElementById('expenseSpentAt').value=currentLocalDateTimeValue(new Date(expense.spentAt));
+  document.getElementById('expenseCategory').value=expense.category||'';
+  document.getElementById('saveExpenseButton').textContent=T('updateExpense');
+  document.getElementById('expenseName').focus();
+  return true;
+}
+function renderExpenseTimeline(cycle){
+  const expenses=expensesForBudgetCycle(cycle)
+    .filter(expense=>expense.deletedAt==null)
+    .map((expense,index)=>({expense,index,time:new Date(expense.spentAt)}))
+    .filter(item=>Number.isFinite(item.time.getTime()))
+    .sort((a,b)=>a.time-b.time||a.index-b.index)
+    .map(item=>item.expense);
+  document.getElementById('expenseTimeline').innerHTML=expenses.length?expenses.map(expense=>{
+    const serializedId=esc(JSON.stringify(expense.id));
+    const when=currentLocalDateTimeValue(new Date(expense.spentAt)).replace('T',' ');
+    const category=expense.category?` · ${esc(expense.category)}`:'';
+    return `<article class="expense-entry">
+      <div class="expense-entry-main"><div class="expense-entry-name">${esc(expense.name||'')}</div>
+      <div class="expense-entry-meta">${esc(when)}${category} · ${esc(formatCny(expense.amountCents))}</div></div>
+      <div class="expense-entry-actions">
+        <button type="button" class="food-action" aria-label="${esc(`${T('editExpense')}: ${expense.name||''}`)}" onclick="setExpenseForEdit(${serializedId})">✎</button>
+        <button type="button" class="food-action" aria-label="${esc(`${T('deleteExpense')}: ${expense.name||''}`)}" onclick="deleteExpense(${serializedId})">×</button>
+      </div></article>`;
+  }).join(''):`<div class="empty">${esc(T('expenseEmpty'))}</div>`;
+}
+function renderWallet(){
+  const startDate=document.getElementById('budgetStartDate');
+  if(!startDate.value)startDate.value=localDayKey();
+  const spentAt=document.getElementById('expenseSpentAt');
+  if(!spentAt.value)spentAt.value=currentLocalDateTimeValue();
+  const cycle=activeBudgetCycle();
+  const active=document.getElementById('walletActiveCycle');
+  const empty=document.getElementById('walletEmptyState');
+  const endCard=document.getElementById('walletCycleEnd');
+  active.hidden=!cycle;
+  empty.hidden=Boolean(cycle);
+  endCard.hidden=true;
+  if(!cycle){
+    document.getElementById('expenseTimeline').innerHTML=`<div class="empty">${esc(T('expenseEmpty'))}</div>`;
+    return true;
+  }
+  const todayKey=localDayKey();
+  const cycleExpenses=expensesForBudgetCycle(cycle);
+  const ledger=computeBudgetLedger(cycle,cycleExpenses,todayKey);
+  const todayLedger=ledger.find(day=>day.dayKey===todayKey)||null;
+  const ended=budgetDayOrdinal(todayKey)>=budgetDayOrdinal(cycle.endExclusive);
+  const latestLedger=ledger.length?ledger[ledger.length-1]:null;
+  const todayBalance=todayLedger?todayLedger.carryCents:ended&&latestLedger?latestLedger.carryCents:0;
+  const savedCents=Math.round(cycle.totalCents*cycle.savingsBps/10000);
+  const spendableCents=cycle.totalCents-savedCents+cycle.openingCarryCents;
+  document.getElementById('walletCycleDates').textContent=`${T('walletCycleDates')}: ${cycle.startDay} → ${cycle.endExclusive}`;
+  document.getElementById('walletTotal').textContent=formatCny(cycle.totalCents);
+  document.getElementById('walletSaved').textContent=formatCny(savedCents);
+  document.getElementById('walletSpendable').textContent=formatCny(spendableCents);
+  document.getElementById('walletToday').textContent=formatCny(todayBalance);
+  document.getElementById('walletSpent').textContent=formatCny(todayLedger?todayLedger.spentCents:0);
+  const todayCard=document.getElementById('walletTodayCard');
+  if(todayCard)todayCard.classList.toggle('is-negative',todayBalance<0);
+  const negativeNote=document.getElementById('walletNegativeNote');
+  negativeNote.hidden=todayBalance>=0;
+  endCard.hidden=!ended;
+  renderExpenseTimeline(cycle);
+  return true;
+}
+function renewBudgetCycle(mode,carry){
+  const cycle=activeBudgetCycle();
+  if(!cycle)return false;
+  if(budgetDayOrdinal(localDayKey())<budgetDayOrdinal(cycle.endExclusive)){
+    showWalletStatus(T('walletCycleNotEnded'));
+    return false;
+  }
+  const snapshot=walletSnapshot();
+  if(mode==='pause'){
+    S.activeBudgetCycleId=null;
+  }else{
+    if(mode!=='same'&&mode!=='recharge')return false;
+    const totalCents=mode==='recharge'
+      ?moneyToCents(document.getElementById('budgetRechargeTotal').value)
+      :cycle.totalCents;
+    if(totalCents===null){showWalletStatus(T('walletRechargeInvalid'));return false;}
+    const periodUnit=['day','week','month','year'].includes(cycle.periodUnit)?cycle.periodUnit:'day';
+    const periodCount=Number.isInteger(cycle.periodCount)&&cycle.periodCount>0
+      ?cycle.periodCount:budgetDayCount(cycle.startDay,cycle.endExclusive);
+    const startDay=cycle.endExclusive;
+    let endExclusive;
+    try{endExclusive=budgetEndExclusive(startDay,periodUnit,periodCount);}catch(error){return false;}
+    const finalLedger=computeBudgetLedger(cycle,expensesForBudgetCycle(cycle),null);
+    const openingCarryCents=carry&&finalLedger.length?finalLedger[finalLedger.length-1].carryCents:0;
+    const createdAt=new Date().toISOString();
+    const nextCycle={
+      id:walletId('cycle'),startDay,endExclusive,totalCents,savingsBps:cycle.savingsBps,
+      openingCarryCents,periodUnit,periodCount,createdAt,updatedAt:createdAt
+    };
+    S.budgetCycles=[...S.budgetCycles,nextCycle];
+    S.activeBudgetCycleId=nextCycle.id;
+  }
+  if(!persistWalletState()){
+    restoreWalletSnapshot(snapshot);
+    showWalletStatus(T('walletStoreError'));
+    return false;
+  }
+  document.getElementById('budgetCarryForward').checked=false;
+  if(mode!=='pause')document.getElementById('budgetRechargeTotal').value='';
+  resetExpenseForm();
+  showWalletStatus(T(mode==='pause'?'walletPaused':'walletRenewed'));
+  renderWallet();
+  return true;
+}
+
 /* ============ 记录 ============ */
 function renderLogs(){
   const box=document.getElementById('logList');
@@ -2452,7 +2833,7 @@ document.getElementById('moodPick').addEventListener('click',e=>{
 
 /* ============ utils ============ */
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-function renderAll(){ renderTasks(); renderIdeas(); renderGoals(); renderLogs(); renderStats(); renderNutrition(); saveLifeState(); }
+function renderAll(){ renderTasks(); renderIdeas(); renderGoals(); renderLogs(); renderStats(); renderNutrition(); renderWallet(); saveLifeState(); }
 document.getElementById('taskName').addEventListener('keydown',e=>{if(e.key==='Enter')addTask()});
 document.getElementById('ideaName').addEventListener('keydown',e=>{if(e.key==='Enter')addIdea()});
 document.getElementById('goalName').addEventListener('keydown',e=>{if(e.key==='Enter')addGoal()});
