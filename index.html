@@ -481,6 +481,24 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
         <button type="button" class="life-tab" id="lifeTabJournal" role="tab" aria-selected="false" aria-controls="lifeJournal" tabindex="-1" onclick="setLifeTab('journal')" onkeydown="handleLifeTabKeydown(event)" data-i="journalTitle">记录</button>
       </div>
 
+      <section class="card manga-panel" id="lifeBackupPanel" aria-labelledby="lifeBackupTitle">
+        <h2 class="manga-title" id="lifeBackupTitle" data-i="lifeBackupTitle">生活数据备份</h2>
+        <p class="hint" data-i="lifeBackupHint">导出或导入营养与钱包数据；不会包含任务、账号或卡片。</p>
+        <div class="row">
+          <button type="button" class="btn ghost" id="lifeExportButton" onclick="exportLifeData()" data-i="exportLifeData">导出生活数据</button>
+          <label class="btn ghost" for="lifeImportFile" data-i="importLifeData">导入生活数据</label>
+          <input class="sr-only" id="lifeImportFile" type="file" accept="application/json,.json" onchange="previewLifeImport(this.files[0])">
+        </div>
+        <div class="import-preview" id="lifeImportPreview" role="status" aria-live="polite" hidden>
+          <p id="lifeImportSummary"></p>
+          <div class="row">
+            <button type="button" class="btn" id="lifeImportConfirm" onclick="commitLifeImport()" data-i="confirmLifeImport">确认导入</button>
+            <button type="button" class="btn ghost" id="lifeImportCancel" onclick="cancelLifeImport()" data-i="cancelLifeImport">取消</button>
+          </div>
+        </div>
+        <div class="food-form-status" id="lifeImportStatus" role="status" aria-live="polite"></div>
+      </section>
+
       <section class="life-panel" id="lifeNutrition" role="tabpanel" aria-labelledby="lifeTabNutrition" tabindex="0">
         <div class="card manga-panel nutrition-entry-panel">
           <h2 class="manga-title" data-i="nutritionTitle">营养</h2>
@@ -763,7 +781,7 @@ const I18N={
    moodAwful:"很糟",moodLow:"低落",moodNeutral:"一般",moodGood:"不错",moodGreat:"很好",
    saveLog:"保存记录",history:"历史记录",
    navToday:"今日",navPool:"成长池",navGoals:"目标",navFocus:"专注",navLife:"生活",
-   nutritionTitle:"营养",walletTitle:"钱包",journalTitle:"记录",
+   nutritionTitle:"营养",walletTitle:"钱包",journalTitle:"记录",lifeBackupTitle:"生活数据备份",lifeBackupHint:"导出或导入营养与钱包数据；不会包含任务、账号或卡片。",exportLifeData:"导出生活数据",importLifeData:"导入生活数据",confirmLifeImport:"确认导入",cancelLifeImport:"取消",lifeImportReady:"已准备好导入",lifeImportSummary:"将导入 {foods} 条饮食记录、{favorites} 个收藏食物、{cycles} 个预算周期和 {expenses} 条消费记录。",lifeImportDone:"生活数据已导入。",lifeImportInvalid:"生活备份文件无效，未导入任何数据。",lifeImportStoreError:"无法保存导入内容，当前数据未改变。",
    calorieTargetLabel:"每日热量目标",saveFavoriteFood:"收藏食物",foodNameLabel:"食物",foodNamePh:"例如：鸡蛋",foodPortionLabel:"份量",foodPortionPh:"例如：2 个",foodModeLabel:"热量录入方式",foodModeManual:"手动",foodModeEstimate:"估算",estimateCalories:"估算热量",foodCaloriesLabel:"热量 (kcal)",foodEatenAtLabel:"进食时间",saveFood:"保存食物",updateFood:"更新食物",previousDate:"前一天",nextDate:"后一天",editFood:"编辑食物",deleteFood:"删除食物",foodManualNeeded:"未找到可用估算，请手动填写热量。",foodNameNeeded:"请填写食物名称。",foodCaloriesInvalid:"请填写有效热量。",foodDateInvalid:"请选择有效进食时间。",foodStoreError:"保存失败，表单内容已保留。",foodSaved:"食物已保存。",foodUpdated:"食物已更新。",foodDeleted:"食物已删除。",foodFavoriteSaved:"已收藏这个食物。",foodEmptyDay:"这一天还没有饮食记录。",caloriesConsumed:"已摄入",caloriesRemaining:"剩余",calorieUnit:"千卡",
    budgetTotalLabel:"周期总金额",budgetSavingsLabel:"建议储蓄比例 (%)",budgetStartLabel:"开始日期",budgetPeriodLabel:"周期单位",budgetPeriodCountLabel:"周期数量",budgetPeriodDay:"天",budgetPeriodWeek:"周",budgetPeriodMonth:"月",budgetPeriodYear:"年",moneyAmountPh:"例如：875.00",createBudget:"开始预算周期",walletNoCycle:"还没有进行中的预算周期。",walletSummaryTitle:"本周期",walletTotalLabel:"总额",walletSavedLabel:"建议储蓄",walletSpendableLabel:"可用零花钱",walletTodayLabel:"今日剩余",walletSpentLabel:"今日已花",walletNegativeNote:"今天暂时超出额度也没关系，这个差额会平静地结转到下一天。",walletCycleEndTitle:"这个周期已经结束",walletCycleEndDesc:"选择下一步前不会自动续期，也不会影响你继续使用其他页面。",walletCarryLabel:"把最终余额（包括负数）带到下一周期",walletRechargeLabel:"充值后的新总额",walletRenewSame:"沿用设置",walletRenewRecharge:"充值并续期",walletRenewPause:"暂停预算",expenseTitle:"记一笔消费",expenseNameLabel:"消费名称",expenseNamePh:"例如：午餐",expenseAmountLabel:"金额",expenseCategoryLabel:"分类（可选）",expenseCategoryPh:"例如：餐饮",expenseTimeLabel:"消费时间",saveExpense:"保存消费",updateExpense:"更新消费",expenseTimelineTitle:"消费时间线",editExpense:"编辑消费",deleteExpense:"删除消费",expenseEmpty:"这个周期还没有消费记录。",expenseCycleEnded:"本周期已经结束。续期后即可继续记账。",walletCycleDates:"周期（含首尾）",walletCycleInvalid:"请填写有效的金额、储蓄比例、开始日期和正数周期。",walletNoActiveCycle:"请先开始一个预算周期。",expenseNameNeeded:"请填写消费名称。",expenseAmountInvalid:"请填写有效金额。",expenseDateInvalid:"请选择有效消费时间。",expenseOutsideCycle:"消费时间需要在当前预算周期内。",walletRechargeInvalid:"请填写有效的新总额。",walletCycleNotEnded:"当前周期还没有结束。",walletStoreError:"保存失败，表单内容已保留。",walletCycleSaved:"预算周期已开始。",expenseSaved:"消费已保存。",expenseUpdated:"消费已更新。",expenseDeleted:"消费已删除。",walletRenewed:"新预算周期已开始。",walletPaused:"预算已暂停。",
    emptyTask:"还没有任务，加一个吧",emptyIdea:"成长池是空的～想法随手记这里",
@@ -790,7 +808,7 @@ const I18N={
    moodAwful:"Awful",moodLow:"Low",moodNeutral:"Okay",moodGood:"Good",moodGreat:"Great",
    saveLog:"Save entry",history:"Past entries",
    navToday:"Today",navPool:"Pool",navGoals:"Goals",navFocus:"Focus",navLife:"Life",
-   nutritionTitle:"Nutrition",walletTitle:"Wallet",journalTitle:"Journal",
+   nutritionTitle:"Nutrition",walletTitle:"Wallet",journalTitle:"Journal",lifeBackupTitle:"Life data backup",lifeBackupHint:"Export or import nutrition and wallet data. Tasks, accounts, and cards are never included.",exportLifeData:"Export life data",importLifeData:"Import life data",confirmLifeImport:"Import now",cancelLifeImport:"Cancel",lifeImportReady:"Ready to import",lifeImportSummary:"This will import {foods} food entries, {favorites} favorite foods, {cycles} budget cycles, and {expenses} expenses.",lifeImportDone:"Life data imported.",lifeImportInvalid:"This life backup is invalid. Nothing was imported.",lifeImportStoreError:"Could not save the import. Your current data is unchanged.",
    calorieTargetLabel:"Daily calorie target",saveFavoriteFood:"Favorite food",foodNameLabel:"Food",foodNamePh:"e.g. Eggs",foodPortionLabel:"Portion",foodPortionPh:"e.g. 2 pieces",foodModeLabel:"Calorie entry mode",foodModeManual:"Manual",foodModeEstimate:"Estimate",estimateCalories:"Estimate calories",foodCaloriesLabel:"Calories (kcal)",foodEatenAtLabel:"Eaten at",saveFood:"Save food",updateFood:"Update food",previousDate:"Previous day",nextDate:"Next day",editFood:"Edit food",deleteFood:"Delete food",foodManualNeeded:"No estimate found. Enter calories manually.",foodNameNeeded:"Enter a food name.",foodCaloriesInvalid:"Enter valid calories.",foodDateInvalid:"Choose a valid time.",foodStoreError:"Could not save. Your form is unchanged.",foodSaved:"Food saved.",foodUpdated:"Food updated.",foodDeleted:"Food deleted.",foodFavoriteSaved:"Favorite saved.",foodEmptyDay:"No food logged for this day.",caloriesConsumed:"consumed",caloriesRemaining:"remaining",calorieUnit:"kcal",
    budgetTotalLabel:"Cycle total",budgetSavingsLabel:"Suggested savings (%)",budgetStartLabel:"Start date",budgetPeriodLabel:"Period unit",budgetPeriodCountLabel:"Period count",budgetPeriodDay:"Day",budgetPeriodWeek:"Week",budgetPeriodMonth:"Month",budgetPeriodYear:"Year",moneyAmountPh:"e.g. 875.00",createBudget:"Start budget cycle",walletNoCycle:"No budget cycle is active yet.",walletSummaryTitle:"This cycle",walletTotalLabel:"Total",walletSavedLabel:"Suggested savings",walletSpendableLabel:"Spending allowance",walletTodayLabel:"Left today",walletSpentLabel:"Spent today",walletNegativeNote:"It is okay to be over today's amount. The difference will carry calmly into the next day.",walletCycleEndTitle:"This cycle has ended",walletCycleEndDesc:"Nothing renews until you choose. You can keep using every other page.",walletCarryLabel:"Carry the final balance (including a negative one) into the next cycle",walletRechargeLabel:"New total after recharge",walletRenewSame:"Use same settings",walletRenewRecharge:"Recharge and renew",walletRenewPause:"Pause budgeting",expenseTitle:"Log an expense",expenseNameLabel:"Expense name",expenseNamePh:"e.g. Lunch",expenseAmountLabel:"Amount",expenseCategoryLabel:"Category (optional)",expenseCategoryPh:"e.g. Food",expenseTimeLabel:"Spent at",saveExpense:"Save expense",updateExpense:"Update expense",expenseTimelineTitle:"Expense timeline",editExpense:"Edit expense",deleteExpense:"Delete expense",expenseEmpty:"No expenses in this cycle yet.",expenseCycleEnded:"This cycle has ended. Renew it to log more expenses.",walletCycleDates:"Cycle (inclusive)",walletCycleInvalid:"Enter a valid amount, savings percentage, start date, and positive period.",walletNoActiveCycle:"Start a budget cycle first.",expenseNameNeeded:"Enter an expense name.",expenseAmountInvalid:"Enter a valid amount.",expenseDateInvalid:"Choose a valid expense time.",expenseOutsideCycle:"The expense time must be within the active budget cycle.",walletRechargeInvalid:"Enter a valid new total.",walletCycleNotEnded:"The current cycle has not ended yet.",walletStoreError:"Could not save. Your form is unchanged.",walletCycleSaved:"Budget cycle started.",expenseSaved:"Expense saved.",expenseUpdated:"Expense updated.",expenseDeleted:"Expense deleted.",walletRenewed:"New budget cycle started.",walletPaused:"Budgeting paused.",
    emptyTask:"No tasks yet. Add one.",emptyIdea:"Your growth pool is empty — jot ideas here.",
@@ -1596,6 +1614,173 @@ function saveLifeState(){
   }
   if(!DB.set('walletState',walletStatePayload()))saved=false;
   return saved;
+}
+const LIFE_BUNDLE_FORMAT='liangli-life';
+const LIFE_BUNDLE_VERSION=1;
+const LIFE_BUNDLE_KEYS=['calorieTarget','foodEntries','favoriteFoods','walletState'];
+let pendingLifeImport=null;
+
+function isPlainObject(value){
+  return value!==null&&typeof value==='object'&&!Array.isArray(value);
+}
+function lifeBackupError(message){
+  throw new TypeError(`Life backup ${message}`);
+}
+function hasExactKeys(value,keys){
+  return isPlainObject(value)&&Object.keys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key));
+}
+function validLifeId(value){
+  return (typeof value==='string'||typeof value==='number')&&String(value).trim()!=='';
+}
+function assertUniqueLifeIds(items,label){
+  const ids=new Set();
+  for(const item of items){
+    if(!validLifeId(item?.id))lifeBackupError(`${label} ID is invalid`);
+    const id=String(item.id);
+    if(ids.has(id))lifeBackupError(`contains duplicate ${label} IDs`);
+    ids.add(id);
+  }
+  return ids;
+}
+function assertLifeFoodEntry(raw){
+  if(!isPlainObject(raw)||!validLifeId(raw.id)||typeof raw.name!=='string'||typeof raw.portion!=='string'
+    ||typeof raw.eatenAt!=='string'||!Number.isFinite(Date.parse(raw.eatenAt))
+    ||!['manual','estimate'].includes(raw.mode))lifeBackupError('food record is invalid');
+  if(typeof raw.calories!=='number'||!Number.isFinite(raw.calories)||raw.calories<0)
+    lifeBackupError('food calories are invalid');
+}
+function assertLifeBudgetCycle(raw){
+  if(!isPlainObject(raw)||!validLifeId(raw.id)||typeof raw.startDay!=='string'||typeof raw.endExclusive!=='string'
+    ||!Number.isSafeInteger(raw.totalCents)||raw.totalCents<0||!Number.isSafeInteger(raw.openingCarryCents)
+    ||!['day','week','month','year'].includes(raw.periodUnit)||!Number.isInteger(raw.periodCount)||raw.periodCount<=0)
+    lifeBackupError('budget cycle is invalid');
+  if(!Number.isSafeInteger(raw.savingsBps)||raw.savingsBps<0||raw.savingsBps>10000)
+    lifeBackupError('savings basis points are invalid');
+  const normalized=normalizeBudgetCycle(raw);
+  if(!normalized||normalized.periodUnit!==raw.periodUnit||normalized.periodCount!==raw.periodCount)
+    lifeBackupError('budget cycle date is invalid');
+}
+function assertLifeExpense(raw){
+  if(!isPlainObject(raw)||!validLifeId(raw.id)||!Number.isSafeInteger(raw.amountCents)||raw.amountCents<0
+    ||typeof raw.spentAt!=='string'||!Number.isFinite(Date.parse(raw.spentAt))
+    ||(raw.deletedAt!=null&&(typeof raw.deletedAt!=='string'||!Number.isFinite(Date.parse(raw.deletedAt)))))
+    lifeBackupError('expense record is invalid');
+}
+function parseLifeData(text){
+  let raw;
+  try{raw=JSON.parse(text);}catch(error){lifeBackupError('JSON is invalid');}
+  if(!hasExactKeys(raw,['format','version','life'])||raw.format!==LIFE_BUNDLE_FORMAT||raw.version!==LIFE_BUNDLE_VERSION)
+    lifeBackupError('format or version is unsupported');
+  if(!hasExactKeys(raw.life,LIFE_BUNDLE_KEYS))lifeBackupError('payload shape is invalid');
+  const life=raw.life;
+  if(typeof life.calorieTarget!=='number'||!Number.isFinite(life.calorieTarget)||life.calorieTarget<0)
+    lifeBackupError('calorie target is invalid');
+  if(!Array.isArray(life.foodEntries)||!Array.isArray(life.favoriteFoods))lifeBackupError('nutrition data is invalid');
+  life.foodEntries.forEach(assertLifeFoodEntry);
+  assertUniqueLifeIds(life.foodEntries,'food');
+  if(life.favoriteFoods.some(food=>typeof food!=='string'))lifeBackupError('favorite food is invalid');
+  const wallet=life.walletState;
+  if(!hasExactKeys(wallet,['version','budgetCycles','expenses','activeBudgetCycleId'])||wallet.version!==1
+    ||!Array.isArray(wallet.budgetCycles)||!Array.isArray(wallet.expenses))lifeBackupError('wallet data is invalid');
+  wallet.budgetCycles.forEach(assertLifeBudgetCycle);
+  wallet.expenses.forEach(assertLifeExpense);
+  const cycleIds=assertUniqueLifeIds(wallet.budgetCycles,'budget cycle');
+  assertUniqueLifeIds(wallet.expenses,'expense');
+  if(wallet.activeBudgetCycleId!==null&&(!validLifeId(wallet.activeBudgetCycleId)||!cycleIds.has(String(wallet.activeBudgetCycleId))))
+    lifeBackupError('active budget cycle reference is invalid');
+  for(const expense of wallet.expenses){
+    if(expense.cycleId!=null&&(!validLifeId(expense.cycleId)||!cycleIds.has(String(expense.cycleId))))
+      lifeBackupError('expense cycle reference is invalid');
+  }
+  const normalizedWallet=normalizeWalletStatePayload(wallet);
+  if(!normalizedWallet)lifeBackupError('wallet data is invalid');
+  return {
+    calorieTarget:life.calorieTarget,
+    foodEntries:life.foodEntries.map(entry=>normalizeFoodEntry(entry,entry.eatenAt)),
+    favoriteFoods:[...life.favoriteFoods],
+    walletState:normalizedWallet,
+  };
+}
+function serializeLifeData(state=S){
+  const bundle={
+    format:LIFE_BUNDLE_FORMAT,
+    version:LIFE_BUNDLE_VERSION,
+    life:{
+      calorieTarget:state.calorieTarget,
+      foodEntries:state.foodEntries,
+      favoriteFoods:state.favoriteFoods,
+      walletState:walletStatePayload(state),
+    }
+  };
+  return JSON.stringify({format:bundle.format,version:bundle.version,life:parseLifeData(JSON.stringify(bundle))});
+}
+function lifeImportSummary(bundle){
+  return T('lifeImportSummary')
+    .replace('{foods}',bundle.foodEntries.length)
+    .replace('{favorites}',bundle.favoriteFoods.length)
+    .replace('{cycles}',bundle.walletState.budgetCycles.length)
+    .replace('{expenses}',bundle.walletState.expenses.length);
+}
+function setLifeImportStatus(message){
+  const status=document.getElementById('lifeImportStatus');
+  if(status)status.textContent=message;
+}
+function exportLifeData(){
+  const blob=new Blob([serializeLifeData()],{type:'application/json'});
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download=`liangli-life-${localDayKey()}.json`;link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),0);
+}
+function previewLifeImport(file){
+  cancelLifeImport();
+  if(!file){return false;}
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      pendingLifeImport=parseLifeData(String(reader.result||''));
+      document.getElementById('lifeImportSummary').textContent=lifeImportSummary(pendingLifeImport);
+      document.getElementById('lifeImportPreview').hidden=false;
+      setLifeImportStatus(T('lifeImportReady'));
+    }catch(error){setLifeImportStatus(T('lifeImportInvalid'));}
+  };
+  reader.onerror=()=>setLifeImportStatus(T('lifeImportInvalid'));
+  reader.readAsText(file);
+  return true;
+}
+function cancelLifeImport(){
+  pendingLifeImport=null;
+  const preview=document.getElementById('lifeImportPreview');
+  if(preview)preview.hidden=true;
+  const file=document.getElementById('lifeImportFile');
+  if(file)file.value='';
+  return true;
+}
+function restoreLifeStorage(snapshot){
+  for(const [key,value] of snapshot){DB.set(key,value);}
+}
+function commitLifeImport(){
+  if(!pendingLifeImport)return false;
+  const bundle=pendingLifeImport;
+  const previous=S;
+  const storageSnapshot=['calorieTarget','foodEntries','favoriteFoods','walletState'].map(key=>[key,DB.get(key,null)]);
+  S={...S,
+    calorieTarget:bundle.calorieTarget,
+    foodEntries:bundle.foodEntries,
+    favoriteFoods:bundle.favoriteFoods,
+    budgetCycles:bundle.walletState.budgetCycles,
+    expenses:bundle.walletState.expenses,
+    activeBudgetCycleId:bundle.walletState.activeBudgetCycleId,
+  };
+  if(!saveLifeState()){
+    S=previous;
+    restoreLifeStorage(storageSnapshot);
+    setLifeImportStatus(T('lifeImportStoreError'));
+    return false;
+  }
+  cancelLifeImport();
+  renderNutrition();renderWallet();
+  setLifeImportStatus(T('lifeImportDone'));
+  return true;
 }
 
 /* 跨天重置：使用设备本地日历日，未完成任务回到成长池 */
