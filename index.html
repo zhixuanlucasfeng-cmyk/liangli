@@ -1583,6 +1583,11 @@ const today=()=>localDayKey();
 let currentDayKey=localDayKey();
 const storedLastDay=DB.get('lastDay',currentDayKey);
 const LIFE_STATE_VERSION=1;
+const LIFE_BUNDLE_FORMAT='liangli-life';
+const LIFE_BUNDLE_VERSION=1;
+const LIFE_BUNDLE_KEYS=['calorieTarget','foodEntries','favoriteFoods','walletState'];
+const MAX_LIFE_CALORIES=1000000,MAX_LIFE_MONEY_CENTS=1000000000000;
+const MAX_LIFE_NAME_LENGTH=500,MAX_LIFE_FAVORITE_LENGTH=120,MAX_LIFE_CATEGORY_LENGTH=120;
 function lifeStatePayload(state=S){
   return {
     version:LIFE_STATE_VERSION,
@@ -1593,22 +1598,71 @@ function lifeStatePayload(state=S){
   };
 }
 function normalizeLifeStatePayload(raw){
-  if(!raw||typeof raw!=='object'||raw.version!==LIFE_STATE_VERSION||!Array.isArray(raw.foodEntries)
-    ||!Array.isArray(raw.favoriteFoods)||!Object.hasOwn(raw,'walletState'))return null;
-  const walletState=normalizeWalletStatePayload(raw.walletState);
-  if(!walletState)return null;
-  return {
-    version:LIFE_STATE_VERSION,
-    calorieTarget:normalizeCalorieTarget(raw.calorieTarget),
-    foodEntries:raw.foodEntries.filter(entry=>entry&&typeof entry==='object').map(entry=>normalizeFoodEntry(entry,Date.now())),
-    favoriteFoods:raw.favoriteFoods.filter(food=>typeof food==='string'),
-    walletState
-  };
+  if(!hasExactKeys(raw,['version','calorieTarget','foodEntries','favoriteFoods','walletState'])||raw.version!==LIFE_STATE_VERSION)return null;
+  try{
+    const life=parseLifeData(JSON.stringify({format:LIFE_BUNDLE_FORMAT,version:LIFE_BUNDLE_VERSION,life:{
+      calorieTarget:raw.calorieTarget,foodEntries:raw.foodEntries,favoriteFoods:raw.favoriteFoods,walletState:raw.walletState
+    }}));
+    return {version:LIFE_STATE_VERSION,...life};
+  }catch(error){return null;}
+}
+function migrateLegacyWalletState(rawCycles,rawExpenses,rawActiveBudgetCycleId=null){
+  const ids=new Set(),budgetCycles=[];
+  for(const raw of Array.isArray(rawCycles)?rawCycles:[]){
+    const normalized=normalizeBudgetCycle(raw);
+    if(!normalized)continue;
+    try{
+      const cycle=buildLifeBudgetCycle(normalized),id=String(cycle.id);
+      if(ids.has(id))continue;
+      ids.add(id);budgetCycles.push(cycle);
+    }catch(error){}
+  }
+  const expenses=[];
+  for(const raw of Array.isArray(rawExpenses)?rawExpenses:[]){
+    const normalized=normalizeExpense(raw);
+    if(!normalized)continue;
+    const spentDay=budgetExpenseDay(normalized);
+    if(!spentDay)continue;
+    const matches=budgetCycles.filter(cycle=>{
+      const day=budgetDayOrdinal(spentDay);
+      return day>=budgetDayOrdinal(cycle.startDay)&&day<budgetDayOrdinal(cycle.endExclusive);
+    });
+    const referenced=normalized.cycleId==null?matches:(matches.filter(cycle=>String(cycle.id)===String(normalized.cycleId)));
+    if(referenced.length!==1)continue;
+    try{
+      const expense=buildLifeExpense({...normalized,cycleId:referenced[0].id}),id=String(expense.id);
+      if(ids.has(id))continue;
+      ids.add(id);expenses.push(expense);
+    }catch(error){}
+  }
+  const activeBudgetCycleId=budgetCycles.some(cycle=>cycle.id===rawActiveBudgetCycleId)?rawActiveBudgetCycleId:null;
+  return {version:1,budgetCycles,expenses,activeBudgetCycleId};
+}
+function migrateLegacyNutritionState(rawCalorieTarget,rawFoodEntries,rawFavoriteFoods){
+  const calorieTarget=normalizeCalorieTarget(rawCalorieTarget);
+  const foodEntries=[];
+  for(const raw of Array.isArray(rawFoodEntries)?rawFoodEntries:[]){
+    try{foodEntries.push(buildLifeFoodEntry(normalizeFoodEntry(raw,Date.now())));}catch(error){}
+  }
+  const favoriteFoods=[],names=new Set();
+  for(const food of Array.isArray(rawFavoriteFoods)?rawFavoriteFoods:[]){
+    if(!strictLifeText(food,MAX_LIFE_FAVORITE_LENGTH)||food.trim()!==food)continue;
+    const normalized=food.toLocaleLowerCase();
+    if(names.has(normalized))continue;
+    names.add(normalized);favoriteFoods.push(food);
+  }
+  return {calorieTarget:Math.min(calorieTarget,MAX_LIFE_CALORIES),foodEntries,favoriteFoods};
 }
 const storedLifeState=normalizeLifeStatePayload(DB.get('lifeState',null));
-const storedWalletState=storedLifeState?storedLifeState.walletState:normalizeWalletStatePayload(DB.get('walletState',null));
-const storedBudgetCycles=storedWalletState?storedWalletState.budgetCycles:DB.get('budgetCycles',[]);
-const storedExpenses=storedWalletState?storedWalletState.expenses:DB.get('expenses',[]);
+const legacyWalletPayload=DB.get('walletState',null);
+const legacyBudgetCycles=Array.isArray(legacyWalletPayload?.budgetCycles)?legacyWalletPayload.budgetCycles:DB.get('budgetCycles',[]);
+const legacyExpenses=Array.isArray(legacyWalletPayload?.expenses)?legacyWalletPayload.expenses:DB.get('expenses',[]);
+const legacyActiveBudgetCycleId=legacyWalletPayload&&Object.hasOwn(legacyWalletPayload,'activeBudgetCycleId')
+  ?legacyWalletPayload.activeBudgetCycleId:DB.get('activeBudgetCycleId',null);
+const storedWalletState=storedLifeState?storedLifeState.walletState:migrateLegacyWalletState(legacyBudgetCycles,legacyExpenses,legacyActiveBudgetCycleId);
+const storedBudgetCycles=storedWalletState.budgetCycles;
+const storedExpenses=storedWalletState.expenses;
+const legacyNutritionState=migrateLegacyNutritionState(DB.get('calorieTarget',2000),DB.get('foodEntries',[]),DB.get('favoriteFoods',[]));
 
 let S={
   companion:DB.get('companion', 'cat')==='human'?'human':'cat',
@@ -1621,9 +1675,9 @@ let S={
   pomo:DB.get('pomo',0),
   week:DB.get('week',[0,0,0,0,0,0,0]),
   lastDay:storedLastDay,
-  calorieTarget:storedLifeState?storedLifeState.calorieTarget:normalizeCalorieTarget(DB.get('calorieTarget',2000)),
-  foodEntries:storedLifeState?storedLifeState.foodEntries:(Array.isArray(DB.get('foodEntries',[]))?DB.get('foodEntries',[]).filter(entry=>entry&&typeof entry==='object').map(entry=>normalizeFoodEntry(entry,Date.now())):[]),
-  favoriteFoods:storedLifeState?storedLifeState.favoriteFoods:(Array.isArray(DB.get('favoriteFoods',[]))?DB.get('favoriteFoods',[]).filter(food=>typeof food==='string'):[]),
+  calorieTarget:storedLifeState?storedLifeState.calorieTarget:legacyNutritionState.calorieTarget,
+  foodEntries:storedLifeState?storedLifeState.foodEntries:legacyNutritionState.foodEntries,
+  favoriteFoods:storedLifeState?storedLifeState.favoriteFoods:legacyNutritionState.favoriteFoods,
   budgetCycles:Array.isArray(storedBudgetCycles)?storedBudgetCycles.map(normalizeBudgetCycle).filter(Boolean):[],
   expenses:Array.isArray(storedExpenses)?storedExpenses.map(normalizeExpense).filter(Boolean):[],
   activeBudgetCycleId:null
@@ -1634,13 +1688,8 @@ S.activeBudgetCycleId=S.budgetCycles.some(cycle=>cycle.id===storedActiveBudgetCy
 function saveLifeState(){
   return DB.set('lifeState',lifeStatePayload());
 }
-const LIFE_BUNDLE_FORMAT='liangli-life';
-const LIFE_BUNDLE_VERSION=1;
-const LIFE_BUNDLE_KEYS=['calorieTarget','foodEntries','favoriteFoods','walletState'];
 let pendingLifeImport=null;
 let lifeImportGeneration=0;
-const MAX_LIFE_CALORIES=1000000,MAX_LIFE_MONEY_CENTS=1000000000000;
-const MAX_LIFE_NAME_LENGTH=500,MAX_LIFE_FAVORITE_LENGTH=120,MAX_LIFE_CATEGORY_LENGTH=120;
 
 function isPlainObject(value){
   return value!==null&&typeof value==='object'&&!Array.isArray(value);
@@ -1664,8 +1713,12 @@ function strictLifeDay(value){
   try{budgetDayDate(value);return true;}catch(error){return false;}
 }
 function strictLifeDateTime(value){
-  const match=typeof value==='string'&&value.match(/^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}(?::\d{2}(?:\.\d{3})?)?(?:Z|[+-]\d{2}:\d{2})$/);
-  return Boolean(match)&&strictLifeDay(match[1])&&Number.isFinite(Date.parse(value));
+  const match=typeof value==='string'&&value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{3})?)?(Z|[+-](\d{2}):(\d{2}))$/);
+  if(!match||!strictLifeDay(match[1]))return false;
+  const hour=Number(match[2]),minute=Number(match[3]),second=match[4]==null?0:Number(match[4]);
+  if(hour>23||minute>59||second>59)return false;
+  if(match[5]!=='Z'&&(Number(match[6])>23||Number(match[7])>59))return false;
+  return Number.isFinite(Date.parse(value));
 }
 function safeLifeMoney(value,allowNegative=false){
   return Number.isSafeInteger(value)&&Math.abs(value)<=MAX_LIFE_MONEY_CENTS&&(allowNegative||value>=0);

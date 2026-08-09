@@ -76,6 +76,11 @@ assert.deepEqual(JSON.parse(JSON.stringify(roundTripped)), JSON.parse(JSON.strin
     activeBudgetCycleId: 'cycle-1',
   },
 })));
+assert.doesNotThrow(() => parseLifeData(JSON.stringify(exported)), 'canonical Z timestamps are valid');
+const offsetBundle = JSON.parse(JSON.stringify(exported));
+offsetBundle.life.foodEntries[0].eatenAt = '2026-08-09T16:00:00+08:00';
+offsetBundle.life.walletState.expenses[0].spentAt = '2026-08-10T20:00:00+08:00';
+assert.doesNotThrow(() => parseLifeData(JSON.stringify(offsetBundle)), 'valid offset timestamps are accepted');
 
 assert.throws(() => parseLifeData('{'), /JSON|backup/i, 'malformed JSON is rejected');
 assert.throws(() => parseLifeData(JSON.stringify({...exported, version: 2})), /version|format/i, 'unsupported versions are rejected');
@@ -101,6 +106,9 @@ invalid(bundle => { bundle.life.walletState.budgetCycles[0].savingsBps = 10001; 
 invalid(bundle => { bundle.life.walletState.budgetCycles[0].endExclusive = '2026-08-09'; }, /date|cycle|period/i, 'invalid cycle dates are rejected');
 invalid(bundle => { bundle.life.walletState.budgetCycles[0].startDay = '2026-02-30'; }, /date|cycle/i, 'normalized-invalid calendar dates are rejected');
 invalid(bundle => { bundle.life.foodEntries[0].eatenAt = '2026-02-30T12:00:00.000Z'; }, /food|date/i, 'normalized-invalid datetimes are rejected');
+invalid(bundle => { bundle.life.foodEntries[0].eatenAt = '2026-08-09T24:00:00.000Z'; }, /food|date/i, '24:00 datetimes are rejected instead of normalized');
+invalid(bundle => { bundle.life.foodEntries[0].eatenAt = '2026-08-09T12:60:00.000Z'; }, /food|date/i, 'out-of-range minutes are rejected');
+invalid(bundle => { bundle.life.foodEntries[0].eatenAt = '2026-08-09T12:00:00.000+24:00'; }, /food|date/i, 'invalid timezone offsets are rejected');
 invalid(bundle => { bundle.life.foodEntries[0].name = ' '; }, /food|name/i, 'food names cannot be blank');
 invalid(bundle => { bundle.life.walletState.expenses[0].name = ''; }, /expense|name/i, 'expense names cannot be blank');
 invalid(bundle => { bundle.life.favoriteFoods[0] = ' '; }, /favorite/i, 'favorite foods cannot be blank');

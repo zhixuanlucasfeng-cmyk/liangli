@@ -25,15 +25,24 @@ assert.notEqual(end, -1, 'Life state must precede daily rollover');
 const stored = {
   lifeState: {
     version: 1,
-    calorieTarget: 0,
+    calorieTarget: -1,
     foodEntries: [{id: 'food-1', name: 'Egg', portion: '', calories: 70, eatenAt: 0, mode: 'manual'}],
     favoriteFoods: ['Egg'],
     walletState: {
       version: 1,
-      budgetCycles: [{id: 'cycle-1', startDay: '2026-08-10', endExclusive: '2026-08-11', totalCents: 1000, savingsBps: 2000, openingCarryCents: 0, periodUnit: 'day', periodCount: 1}],
-      expenses: [{id: 'expense-1', cycleId: 'cycle-1', name: 'Lunch', category: '', amountCents: 200, spentAt: '2026-08-10T12:00:00Z', deletedAt: null}],
-      activeBudgetCycleId: 'cycle-1',
+      budgetCycles: [{id: 'canonical-cycle', startDay: '2026-08-10', endExclusive: '2026-08-11', totalCents: 1000, savingsBps: 2000, openingCarryCents: 0, periodUnit: 'day', periodCount: 1}],
+      expenses: [{id: 'canonical-expense', cycleId: 'canonical-cycle', name: 'Lunch', category: '', amountCents: 200, spentAt: '2026-08-10T12:00:00Z', deletedAt: null}],
+      activeBudgetCycleId: 'canonical-cycle',
     },
+  },
+  calorieTarget: 0,
+  foodEntries: [{id: 'food-1', name: 'Egg', calories: 70, eatenAt: '2026-08-10T08:00:00.000Z'}],
+  favoriteFoods: ['Egg'],
+  walletState: {
+    version: 1,
+    budgetCycles: [{id: 'cycle-1', startDay: '2026-08-10', endExclusive: '2026-08-11', totalCents: 1000}],
+    expenses: [{id: 'expense-1', cycleId: 'cycle-1', name: 'Lunch', category: '', amountCents: 200, spentAt: '2026-08-10T12:00:00Z', deletedAt: null}],
+    activeBudgetCycleId: 'cycle-1',
   },
   lastDay: '2026-08-10',
 };
@@ -52,14 +61,31 @@ const context = {
   },
 };
 vm.createContext(context);
-vm.runInContext(`${script.slice(start, end)}\n;globalThis.life={S,saveLifeState,migrateDailyState};`, context);
-const {S, saveLifeState, migrateDailyState} = context.life;
+vm.runInContext(`${script.slice(start, end)}\n;globalThis.life={S,saveLifeState,migrateDailyState,migrateLegacyWalletState,serializeLifeData,parseLifeData};`, context);
+const {S, saveLifeState, migrateDailyState, migrateLegacyWalletState, serializeLifeData, parseLifeData} = context.life;
 
 assert.equal(S.calorieTarget, 0, 'a saved zero target must remain zero');
 assert.deepEqual(JSON.parse(JSON.stringify(S.favoriteFoods)), ['Egg']);
 assert.equal(S.activeBudgetCycleId, 'cycle-1');
 assert.equal(S.budgetCycles.length, 1, 'canonical life state supplies budget cycles');
 assert.equal(S.expenses.length, 1, 'canonical life state supplies expenses');
+
+const legacyMigration = migrateLegacyWalletState([
+  {id: 'legacy-cycle', startDay: '2026-08-10', endExclusive: '2026-08-12', totalCents: 1000},
+], [
+  {id: 'mapped', name: 'Lunch', category: '', amountCents: 100, spentAt: '2026-08-10T12:00:00Z'},
+  {id: 'orphan', name: 'Late', category: '', amountCents: 100, spentAt: '2026-08-12T12:00:00Z'},
+]);
+assert.deepEqual(JSON.parse(JSON.stringify(legacyMigration.expenses)), [{
+  id: 'mapped', cycleId: 'legacy-cycle', name: 'Lunch', category: '', amountCents: 100,
+  spentAt: '2026-08-10T12:00:00Z', deletedAt: null,
+}], 'legacy expenses receive a cycle ID only for one containing cycle');
+const overlappingMigration = migrateLegacyWalletState([
+  {id: 'overlap-a', startDay: '2026-08-10', endExclusive: '2026-08-12', totalCents: 1000},
+  {id: 'overlap-b', startDay: '2026-08-10', endExclusive: '2026-08-12', totalCents: 1000},
+], [{id: 'ambiguous', name: 'Lunch', category: '', amountCents: 100, spentAt: '2026-08-10T12:00:00Z'}]);
+assert.deepEqual(JSON.parse(JSON.stringify(overlappingMigration.expenses)), [], 'ambiguous legacy expense mappings are rejected');
+assert.doesNotThrow(() => parseLifeData(serializeLifeData(S)), 'migrated legacy state remains exportable through strict parsing');
 
 assert.equal(saveLifeState(), true);
 assert.deepEqual(writes.map(([key]) => key), ['lifeState']);
@@ -95,7 +121,7 @@ assert.deepEqual(JSON.parse(JSON.stringify({
   activeBudgetCycleId: rolled.activeBudgetCycleId,
 })), {
   calorieTarget: 0,
-  foodEntries: [{id: 'food-1', name: 'Egg', portion: '', calories: 70, eatenAt: 0, mode: 'manual'}],
+  foodEntries: [{id: 'food-1', name: 'Egg', portion: '', calories: 70, eatenAt: '2026-08-10T08:00:00.000Z', mode: 'manual'}],
   favoriteFoods: ['Egg'],
   budgetCycles: [{id: 'cycle-1', startDay: '2026-08-10', endExclusive: '2026-08-11', totalCents: 1000, savingsBps: 2000, openingCarryCents: 0, periodUnit: 'day', periodCount: 1}],
   expenses: [{id: 'expense-1', cycleId: 'cycle-1', name: 'Lunch', category: '', amountCents: 200, spentAt: '2026-08-10T12:00:00Z', deletedAt: null}],
