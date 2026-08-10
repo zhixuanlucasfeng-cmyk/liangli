@@ -953,8 +953,12 @@ const DB={
     try{return {status:'present',value:JSON.parse(raw),raw};}
     catch(error){return {status:'invalid',value:null,raw};}
   },
-  set(k,v){try{localStorage.setItem('ll_'+k,JSON.stringify(v));return true}catch(e){return false}}
+  set(k,v){
+    if(CORE_LEGACY_KEYS.has(k)&&typeof AccountCore!=='undefined'&&AccountCore&&coreStateStorageStatus!=='missing')return true;
+    try{localStorage.setItem('ll_'+k,JSON.stringify(v));return true}catch(e){return false}
+  }
 };
+const CORE_LEGACY_KEYS=new Set(['tasks','ideas','goals','logs','focusMin','pomo','week','lastDay']);
 const AccountCore=globalThis.LiangliAccountSync||null;
 let activeCoreScope='local',activeCoreState=null,coreStateStorageStatus='missing';
 function readCoreScope(scope){
@@ -970,17 +974,25 @@ function writeCoreScope(scope,state){
   return DB.set(LiangliAccountSync.coreStorageKey(scope),state);
 }
 function coreStateToViewState(state,S){
-  const week=[0,0,0,0,0,0,0];let focusMin=0,pomo=0;
+  const week=[0,0,0,0,0,0,0],todayOrdinal=dayOrdinal(currentDayKey),weekStart=todayOrdinal-6;
+  let focusMin=0,pomo=0;
   for(const session of state.focusSessions){
-    focusMin+=session.minutes;pomo+=session.pomodoroCount;
-    if(session.kind==='legacy-summary')session.weekMinutes.forEach((minutes,index)=>week[index]+=minutes);
-    else if(session.dayKey===currentDayKey)week[6]+=session.minutes;
+    const sessionDay=dayOrdinal(session.dayKey);
+    if(sessionDay===todayOrdinal){focusMin+=session.minutes;pomo+=session.pomodoroCount;}
+    if(session.kind==='legacy-summary')session.weekMinutes.forEach((minutes,index)=>{
+      const minuteDay=sessionDay-6+index,slot=minuteDay-weekStart;
+      if(slot>=0&&slot<7)week[slot]+=minutes;
+    });
+    else{
+      const slot=sessionDay-weekStart;
+      if(slot>=0&&slot<7)week[slot]+=session.minutes;
+    }
   }
   return {...S,tasks:state.tasks,ideas:state.growthItems,goals:state.goals,logs:state.moodEntries,
     focusSessions:state.focusSessions,focusMin,pomo,week,lastDay:currentDayKey};
 }
 function coreStateFromViewState(state=S){
-  const growthItems=state.ideas.map(({id,name,energy,createdAt,updatedAt,deletedAt})=>({id,name,energy,createdAt,updatedAt,deletedAt}));
+  const growthItems=state.ideas.map(({id,name,energy,rolloverSourceId=null,createdAt,updatedAt,deletedAt})=>({id,name,energy,rolloverSourceId,createdAt,updatedAt,deletedAt}));
   return {version:LiangliAccountSync.CORE_STATE_VERSION,tasks:state.tasks,growthItems,
     goals:state.goals,focusSessions:state.focusSessions||[],moodEntries:state.logs,
     syncOps:activeCoreState?.syncOps||[]};
@@ -1007,7 +1019,9 @@ function activateCoreScope(scope,state){
     if(writeCoreScope(activeCoreScope,empty)){activeCoreState=empty;coreStateStorageStatus='valid';if(typeof S!=='undefined')S=coreStateToViewState(empty,S);return empty;}
     coreStateStorageStatus='write-error';
   }
-  activeCoreState=null;return null;
+  activeCoreState=null;
+  if(typeof S!=='undefined')S=coreStateToViewState(LiangliAccountSync.migrateLegacyCoreState({},Date.now(),localDayKey()),S);
+  return null;
 }
 function coreId(){
   if(globalThis.crypto?.randomUUID)return globalThis.crypto.randomUUID();
@@ -1810,7 +1824,7 @@ function migrateDailyState(state,nextDay){
 }
 const today=()=>localDayKey();
 let currentDayKey=localDayKey();
-const storedLastDay=DB.get('lastDay',currentDayKey);
+let storedLastDay=currentDayKey;
 let initialCoreState=null;
 if(typeof AccountCore!=='undefined'&&AccountCore){
   const storedCore=readCoreScope('local');
@@ -1824,8 +1838,10 @@ if(typeof AccountCore!=='undefined'&&AccountCore){
     if(writeCoreScope('local',migrated)){
       initialCoreState=migrated;activeCoreState=migrated;coreStateStorageStatus='valid';
     }else coreStateStorageStatus='write-error';
-  }else coreStateStorageStatus=storedCore.status;
+}else coreStateStorageStatus=storedCore.status;
 }
+const useLegacyCore=!(typeof AccountCore!=='undefined'&&AccountCore)||['missing','write-error'].includes(coreStateStorageStatus);
+if(useLegacyCore)storedLastDay=DB.get('lastDay',currentDayKey);
 const LIFE_STATE_VERSION=2;
 const LEGACY_LIFE_STATE_VERSION=1;
 const LIFE_BUNDLE_FORMAT='liangli-life';
@@ -1961,13 +1977,14 @@ const legacyNutritionState=migrateLegacyNutritionState(DB.get('calorieTarget',20
 let S={
   companion:DB.get('companion', 'cat')==='human'?'human':'cat',
   loadMax:DB.get('loadMax',100),
-  tasks:normalizeTaskDays(DB.get('tasks',[]),storedLastDay),
-  ideas:DB.get('ideas',[]),
-  goals:DB.get('goals',[]),
-  logs:DB.get('logs',[]),
-  focusMin:DB.get('focusMin',0),
-  pomo:DB.get('pomo',0),
-  week:DB.get('week',[0,0,0,0,0,0,0]),
+  tasks:useLegacyCore?normalizeTaskDays(DB.get('tasks',[]),storedLastDay):[],
+  ideas:useLegacyCore?DB.get('ideas',[]):[],
+  goals:useLegacyCore?DB.get('goals',[]):[],
+  logs:useLegacyCore?DB.get('logs',[]):[],
+  focusSessions:[],
+  focusMin:useLegacyCore?DB.get('focusMin',0):0,
+  pomo:useLegacyCore?DB.get('pomo',0):0,
+  week:useLegacyCore?DB.get('week',[0,0,0,0,0,0,0]):[0,0,0,0,0,0,0],
   lastDay:storedLastDay,
   calorieTarget:storedLifeState?storedLifeState.calorieTarget:lifeStateStorageStatus==='missing'?legacyNutritionState.calorieTarget:2000,
   foodEntries:storedLifeState?storedLifeState.foodEntries:lifeStateStorageStatus==='missing'?legacyNutritionState.foodEntries:[],
@@ -2817,7 +2834,7 @@ function renderIdeas(){
 function addIdea(){
   const el=document.getElementById('ideaName'), name=el.value.trim();
   if(!name) return;
-  S.ideas.push({id:coreId(),name,energy:25,...coreTimestamps()}); el.value='';
+  S.ideas.push({id:coreId(),name,energy:25,rolloverSourceId:null,...coreTimestamps()}); el.value='';
   DB.set('ideas',S.ideas);persistCoreState(); renderIdeas();
 }
 function delIdea(id){ S.ideas=S.ideas.filter(x=>x.id!==id); DB.set('ideas',S.ideas);persistCoreState(); renderIdeas(); }

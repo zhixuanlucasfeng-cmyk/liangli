@@ -30,7 +30,7 @@
       &&['none','pomodoro','flashcards','quiz','checklist'].includes(value.helper)&&nullableText(value.helperRef)
       &&helperRefs(value.helperRefs)&&integer(value.pomodoroCount,0,1000000)&&entityTimes(value);
   }
-  function growth(value){return exact(value,['id','name','energy','createdAt','updatedAt','deletedAt'])&&uuid(value.id)&&text(value.name)&&integer(value.energy,0,100)&&entityTimes(value);}
+  function growth(value){return exact(value,['id','name','energy','rolloverSourceId','createdAt','updatedAt','deletedAt'])&&uuid(value.id)&&text(value.name)&&integer(value.energy,0,100)&&(value.rolloverSourceId===null||uuid(value.rolloverSourceId))&&entityTimes(value);}
   function goal(value){return exact(value,['id','name','target','cur','unit','createdAt','updatedAt','deletedAt'])&&uuid(value.id)&&text(value.name)&&integer(value.target,1,1000000000)&&integer(value.cur,0,value.target)&&typeof value.unit==='string'&&value.unit.length<=120&&value.unit.trim()===value.unit&&entityTimes(value);}
   function focus(value){
     const common=['id','kind','minutes','pomodoroCount','dayKey','createdAt','updatedAt','deletedAt'];
@@ -80,7 +80,7 @@
       tasks.push({id:makeId('task',item,index),name:legacyText(item.name),energy:legacyNumber(item.energy,0,100,25),done:Boolean(item.done),dayKey:legacyDay(item.dayKey,fallbackDay),startTime,endTime,helper,helperRef:typeof item.helperRef==='string'&&item.helperRef.trim()===item.helperRef&&item.helperRef.length<=MAX_TEXT?item.helperRef:null,helperRefs:refs,pomodoroCount:legacyNumber(item.pomodoroCount,0,1000000,0),createdAt,updatedAt:createdAt,deletedAt:null});
     }
     const growthItems=[];
-    for(const [index,item] of (collection(source.ideas)?source.ideas:[]).entries())if(plain(item)&&legacyText(item.name))growthItems.push({id:makeId('growth',item,index),name:legacyText(item.name),energy:legacyNumber(item.energy,0,100,25),createdAt,updatedAt:createdAt,deletedAt:null});
+    for(const [index,item] of (collection(source.ideas)?source.ideas:[]).entries())if(plain(item)&&legacyText(item.name))growthItems.push({id:makeId('growth',item,index),name:legacyText(item.name),energy:legacyNumber(item.energy,0,100,25),rolloverSourceId:null,createdAt,updatedAt:createdAt,deletedAt:null});
     const goals=[];
     for(const [index,item] of (collection(source.goals)?source.goals:[]).entries())if(plain(item)&&legacyText(item.name)){
       const target=legacyNumber(item.target,1,1000000000,1);goals.push({id:makeId('goal',item,index),name:legacyText(item.name),target,cur:legacyNumber(item.cur,0,target,0),unit:typeof item.unit==='string'?item.unit.trim().slice(0,120):'',createdAt,updatedAt:createdAt,deletedAt:null});
