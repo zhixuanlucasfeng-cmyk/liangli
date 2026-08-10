@@ -756,6 +756,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="account-sync.js"></script>
 <script>
 /* ============ i18n ============ */
 const SUPABASE_URL='';
@@ -892,6 +893,7 @@ const CommunityClient={
     this.generation++;
     this.session=session;this.client=session?createFlashcardRestClient(session,this.generation):null;this.authInvalid=false;this.authorizationBlocked=false;
     ActiveFlashcardStore=FlashcardStore.forScope(nextScope);if(persist)DB.set('supabaseSession',session);updateFlashcardAccountUI(session);
+    activateCoreScope(nextScope);
     if(scopeChanged&&typeof resetFlashcardScopeUI==='function')resetFlashcardScopeUI();
     return session;
   },
@@ -953,6 +955,65 @@ const DB={
   },
   set(k,v){try{localStorage.setItem('ll_'+k,JSON.stringify(v));return true}catch(e){return false}}
 };
+const AccountCore=globalThis.LiangliAccountSync||null;
+let activeCoreScope='local',activeCoreState=null,coreStateStorageStatus='missing';
+function readCoreScope(scope){
+  const key=LiangliAccountSync.coreStorageKey(scope);
+  const record=DB.read(key);
+  if(record.status==='missing')return {status:'missing',state:null,raw:null};
+  if(record.status!=='present')return {status:record.status,state:null,raw:record.raw};
+  const state=LiangliAccountSync.normalizeCoreState(record.value);
+  return state?{status:'valid',state,raw:record.raw}:{status:'invalid',state:null,raw:record.raw};
+}
+function writeCoreScope(scope,state){
+  if(!LiangliAccountSync.normalizeCoreState(state))return false;
+  return DB.set(LiangliAccountSync.coreStorageKey(scope),state);
+}
+function coreStateToViewState(state,S){
+  const week=[0,0,0,0,0,0,0];let focusMin=0,pomo=0;
+  for(const session of state.focusSessions){
+    focusMin+=session.minutes;pomo+=session.pomodoroCount;
+    if(session.kind==='legacy-summary')session.weekMinutes.forEach((minutes,index)=>week[index]+=minutes);
+    else if(session.dayKey===currentDayKey)week[6]+=session.minutes;
+  }
+  return {...S,tasks:state.tasks,ideas:state.growthItems,goals:state.goals,logs:state.moodEntries,
+    focusSessions:state.focusSessions,focusMin,pomo,week,lastDay:currentDayKey};
+}
+function coreStateFromViewState(state=S){
+  const growthItems=state.ideas.map(({id,name,energy,createdAt,updatedAt,deletedAt})=>({id,name,energy,createdAt,updatedAt,deletedAt}));
+  return {version:LiangliAccountSync.CORE_STATE_VERSION,tasks:state.tasks,growthItems,
+    goals:state.goals,focusSessions:state.focusSessions||[],moodEntries:state.logs,
+    syncOps:activeCoreState?.syncOps||[]};
+}
+function persistCoreState(){
+  if(!AccountCore)return false;
+  if(['invalid','read-error','write-error'].includes(coreStateStorageStatus))return false;
+  const state=coreStateFromViewState();
+  if(!writeCoreScope(activeCoreScope,state))return false;
+  activeCoreState=state;coreStateStorageStatus='valid';return true;
+}
+function activateCoreScope(scope,state){
+  if(!AccountCore)return null;
+  activeCoreScope=scope==='local'?'local':String(scope).toLowerCase();
+  const record=state?{status:'valid',state}:readCoreScope(activeCoreScope);
+  coreStateStorageStatus=record.status;
+  if(record.status==='valid'){
+    activeCoreState=record.state;
+    if(typeof S!=='undefined')S=coreStateToViewState(record.state,S);
+    return record.state;
+  }
+  if(record.status==='missing'){
+    const empty=LiangliAccountSync.migrateLegacyCoreState({},Date.now(),localDayKey());
+    if(writeCoreScope(activeCoreScope,empty)){activeCoreState=empty;coreStateStorageStatus='valid';if(typeof S!=='undefined')S=coreStateToViewState(empty,S);return empty;}
+    coreStateStorageStatus='write-error';
+  }
+  activeCoreState=null;return null;
+}
+function coreId(){
+  if(globalThis.crypto?.randomUUID)return globalThis.crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g,()=>Math.floor(Math.random()*16).toString(16));
+}
+function coreTimestamps(){const now=Date.now();return {createdAt:now,updatedAt:now,deletedAt:null};}
 function localDayKey(date=new Date()){
   const year=date.getFullYear();
   const month=String(date.getMonth()+1).padStart(2,'0');
@@ -1738,11 +1799,10 @@ function migrateDailyState(state,nextDay){
   state.tasks.forEach((task,index)=>{
     if(task.done||task.dayKey===nextDay||migratedIds.has(String(task.id)))return;
     ideas.push({
-      id:nextOrdinal*1000000+index,
+      id:typeof coreId==='function'?coreId():nextOrdinal*1000000+index,
       name:task.name,
       energy:task.energy,
-      rolloverSourceId:task.id,
-      rolloverDay:task.dayKey
+      ...(typeof coreTimestamps==='function'?coreTimestamps():{}),rolloverSourceId:task.id,rolloverDay:task.dayKey
     });
     migratedIds.add(String(task.id));
   });
@@ -1751,6 +1811,21 @@ function migrateDailyState(state,nextDay){
 const today=()=>localDayKey();
 let currentDayKey=localDayKey();
 const storedLastDay=DB.get('lastDay',currentDayKey);
+let initialCoreState=null;
+if(typeof AccountCore!=='undefined'&&AccountCore){
+  const storedCore=readCoreScope('local');
+  if(storedCore.status==='valid'){
+    initialCoreState=storedCore.state;activeCoreState=storedCore.state;coreStateStorageStatus='valid';
+  }else if(storedCore.status==='missing'){
+    const migrated=LiangliAccountSync.migrateLegacyCoreState({
+      tasks:DB.get('tasks',[]),ideas:DB.get('ideas',[]),goals:DB.get('goals',[]),logs:DB.get('logs',[]),
+      focusMin:DB.get('focusMin',0),pomo:DB.get('pomo',0),week:DB.get('week',[0,0,0,0,0,0,0])
+    },Date.now(),currentDayKey);
+    if(writeCoreScope('local',migrated)){
+      initialCoreState=migrated;activeCoreState=migrated;coreStateStorageStatus='valid';
+    }else coreStateStorageStatus='write-error';
+  }else coreStateStorageStatus=storedCore.status;
+}
 const LIFE_STATE_VERSION=2;
 const LEGACY_LIFE_STATE_VERSION=1;
 const LIFE_BUNDLE_FORMAT='liangli-life';
@@ -1901,6 +1976,7 @@ let S={
   expenses:Array.isArray(storedExpenses)?storedExpenses.map(normalizeExpense).filter(Boolean):[],
   activeBudgetCycleId:null
 };
+if(initialCoreState)S=coreStateToViewState(initialCoreState,S);
 const storedActiveBudgetCycleId=storedWalletState&&Object.hasOwn(storedWalletState,'activeBudgetCycleId')
   ?storedWalletState.activeBudgetCycleId:DB.get('activeBudgetCycleId',null);
 S.activeBudgetCycleId=S.budgetCycles.some(cycle=>cycle.id===storedActiveBudgetCycleId)?storedActiveBudgetCycleId:null;
@@ -2065,7 +2141,7 @@ function rolloverIfNeeded(render=true){
   if(!migrated.changed)return false;
   S=migrated;
   DB.set('tasks',S.tasks);DB.set('ideas',S.ideas);DB.set('week',S.week);
-  DB.set('focusMin',S.focusMin);DB.set('pomo',S.pomo);DB.set('lastDay',S.lastDay);
+  DB.set('focusMin',S.focusMin);DB.set('pomo',S.pomo);DB.set('lastDay',S.lastDay);persistCoreState();
   if(render){renderAll();toast(T('newDayReset'));}
   return true;
 }
@@ -2290,11 +2366,11 @@ function renderTasks(){
       const helperLabel=helperKey?T(helperKey):'';
       const meta=[timeLabel,helperLabel,t.pomodoroCount?`${t.pomodoroCount} ${T('taskPomos')}`:''].filter(Boolean).join(' · ');
       return `<div class="item manga-task ${t.done?'done':''}">
-        <button type="button" class="chk" aria-pressed="${t.done}" aria-label="${esc(T(t.done?'taskUndo':'taskDone'))}" onclick="toggleTask(${t.id})">${t.done?'✓':''}</button>
+        <button type="button" class="chk" aria-pressed="${t.done}" aria-label="${esc(T(t.done?'taskUndo':'taskDone'))}" onclick="toggleTask(${esc(JSON.stringify(t.id))})">${t.done?'✓':''}</button>
         <div class="t">${esc(t.name)}${meta?`<small class="task-meta">${esc(meta)}</small>`:''}</div>
         <div class="tag">⚡${t.energy}</div>
-        ${t.helper!=='none'?`<button type="button" class="btn ghost sm" aria-label="${esc(T('openHelper'))}" onclick="openTaskHelper(${t.id})">▶</button>`:''}
-        <button type="button" class="x" aria-label="${esc(T('deleteTask'))}" onclick="delTask(${t.id})">×</button></div>`;
+        ${t.helper!=='none'?`<button type="button" class="btn ghost sm" aria-label="${esc(T('openHelper'))}" onclick="openTaskHelper(${esc(JSON.stringify(t.id))})">▶</button>`:''}
+        <button type="button" class="x" aria-label="${esc(T('deleteTask'))}" onclick="delTask(${esc(JSON.stringify(t.id))})">×</button></div>`;
     }).join('')
     : `<div class="empty">${T('emptyTask')}</div>`;
   renderLoad(); renderStats();
@@ -2315,20 +2391,20 @@ function addTask(){
   const helper=document.getElementById('taskHelper').value;
   if(!validateTaskTimes(startTime,endTime)){toast(T('timeOrderError'));return;}
   S.tasks.push(normalizeTask({
-    id:Date.now(),name,energy:pickedEnergy,done:false,dayKey:currentDayKey,
-    startTime:startTime||null,endTime:endTime||null,helper,helperRef:null,helperRefs:{},pomodoroCount:0
+    id:coreId(),name,energy:pickedEnergy,done:false,dayKey:currentDayKey,
+    startTime:startTime||null,endTime:endTime||null,helper,helperRef:null,helperRefs:{},pomodoroCount:0,...coreTimestamps()
   },currentDayKey));
   el.value='';
   document.getElementById('taskStartTime').value='';
   document.getElementById('taskEndTime').value='';
   document.getElementById('taskHelper').value='none';
-  DB.set('tasks',S.tasks); renderTasks();
+  DB.set('tasks',S.tasks);persistCoreState(); renderTasks();
 }
 function toggleTask(id){
   const t=S.tasks.find(x=>x.id===id); if(!t)return;
-  t.done=!t.done; DB.set('tasks',S.tasks); renderTasks();
+  t.done=!t.done;t.updatedAt=Date.now(); DB.set('tasks',S.tasks);persistCoreState(); renderTasks();
 }
-function delTask(id){ S.tasks=S.tasks.filter(x=>x.id!==id); DB.set('tasks',S.tasks); renderTasks(); }
+function delTask(id){ S.tasks=S.tasks.filter(x=>x.id!==id); DB.set('tasks',S.tasks);persistCoreState(); renderTasks(); }
 let activeTaskId=null;
 function openTaskHelper(taskId){
   const task=S.tasks.find(item=>item.id===taskId);
@@ -2734,22 +2810,23 @@ function renderIdeas(){
   box.innerHTML = S.ideas.length
     ? S.ideas.map(i=>`<div class="item torn-note">
         <div class="t">${esc(i.name)}</div>
-        <button class="btn ghost sm" onclick="promote(${i.id})">${T('toTask')}</button>
-        <button type="button" class="x" aria-label="${esc(T('deleteIdea'))}" onclick="delIdea(${i.id})">×</button></div>`).join('')
+        <button class="btn ghost sm" onclick="promote(${esc(JSON.stringify(i.id))})">${T('toTask')}</button>
+        <button type="button" class="x" aria-label="${esc(T('deleteIdea'))}" onclick="delIdea(${esc(JSON.stringify(i.id))})">×</button></div>`).join('')
     : `<div class="empty">${T('emptyIdea')}</div>`;
 }
 function addIdea(){
   const el=document.getElementById('ideaName'), name=el.value.trim();
   if(!name) return;
-  S.ideas.push({id:Date.now(),name}); el.value='';
-  DB.set('ideas',S.ideas); renderIdeas();
+  S.ideas.push({id:coreId(),name,energy:25,...coreTimestamps()}); el.value='';
+  DB.set('ideas',S.ideas);persistCoreState(); renderIdeas();
 }
-function delIdea(id){ S.ideas=S.ideas.filter(x=>x.id!==id); DB.set('ideas',S.ideas); renderIdeas(); }
+function delIdea(id){ S.ideas=S.ideas.filter(x=>x.id!==id); DB.set('ideas',S.ideas);persistCoreState(); renderIdeas(); }
 function promote(id){
   const i=S.ideas.find(x=>x.id===id); if(!i)return;
-  S.tasks.push({id:Date.now(),name:i.name,energy:i.energy||25,done:false,dayKey:currentDayKey});
+  S.tasks.push(normalizeTask({id:coreId(),name:i.name,energy:i.energy||25,done:false,dayKey:currentDayKey,
+    startTime:null,endTime:null,helper:'none',helperRef:null,helperRefs:{},pomodoroCount:0,...coreTimestamps()},currentDayKey));
   S.ideas=S.ideas.filter(x=>x.id!==id);
-  DB.set('tasks',S.tasks); DB.set('ideas',S.ideas);
+  DB.set('tasks',S.tasks); DB.set('ideas',S.ideas);persistCoreState();
   renderIdeas(); renderTasks(); toast(T('movedTask'));
   go('today',document.querySelector('nav button[data-v=today]'));
 }
@@ -2762,12 +2839,12 @@ function renderGoals(){
         const pct=Math.min(100,Math.round(g.cur/g.target*100));
         return `<div class="goal chapter-card">
           <span class="chapter-number">${esc(T('chapter'))} ${String(index+1).padStart(2,'0')}</span>
-          <div class="gt"><b>${esc(g.name)}</b><button type="button" class="x" aria-label="${esc(T('deleteGoal'))}" onclick="delGoal(${g.id})">×</button></div>
+          <div class="gt"><b>${esc(g.name)}</b><button type="button" class="x" aria-label="${esc(T('deleteGoal'))}" onclick="delGoal(${esc(JSON.stringify(g.id))})">×</button></div>
           <div class="gbar"><span style="width:${pct}%"></span></div>
           <div class="gfoot">
             <small>${g.cur} / ${g.target} ${esc(g.unit||'')} · ${pct}%</small>
-            <button type="button" class="step" aria-label="${esc(T('goalDecrease'))}" onclick="stepGoal(${g.id},-1)">−</button>
-            <button type="button" class="step" aria-label="${esc(T('goalIncrease'))}" onclick="stepGoal(${g.id},1)">+</button>
+            <button type="button" class="step" aria-label="${esc(T('goalDecrease'))}" onclick="stepGoal(${esc(JSON.stringify(g.id))},-1)">−</button>
+            <button type="button" class="step" aria-label="${esc(T('goalIncrease'))}" onclick="stepGoal(${esc(JSON.stringify(g.id))},1)">+</button>
           </div></div>`;
       }).join('')
     : `<div class="empty">${T('emptyGoal')}</div>`;
@@ -2776,16 +2853,16 @@ function addGoal(){
   const n=document.getElementById('goalName'), tg=document.getElementById('goalTarget'), u=document.getElementById('goalUnit');
   const name=n.value.trim(), target=Math.max(1,parseInt(tg.value)||1);
   if(!name) return;
-  S.goals.push({id:Date.now(),name,target,cur:0,unit:u.value.trim()});
+  S.goals.push({id:coreId(),name,target,cur:0,unit:u.value.trim(),...coreTimestamps()});
   n.value=''; u.value=''; tg.value=10;
-  DB.set('goals',S.goals); renderGoals();
+  DB.set('goals',S.goals);persistCoreState(); renderGoals();
 }
 function stepGoal(id,d){
   const g=S.goals.find(x=>x.id===id); if(!g)return;
-  g.cur=Math.max(0,Math.min(g.target,g.cur+d));
-  DB.set('goals',S.goals); renderGoals();
+  g.cur=Math.max(0,Math.min(g.target,g.cur+d));g.updatedAt=Date.now();
+  DB.set('goals',S.goals);persistCoreState(); renderGoals();
 }
-function delGoal(id){ S.goals=S.goals.filter(x=>x.id!==id); DB.set('goals',S.goals); renderGoals(); }
+function delGoal(id){ S.goals=S.goals.filter(x=>x.id!==id); DB.set('goals',S.goals);persistCoreState(); renderGoals(); }
 
 /* ============ 番茄钟 ============ */
 const TOTAL=25*60, RING=502.4;
@@ -2824,7 +2901,8 @@ function triggerPomoBurst(){
 function finishPomo(){
   clearInterval(timer); running=false;
   S=recordPomodoroCompletion(S,activeTaskId);
-  DB.set('pomo',S.pomo); DB.set('focusMin',S.focusMin); DB.set('week',S.week);DB.set('tasks',S.tasks);
+  S.focusSessions=[...(S.focusSessions||[]),{id:coreId(),kind:'pomodoro',minutes:25,pomodoroCount:1,dayKey:currentDayKey,...coreTimestamps()}];
+  DB.set('pomo',S.pomo); DB.set('focusMin',S.focusMin); DB.set('week',S.week);DB.set('tasks',S.tasks);persistCoreState();
   document.getElementById('clabel').textContent=T('doneOne');
   document.getElementById('startBtn').textContent=T('again');
   left=TOTAL; drawRing(); renderStats();
@@ -3329,17 +3407,17 @@ function renderLogs(){
   box.innerHTML = S.logs.length
     ? S.logs.slice().reverse().map(l=>`<div class="log film-frame">
         <div class="lh"><span class="mood">${l.mood}</span><b>${l.date}</b>
-        <button type="button" class="x" style="margin-left:auto" aria-label="${esc(T('deleteLog'))}" onclick="delLog(${l.id})">×</button></div>
+        <button type="button" class="x" style="margin-left:auto" aria-label="${esc(T('deleteLog'))}" onclick="delLog(${esc(JSON.stringify(l.id))})">×</button></div>
         <p>${esc(l.text)}</p></div>`).join('')
     : `<div class="empty">${T('emptyLog')}</div>`;
 }
 function addLog(){
   const el=document.getElementById('logText'), text=el.value.trim();
   if(!text) return;
-  S.logs.push({id:Date.now(),date:today(),mood:pickedMood,text});
-  el.value=''; DB.set('logs',S.logs); renderLogs(); toast(T('savedLog'));
+  S.logs.push({id:coreId(),date:today(),mood:pickedMood,text,...coreTimestamps()});
+  el.value=''; DB.set('logs',S.logs);persistCoreState(); renderLogs(); toast(T('savedLog'));
 }
-function delLog(id){ S.logs=S.logs.filter(x=>x.id!==id); DB.set('logs',S.logs); renderLogs(); }
+function delLog(id){ S.logs=S.logs.filter(x=>x.id!==id); DB.set('logs',S.logs);persistCoreState(); renderLogs(); }
 document.getElementById('moodPick').addEventListener('click',e=>{
   const d=e.target.closest('[data-m]'); if(!d)return;
   pickedMood=d.dataset.m;
