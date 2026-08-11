@@ -40,7 +40,8 @@
 
 ```
 liangli/
-├── index.html              # 整个应用都在这一个文件里（style + body + script 三段）
+├── index.html              # 页面/UI 应用（style + body + inline page script 三段）
+├── account-sync.js         # 账号 schema、Supabase Auth/REST 与核心同步（同源壳缓存）
 ├── manifest.json           # PWA 配置
 ├── sw.js                   # Service Worker：壳/poster 预缓存 + MP4 按需 Range 缓存
 ├── assets/power-cat/       # Power 猫四态同名 MP4 + WebP poster
@@ -55,7 +56,7 @@ liangli/
 
 ### 关键技术约定
 
-- **单文件代码架构是刻意的**，不要拆成多文件框架项目。视频等二进制素材可以放在 `assets/`，但应用代码仍保持在 `index.html` 一个文件里。用户是初学者，单文件他能看懂全貌。除非他明确要求，否则不要引入 React/Vue/构建工具/npm
+- **页面单文件架构是刻意的**，不要拆成多文件框架项目。页面/UI 仍保留在 `index.html`，视频等二进制素材放在 `assets/`；唯一刻意独立的应用逻辑是 `account-sync.js`，它只承载账号 schema、Supabase Auth/REST 与核心同步。用户是初学者，页面代码集中在一个文件里让他能看懂全貌。除非他明确要求，否则不要引入 React/Vue/构建工具/npm
 - **中英双语**：`I18N` 对象里 `zh` 和 `en` 两份词条**必须一一对应**。加任何新文案都要两边都加，改完请检查两边 key 数量一致
 - **改了 `index.html` 就要把 `sw.js` 里的 `VERSION` 号 +1**，否则用户拿到的是缓存旧版。这是最容易忘的一步，请每次主动提醒
 - 普通功能数据读写统一走 `DB.get/DB.set`；Flashcards 统一走 `FlashcardStore`，不要直接操作 IndexedDB

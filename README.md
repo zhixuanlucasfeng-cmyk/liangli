@@ -130,11 +130,13 @@ gh repo create liangli --public --source=. --push
 
 ## 改代码
 
-**应用代码仍全部在 `index.html` 一个文件里**，分三段：
+**页面与 UI 应用代码仍集中在 `index.html`**，分三段：
 
 1. `<style>` — 样式。改配色只需改最上面 `:root` 里的 CSS 变量
 2. `<body>` — 页面结构，五个 `<section class="view">` 对应五个 tab
 3. `<script>` — 逻辑，按 `/* ===== 模块名 ===== */` 注释分好了段
+
+`account-sync.js` 是刻意独立的账号边界：它只负责账号 schema、Supabase Auth、REST/PostgREST 和核心数据同步，不承载页面或 UI 代码。它属于同源应用壳，已由 Service Worker 预缓存；修改它也要升级 `sw.js` 的 `VERSION`。
 
 **改完 `index.html` 或预缓存资源后，记得把 `sw.js` 里的 `VERSION` 加一**，否则用户浏览器可能继续用缓存的旧版本。`VIDEO_CACHE` 只在视频缓存策略或格式不兼容时才需要升级。
 
