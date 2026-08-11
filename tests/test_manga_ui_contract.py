@@ -135,6 +135,45 @@ assert.equal(selected('nutrition'), 'true');
 """
 
 
+ACCOUNT_MODAL_HARNESS = r"""
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+
+const html = fs.readFileSync('index.html', 'utf8');
+const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+const start = script.indexOf('let accountReturnFocus=');
+const end = script.indexOf('function signInAccount(', start);
+assert.notEqual(start, -1, 'account modal controller must keep a return-focus target');
+assert.notEqual(end, -1, 'account modal controller must expose global auth actions');
+
+const focused=[];
+const app={inert:false,attrs:{},setAttribute(key,value){this.attrs[key]=value;},removeAttribute(key){delete this.attrs[key];}};
+const opener={focus(){focused.push('opener');}};
+const close={focus(){focused.push('close');}};
+const modal={hidden:true,attrs:{},contains(node){return node===close;},setAttribute(key,value){this.attrs[key]=value;},removeAttribute(key){delete this.attrs[key];}};
+const elements=new Map([['accountModal',modal],['accountClose',close]]);
+const document={activeElement:opener,body:{style:{}},querySelector(selector){return selector==='.app'?app:null;},getElementById(id){return elements.get(id);}};
+const context={document,renderAccountPanel(){},setTimeout(fn){fn();}};
+vm.createContext(context);
+vm.runInContext(`${script.slice(start,end)}\n;globalThis.accountModal={openAccountPanel,closeAccountPanel,accountModalKeydown};`,context);
+
+context.accountModal.openAccountPanel();
+assert.equal(modal.hidden,false, 'opening makes the global account dialog visible');
+assert.equal(app.inert,true, 'opening makes the application background inert');
+assert.equal(app.attrs['aria-hidden'],'true');
+assert.equal(focused.at(-1),'close', 'opening moves focus into the dialog');
+
+let escaped=false;
+context.accountModal.accountModalKeydown({key:'Escape',preventDefault(){escaped=true;}});
+assert.equal(escaped,true, 'Escape is handled by the dialog controller');
+assert.equal(modal.hidden,true, 'Escape closes the dialog');
+assert.equal(app.inert,false, 'closing restores background interaction');
+assert.equal(app.attrs['aria-hidden'],undefined);
+assert.equal(focused.at(-1),'opener', 'closing restores focus to the opener');
+"""
+
+
 class MangaUIContractTests(unittest.TestCase):
     def test_document_declares_a_favicon(self):
         self.assertRegex(
@@ -219,8 +258,9 @@ class MangaUIContractTests(unittest.TestCase):
         self.assertIn("constSUPABASE_URL=''", compact)
         self.assertIn("constSUPABASE_ANON_KEY=''", compact)
         self.assertNotIn("service_role", HTML.lower())
-        self.assertIn('id="flashcardAccountPanel"', HTML)
-        self.assertIn('id="flashcardSyncNow"', HTML)
+        self.assertIn('id="accountModal"', HTML)
+        self.assertIn('id="accountSyncNow"', HTML)
+        self.assertNotIn('id="flashcardAccountPanel"', HTML)
         self.assertNotIn("cdn.jsdelivr.net", HTML)
         self.assertIn('Content-Security-Policy', HTML)
         for method in ("isConfigured", "restoreSession", "signIn", "signUp", "signOut"):
@@ -232,6 +272,38 @@ class MangaUIContractTests(unittest.TestCase):
         self.assertIn("helperRefs", HTML)
         self.assertIn("flashCopyMap_", HTML)
         self.assertIn("addEventListener('storage'", HTML)
+
+    def test_global_account_onboarding_is_accessible_and_bilingual(self):
+        for element_id in (
+            'accountAvatar', 'accountWelcome', 'accountWelcomeContinue', 'accountModal',
+            'accountClose', 'accountEmail', 'accountPassword', 'accountSignIn',
+            'accountSignUp', 'accountRecover', 'accountSignOut', 'accountSyncStatus',
+            'accountFirstLoginChoices', 'accountStartEmptyConfirm', 'coreRecoveryList',
+        ):
+            self.assertIn(f'id="{element_id}"', HTML)
+        self.assertRegex(HTML, r'<button\b(?=[^>]*\bid="accountAvatar")(?=[^>]*\baria-label=)[^>]*>')
+        self.assertRegex(HTML, r'<label\b[^>]*\bfor="accountEmail"')
+        self.assertRegex(HTML, r'<label\b[^>]*\bfor="accountPassword"')
+        self.assertIn('role="dialog"', HTML)
+        self.assertIn('aria-modal="true"', HTML)
+        start_empty = re.search(r'function chooseStartEmpty\(\)[\s\S]*?\n}', HTML)
+        self.assertIsNotNone(start_empty)
+        self.assertNotIn('confirm(', start_empty.group(0))
+        for key in ('accountWelcomeTitle', 'continueOnDevice', 'accountTitle', 'recoverPassword',
+                    'uploadThisDevice', 'startEmpty', 'restoreToDevice'):
+            self.assertEqual(len(re.findall(rf"\b{key}:", HTML)), 2)
+        compact = HTML.replace(' ', '')
+        for function_name in ('openAccountPanel', 'closeAccountPanel', 'signInAccount',
+                              'signUpAccount', 'recoverAccount', 'signOutAccount',
+                              'chooseUploadDevice', 'chooseStartEmpty', 'restoreCoreRecovery'):
+            self.assertIn(f'function{function_name}(', compact)
+
+    def test_global_account_modal_keyboard_behavior(self):
+        result = subprocess.run(
+            ['node', '-e', ACCOUNT_MODAL_HARNESS], cwd=ROOT, text=True,
+            capture_output=True, timeout=5, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_all_five_views_have_manga_identity(self):
         for view in ("today", "pool", "goals", "focus", "life"):

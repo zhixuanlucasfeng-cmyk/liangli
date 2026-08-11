@@ -431,9 +431,79 @@ async function testCoreSyncEngine(){
   assert(!staleHarness.state().tasks.some(item=>item.name==='A'), 'an old account response cannot write the active account scope');
 }
 
+async function testFirstLoginAndRecoveryBoundaries(){
+  assert.equal(typeof api.prepareDeviceUploadState,'function', 'device upload creates account-owned sync operations before its manifest');
+  const capturedDevice=coreState({tasks:[{...state.tasks[0],name:'visible device data'}]});
+  const uploadIds=[uuid6,uuid7,uuid8,'99999999-9999-4999-8999-999999999999','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'];
+  const prepared=api.prepareDeviceUploadState(capturedDevice,now+50,()=>uploadIds.shift());
+  assert.equal(prepared.syncOps.length,5, 'an upload queues every active or tombstoned core entity before its manifest');
+  assert(prepared.syncOps.every(op=>op.createdAt===now+50), 'fresh upload operations belong to this account initialization');
+  assert.deepEqual(prepared.tasks,capturedDevice.tasks, 'preparing an account upload does not mutate visible device data');
+
+  const initializedHarness=createCoreHarness();
+  const cloudTask={...state.tasks[0],name:'validated cloud data',updatedAt:now+10};
+  initializedHarness.remote.liangli_tasks=[remoteRow(cloudTask)];
+  const accountPrior=coreState({tasks:[{...state.tasks[0],name:'prior account bytes'}]});
+  initializedHarness.deps.writeScope('user-a',accountPrior);
+  const initializedController=api.createCoreSyncController(initializedHarness.deps);
+  await initializedController.activateCloud(initializedHarness.sessions.a,{recoveryState:capturedDevice});
+  assert.deepEqual(initializedHarness.recovery,[capturedDevice], 'validated cloud replacement snapshots the visible device state, not stale account bytes');
+  assert.equal(initializedHarness.state().tasks[0].name,'validated cloud data', 'only validated cloud data replaces the account scope');
+
+  const backupFailureHarness=createCoreHarness();
+  backupFailureHarness.remote.liangli_tasks=[remoteRow(cloudTask)];
+  backupFailureHarness.deps.writeScope('user-a',accountPrior);
+  backupFailureHarness.deps.createRecovery=async()=>false;
+  const backupFailureController=api.createCoreSyncController(backupFailureHarness.deps);
+  await assert.rejects(()=>backupFailureController.activateCloud(backupFailureHarness.sessions.a,{recoveryState:capturedDevice}),/recovery/i);
+  assert.equal(backupFailureHarness.state().tasks[0].name,'prior account bytes', 'backup failure leaves the visible state unchanged');
+
+  const invalidCloudHarness=createCoreHarness();
+  invalidCloudHarness.remote.liangli_tasks=[{...remoteRow(cloudTask),payload:{...cloudTask,id:'not-a-uuid'}}];
+  invalidCloudHarness.deps.writeScope('user-a',accountPrior);
+  await assert.rejects(()=>api.createCoreSyncController(invalidCloudHarness.deps).activateCloud(invalidCloudHarness.sessions.a,{recoveryState:capturedDevice}),/invalid cloud/i);
+  assert.equal(invalidCloudHarness.recovery.length,0, 'invalid cloud data never creates a misleading recovery transition');
+  assert.equal(invalidCloudHarness.state().tasks[0].name,'prior account bytes', 'invalid cloud data cannot overwrite current visible state');
+
+  const uninitializedHarness=createCoreHarness();
+  uninitializedHarness.remote.liangli_sync_profiles=[];
+  uninitializedHarness.deps.writeScope('user-a',accountPrior);
+  const uninitializedController=api.createCoreSyncController(uninitializedHarness.deps);
+  assert.deepEqual(await uninitializedController.inspectCloud(uninitializedHarness.sessions.a),{initialized:false}, 'a manifest-free account explicitly presents first-login choices');
+  assert.equal(uninitializedHarness.upserts.length,0, 'cancelling the first-login choice performs no cloud write');
+  assert.equal(uninitializedHarness.state().tasks[0].name,'prior account bytes', 'cancelling the first-login choice leaves visible data unchanged');
+  await uninitializedController.initializeEmpty(uninitializedHarness.sessions.a);
+  assert.equal(uninitializedHarness.state().tasks.length,0, 'the confirmed empty choice activates an empty account scope only after initialization');
+  assert(uninitializedHarness.remote.liangli_sync_profiles.length===1, 'the confirmed empty choice creates its manifest');
+
+  const recovery=api.serializeCoreRecovery(capturedDevice);
+  const parsed=api.parseCoreRecovery(recovery);
+  assert.deepEqual(parsed,{...capturedDevice,syncOps:[]}, 'strict recovery restores only validated core modules and clears transport operations');
+  assert.throws(()=>api.parseCoreRecovery(JSON.stringify({format:'liangli-core-recovery',version:1,state:{...capturedDevice,syncOps:[],lifeState:{secret:'no'}}})),/invalid/i, 'recovery rejects Life/session-shaped payloads atomically');
+
+  assert.equal(typeof api.createCoreRecoveryStore,'function', 'recovery history is a strict local-only store');
+  const records=new Map(),keys=()=>[...records.keys()];
+  const storage={get length(){return records.size;},key:index=>keys()[index]??null,getItem:key=>records.get(key)??null,setItem:(key,value)=>records.set(key,value),removeItem:key=>records.delete(key)};
+  const recoveryStore=api.createCoreRecoveryStore(storage);
+  recoveryStore.save(capturedDevice,'2026-08-10T00:00:00.000Z');
+  recoveryStore.save(coreState({tasks:[]}),'2026-08-11T00:00:00.000Z');
+  recoveryStore.save(coreState({goals:[]}),'2026-08-12T00:00:00.000Z');
+  recoveryStore.save(coreState({moodEntries:[]}),'2026-08-13T00:00:00.000Z');
+  const history=recoveryStore.list();
+  assert.equal(history.length,3, 'recovery keeps only the newest three local snapshots');
+  assert.equal(history[0].createdAt,'2026-08-13T00:00:00.000Z');
+  assert.deepEqual(history[0].counts,{tasks:1,growth:1,goals:1,focus:1,mood:0}, 'recovery history exposes entity counts without exposing payload secrets');
+  assert.deepEqual(recoveryStore.restore(history[0].key),{...coreState({moodEntries:[]}),syncOps:[]}, 'recovery restore returns strict core state only');
+  const beforeInvalid=clone(recoveryStore.restore(history[0].key));
+  records.set(history[0].key,'{"version":1,"createdAt":"2026-08-13T00:00:00.000Z","core":"{\\"lifeState\\":{}}"}');
+  assert.throws(()=>recoveryStore.restore(history[0].key),/invalid/i, 'invalid recovery is rejected before a caller can mutate local state');
+  assert.deepEqual(beforeInvalid,{...coreState({moodEntries:[]}),syncOps:[]});
+}
+
 async function run(){
   await testAccountClient();
   await testCoreSyncEngine();
+  await testFirstLoginAndRecoveryBoundaries();
   console.log('account sync schema, migration, account client, and core sync engine: ok');
 }
 

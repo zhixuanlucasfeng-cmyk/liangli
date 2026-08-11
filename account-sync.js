@@ -103,6 +103,50 @@
     let raw;try{raw=JSON.parse(text);}catch(error){throw new Error('Invalid core recovery data');}
     const normalized=normalizeCoreState({...raw,syncOps:[]});if(!normalized)throw new Error('Invalid core recovery data');return normalized;
   }
+  function createCoreRecoveryStore(storage){
+    if(!storage||typeof storage.getItem!=='function'||typeof storage.setItem!=='function'||typeof storage.removeItem!=='function'||typeof storage.key!=='function')throw new Error('Invalid recovery storage');
+    const prefix='coreRecovery_';
+    const counts=state=>({tasks:state.tasks.length,growth:state.growthItems.length,goals:state.goals.length,focus:state.focusSessions.length,mood:state.moodEntries.length});
+    const list=()=>{
+      const entries=[];
+      for(let index=0;index<Number(storage.length)||0;index++){
+        const key=storage.key(index);if(typeof key!=='string'||!key.startsWith(prefix))continue;
+        try{const record=JSON.parse(storage.getItem(key));if(!plain(record)||record.version!==1||typeof record.createdAt!=='string'||!Number.isFinite(Date.parse(record.createdAt))||typeof record.core!=='string')continue;const state=parseCoreRecovery(record.core);entries.push({key,createdAt:record.createdAt,counts:counts(state)});}catch(error){}
+      }
+      return entries.sort((left,right)=>right.createdAt.localeCompare(left.createdAt));
+    };
+    return Object.freeze({
+      save(state,createdAt=new Date().toISOString()){
+        if(typeof createdAt!=='string'||!Number.isFinite(Date.parse(createdAt)))throw new Error('Invalid recovery timestamp');
+        const key=`${prefix}${createdAt}`,record={version:1,createdAt,core:serializeCoreRecovery(state)};
+        storage.setItem(key,JSON.stringify(record));for(const entry of list().slice(3))storage.removeItem(entry.key);return key;
+      },list,
+      restore(key){
+        if(typeof key!=='string'||!key.startsWith(prefix))throw new Error('Invalid recovery key');
+        let record;try{record=JSON.parse(storage.getItem(key));}catch(error){throw new Error('Invalid core recovery data');}
+        if(!plain(record)||record.version!==1||typeof record.createdAt!=='string'||typeof record.core!=='string')throw new Error('Invalid core recovery data');
+        return parseCoreRecovery(record.core);
+      }
+    });
+  }
+  function fallbackUuid(){return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,char=>{const value=Math.floor(Math.random()*16);return (char==='x'?value:(value&3)|8).toString(16);});}
+  function prepareDeviceUploadState(state,createdAt=Date.now(),makeId){
+    const normalized=normalizeCoreState(state);
+    if(!normalized||!timestamp(createdAt))throw new Error('Invalid device upload state');
+    const nextId=typeof makeId==='function'?makeId:()=>root.crypto?.randomUUID?.()||fallbackUuid();
+    const used=new Set([...normalized.tasks,...normalized.growthItems,...normalized.goals,...normalized.focusSessions,...normalized.moodEntries].map(item=>item.id));
+    const syncOps=[];
+    for(const type of CORE_SYNC_TYPES){
+      for(const entity of normalized[CORE_STATE_KEYS[type]]){
+        let id=nextId();
+        if(!uuid(id)||used.has(id))throw new Error('Invalid device upload operation id');
+        used.add(id);syncOps.push({id,type,entityId:entity.id,op:entity.deletedAt===null?'upsert':'delete',createdAt});
+      }
+    }
+    const prepared={...normalized,syncOps};
+    if(!normalizeCoreState(prepared))throw new Error('Invalid device upload state');
+    return prepared;
+  }
 
   const CORE_REMOTE_TABLES=Object.freeze({
     task:'liangli_tasks',growth:'liangli_growth_items',goal:'liangli_goals',focus:'liangli_focus_sessions',mood:'liangli_mood_entries'
@@ -367,11 +411,13 @@
       if(owner(session,generation,epoch)&&typeof deps.onActivate==='function')deps.onActivate(session.user.id,normalized);
       return {initialized:true,state:normalized};
     };
-    const activateCloud=async session=>{
+    const activateCloud=async(session,options={})=>{
       const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;
       const manifest=await fetchManifest(session,generation,epoch);if(manifest.discarded||!manifest.initialized)return manifest;
       const cloud=await fetchCloudState(session,generation,epoch);if(cloud.discarded)return cloud;
-      const local=await readState(session);
+      const suppliedRecovery=Object.hasOwn(options,'recoveryState')?normalizeCoreState(options.recoveryState):null;
+      if(Object.hasOwn(options,'recoveryState')&&!suppliedRecovery)throw new Error('Invalid recovery state');
+      const local=suppliedRecovery||await readState(session);
       if(local&&typeof createRecovery==='function'){
         if(!owner(session,generation,epoch))return {discarded:true};
         if(await createRecovery(local)===false)throw new Error('Recovery creation failed');
@@ -454,6 +500,6 @@
 
   root.AccountClient=AccountClient;
   root.CommunityClient=AccountClient;
-  root.LiangliAccountSync=Object.freeze({CORE_STATE_VERSION,CORE_SYNC_TYPES,CORE_REMOTE_TABLES,CORE_MANIFEST_TABLE,coreStorageKey,normalizeCoreState,migrateLegacyCoreState,serializeCoreRecovery,parseCoreRecovery,mergeCoreEntity,coalesceCoreOps,createCoreSyncController,createOwnerRestClient,AccountClient});
+  root.LiangliAccountSync=Object.freeze({CORE_STATE_VERSION,CORE_SYNC_TYPES,CORE_REMOTE_TABLES,CORE_MANIFEST_TABLE,coreStorageKey,normalizeCoreState,migrateLegacyCoreState,serializeCoreRecovery,parseCoreRecovery,createCoreRecoveryStore,prepareDeviceUploadState,mergeCoreEntity,coalesceCoreOps,createCoreSyncController,createOwnerRestClient,AccountClient});
   if(typeof module!=='undefined'&&module.exports)module.exports=root.LiangliAccountSync;
 })(typeof window==='undefined'?globalThis:window);

@@ -36,6 +36,15 @@ class AccountStoreContractTests(unittest.TestCase):
                          "scheduleCoreSync('manual')"):
             self.assertIn(fragment, HTML)
 
+    def test_first_login_recovery_is_core_only_and_account_scoped(self):
+        for name in ('beginAccountFirstLogin', 'chooseUploadDevice', 'confirmStartEmpty',
+                     'createCoreRecoverySnapshot', 'restoreCoreRecovery'):
+            self.assertIn(f'function {name}', HTML)
+        self.assertIn('createCoreRecoveryStore(coreRecoveryStorage)', HTML)
+        self.assertIn('prepareDeviceUploadState(visible,Date.now())', HTML)
+        self.assertIn("writeCoreScope('local',state)", HTML)
+        self.assertNotIn('ll_lifeState', HTML[HTML.index('function createCoreRecoverySnapshot'):HTML.index('function coreId')])
+
     def test_schema_and_migration_suite(self):
         result = subprocess.run(['node', 'tests/test_account_sync.js'], cwd=ROOT, text=True,
                                 capture_output=True, timeout=5, check=False)
