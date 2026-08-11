@@ -154,7 +154,7 @@ const close={focus(){focused.push('close');}};
 const modal={hidden:true,attrs:{},contains(node){return node===close;},setAttribute(key,value){this.attrs[key]=value;},removeAttribute(key){delete this.attrs[key];}};
 const elements=new Map([['accountModal',modal],['accountClose',close]]);
 const document={activeElement:opener,body:{style:{}},querySelector(selector){return selector==='.app'?app:null;},getElementById(id){return elements.get(id);}};
-const context={document,renderAccountPanel(){},setTimeout(fn){fn();}};
+const context={document,renderAccountPanel(){},abortAccountReconciliation(){},cancelStartEmpty(){},LiangliAccountSync:{createAccountReconciliationGate(){return {acquire(){return {};},owns(){return true;},release(){return true;}};}},setTimeout(fn){fn();}};
 vm.createContext(context);
 vm.runInContext(`${script.slice(start,end)}\n;globalThis.accountModal={openAccountPanel,closeAccountPanel,accountModalKeydown};`,context);
 
@@ -171,6 +171,35 @@ assert.equal(modal.hidden,true, 'Escape closes the dialog');
 assert.equal(app.inert,false, 'closing restores background interaction');
 assert.equal(app.attrs['aria-hidden'],undefined);
 assert.equal(focused.at(-1),'opener', 'closing restores focus to the opener');
+"""
+
+WELCOME_MODAL_HARNESS = r"""
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const html = fs.readFileSync('index.html', 'utf8');
+const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+const start = script.indexOf('let welcomeReturnFocus=');
+const end = script.indexOf('function coreId(', start);
+assert.notEqual(start, -1, 'welcome modal must own focus restoration');
+assert.notEqual(end, -1);
+const focused=[],storage=new Map();
+const app={inert:false,attrs:{},setAttribute(k,v){this.attrs[k]=v;},removeAttribute(k){delete this.attrs[k];}};
+const opener={focus(){focused.push('opener');}},first={focus(){focused.push('first');}},last={focus(){focused.push('last');}};
+const welcome={hidden:true,querySelectorAll(){return [first,last];}};
+const account={hidden:true};
+const elements=new Map([['accountWelcome',welcome],['accountModal',account]]);
+const document={activeElement:opener,body:{style:{}},querySelector(s){return s==='.app'?app:null;},getElementById(id){return elements.get(id);}};
+const context={document,localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)},LiangliAccountSync:{createCoreRecoveryStore(){return {list(){return [];},restore(){},save(){}};}},setTimeout:fn=>fn(),renderAccountPanel(){}};
+vm.createContext(context);
+vm.runInContext(`${script.slice(start,end)}\n;globalThis.welcome={showAccountWelcome,continueOnThisDevice,welcomeModalKeydown,openAccountPanel};`,context);
+context.welcome.showAccountWelcome();
+assert.equal(welcome.hidden,false);assert.equal(app.inert,true);assert.equal(focused.at(-1),'first');
+document.activeElement=last;let trapped=false;context.welcome.welcomeModalKeydown({key:'Tab',shiftKey:false,preventDefault(){trapped=true;}});
+assert.equal(trapped,true);assert.equal(focused.at(-1),'first');
+let escaped=false;context.welcome.welcomeModalKeydown({key:'Escape',preventDefault(){escaped=true;}});
+assert.equal(escaped,true);assert.equal(storage.get('ll_accountWelcomeSeen'),'1');assert.equal(welcome.hidden,true);assert.equal(app.inert,false);assert.equal(focused.at(-1),'opener');
+storage.delete('ll_accountWelcomeSeen');context.welcome.showAccountWelcome();context.welcome.openAccountPanel();assert.equal(account.hidden,true,'account modal cannot open behind welcome');
 """
 
 
@@ -303,6 +332,11 @@ class MangaUIContractTests(unittest.TestCase):
             ['node', '-e', ACCOUNT_MODAL_HARNESS], cwd=ROOT, text=True,
             capture_output=True, timeout=5, check=False,
         )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_welcome_modal_keyboard_behavior(self):
+        result = subprocess.run(['node', '-e', WELCOME_MODAL_HARNESS], cwd=ROOT, text=True,
+                                capture_output=True, timeout=5, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_all_five_views_have_manga_identity(self):

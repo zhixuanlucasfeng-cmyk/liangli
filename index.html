@@ -682,7 +682,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
       <span data-i="navLife">生活</span></button>
   </nav>
 </div>
-<div class="account-overlay account-welcome" id="accountWelcome" role="dialog" aria-modal="true" aria-labelledby="accountWelcomeTitle" hidden>
+<div class="account-overlay account-welcome" id="accountWelcome" role="dialog" aria-modal="true" aria-labelledby="accountWelcomeTitle" hidden onkeydown="welcomeModalKeydown(event)">
   <section class="account-shell">
     <h2 id="accountWelcomeTitle" data-i="accountWelcomeTitle">账号与同步</h2>
     <p class="muted" data-i="accountWelcomeBody">可选：登录后同步任务、成长、目标、专注和心情。营养与钱包仍只保存在本机。</p>
@@ -856,6 +856,7 @@ let coreSyncController=null;
 AccountClient.configure({
   url:SUPABASE_URL,anonKey:SUPABASE_ANON_KEY,getStoredSession:()=>DB.get('supabaseSession',null),setStoredSession:session=>DB.set('supabaseSession',session),
   onSessionChange:async session=>{
+    abortAccountReconciliation();cancelStartEmpty();
     const nextScope=session?session.user.id:'local',scopeChanged=ActiveFlashcardStore.scope!==FlashcardStore.normalizeScope(nextScope);
     ActiveFlashcardStore=FlashcardStore.forScope(nextScope);updateFlashcardAccountUI(session);
     if(session)await beginAccountFirstLogin(session);
@@ -1039,8 +1040,12 @@ if(AccountCore){
     onStatus:status=>{setAccountSyncStatus(status);},onActivate:(scope,state)=>{activateCoreScope(scope,state);if(typeof renderAll==='function')renderAll();}
   });
 }
-let accountReturnFocus=null,pendingAccountDeviceState=null,pendingFirstLoginSession=null;
+let accountReturnFocus=null,pendingAccountDeviceState=null,pendingFirstLoginSession=null,accountReconciliation=null;
+const accountReconciliationGate=LiangliAccountSync.createAccountReconciliationGate();
+let welcomeReturnFocus=null;
 function openAccountPanel(){
+  const welcome=document.getElementById('accountWelcome');
+  if(welcome&&!welcome.hidden)return;
   const modal=document.getElementById('accountModal');
   if(!modal||!modal.hidden)return;
   accountReturnFocus=document.activeElement;
@@ -1054,6 +1059,7 @@ function closeAccountPanel(){
   const modal=document.getElementById('accountModal');
   if(!modal||modal.hidden)return;
   modal.hidden=true;
+  abortAccountReconciliation();cancelStartEmpty();
   const app=document.querySelector('.app');
   app.inert=false;app.removeAttribute('aria-hidden');document.body.style.overflow='';
   const returnFocus=accountReturnFocus;accountReturnFocus=null;
@@ -1091,11 +1097,27 @@ function setAccountSyncStatus(status){
   const badge=document.getElementById('flashcardSyncBadge');if(badge)badge.textContent=T(key)||T('accountLocal');
 }
 function currentAccountOwns(session,generation){return AccountClient.generation===generation&&AccountClient.session?.user?.id===session?.user?.id;}
+function setFirstLoginChoiceBusy(busy){
+  for(const id of ['accountUploadDevice','accountStartEmpty','accountStartEmptyConfirm']){const control=document.getElementById(id);if(control)control.disabled=busy;}
+  const choices=document.getElementById('accountFirstLoginChoices');if(choices)choices.setAttribute('aria-busy',busy?'true':'false');
+}
+function beginAccountReconciliation(session){
+  if(!currentAccountOwns(session,AccountClient.generation))return null;
+  const token=accountReconciliationGate.acquire(session.user.id,AccountClient.generation);
+  if(!token)return null;
+  accountReconciliation=token;setFirstLoginChoiceBusy(true);return token;
+}
+function ownsAccountReconciliation(token){return accountReconciliation===token&&accountReconciliationGate.owns(token)&&currentAccountOwns({user:{id:token.userId}},token.generation);}
+function invalidateAccountReconciliation(){accountReconciliationGate.release(accountReconciliation);accountReconciliation=null;setFirstLoginChoiceBusy(false);}
+function abortAccountReconciliation(){
+  const active=Boolean(accountReconciliation);invalidateAccountReconciliation();
+  if(active&&coreSyncController)coreSyncController.cancel();
+}
 function visibleCoreSnapshot(){return activeCoreState?cloneCoreState(activeCoreState):null;}
 const coreRecoveryStorage={
   get length(){try{return localStorage.length;}catch(error){return 0;}},
   key:index=>{try{const key=localStorage.key(index);return key?.startsWith('ll_')?key.slice(3):null;}catch(error){return null;}},
-  getItem:key=>{try{return localStorage.getItem(`ll_${key}`);}catch(error){return null;}},setItem:(key,value)=>localStorage.setItem(`ll_${key}`,value),removeItem:key=>{try{localStorage.removeItem(`ll_${key}`);}catch(error){}}
+  getItem:key=>{try{return localStorage.getItem(`ll_${key}`);}catch(error){return null;}},setItem:(key,value)=>localStorage.setItem(`ll_${key}`,value),removeItem:key=>localStorage.removeItem(`ll_${key}`)
 };
 const coreRecoveryStore=LiangliAccountSync.createCoreRecoveryStore(coreRecoveryStorage);
 function coreRecoveryEntries(){
@@ -1144,34 +1166,59 @@ async function beginAccountFirstLogin(session){
   }catch(error){if(currentAccountOwns(session,generation)){pendingFirstLoginSession=null;setAccountMessage(T('accountFirstLoginFailed'));renderAccountPanel();}}
 }
 async function chooseUploadDevice(){
-  const session=pendingFirstLoginSession,generation=AccountClient.generation,visible=pendingAccountDeviceState;
-  if(!session||!visible||!currentAccountOwns(session,generation)||!coreSyncController)return false;
-  if(!createCoreRecoverySnapshot(visible)){setAccountMessage(T('accountRecoveryFailed'));return false;}
+  const session=pendingFirstLoginSession,generation=AccountClient.generation,local=LiangliAccountSync.readAnonymousCoreState(scope=>readCoreScope(scope));
+  if(!session||!local||!currentAccountOwns(session,generation)||!coreSyncController)return false;
+  const token=beginAccountReconciliation(session);if(!token)return false;
+  if(!createCoreRecoverySnapshot(local)){if(ownsAccountReconciliation(token))setAccountMessage(T('accountRecoveryFailed'));invalidateAccountReconciliation();return false;}
   try{
-    const prepared=LiangliAccountSync.prepareDeviceUploadState(visible,Date.now());
+    const prepared=LiangliAccountSync.prepareDeviceUploadState(local,Date.now());
     const result=await coreSyncController.initializeFromDevice(session,prepared);
-    if(!currentAccountOwns(session,generation)||result?.discarded)return false;
-    pendingFirstLoginSession=null;pendingAccountDeviceState=null;setAccountSyncStatus('done');renderAccountPanel();return true;
-  }catch(error){setAccountMessage(T('accountChoiceFailed'));return false;}
+    if(!ownsAccountReconciliation(token)||result?.discarded)return false;
+    pendingFirstLoginSession=null;pendingAccountDeviceState=null;cancelStartEmpty();setAccountSyncStatus('done');renderAccountPanel();return true;
+  }catch(error){if(ownsAccountReconciliation(token))setAccountMessage(T('accountChoiceFailed'));return false;}
+  finally{if(accountReconciliation===token)invalidateAccountReconciliation();}
 }
 function chooseStartEmpty(){
-  const confirmation=document.getElementById('accountStartEmptyConfirm');if(!pendingFirstLoginSession)return false;
+  const confirmation=document.getElementById('accountStartEmptyConfirm');if(!pendingFirstLoginSession||accountReconciliation)return false;
   confirmation.hidden=false;document.getElementById('accountStartEmpty').setAttribute('aria-expanded','true');return true;
 }
 function cancelStartEmpty(){const confirmation=document.getElementById('accountStartEmptyConfirm');confirmation.hidden=true;document.getElementById('accountStartEmpty').setAttribute('aria-expanded','false');return true;}
 async function confirmStartEmpty(){
   const session=pendingFirstLoginSession,generation=AccountClient.generation,visible=pendingAccountDeviceState;
   if(!session||!visible||!currentAccountOwns(session,generation)||!coreSyncController)return false;
-  if(!createCoreRecoverySnapshot(visible)){setAccountMessage(T('accountRecoveryFailed'));return false;}
+  const token=beginAccountReconciliation(session);if(!token)return false;
+  if(!createCoreRecoverySnapshot(visible)){if(ownsAccountReconciliation(token))setAccountMessage(T('accountRecoveryFailed'));invalidateAccountReconciliation();return false;}
   try{
     const result=await coreSyncController.initializeEmpty(session);
-    if(!currentAccountOwns(session,generation)||result?.discarded)return false;
+    if(!ownsAccountReconciliation(token)||result?.discarded)return false;
     pendingFirstLoginSession=null;pendingAccountDeviceState=null;cancelStartEmpty();setAccountSyncStatus('done');renderAccountPanel();return true;
-  }catch(error){setAccountMessage(T('accountChoiceFailed'));return false;}
+  }catch(error){if(ownsAccountReconciliation(token))setAccountMessage(T('accountChoiceFailed'));return false;}
+  finally{if(accountReconciliation===token)invalidateAccountReconciliation();}
 }
-function continueOnThisDevice(){try{localStorage.setItem('ll_accountWelcomeSeen','1');}catch(error){}document.getElementById('accountWelcome').hidden=true;}
-function dismissAccountWelcomeAndOpen(){continueOnThisDevice();openAccountPanel();}
-function showAccountWelcome(){try{if(localStorage.getItem('ll_accountWelcomeSeen')===null)document.getElementById('accountWelcome').hidden=false;}catch(error){}}
+function closeAccountWelcome({markSeen=false}={}){
+  const welcome=document.getElementById('accountWelcome');if(!welcome||welcome.hidden)return;
+  if(markSeen)try{localStorage.setItem('ll_accountWelcomeSeen','1');}catch(error){}
+  welcome.hidden=true;const app=document.querySelector('.app');app.inert=false;app.removeAttribute('aria-hidden');document.body.style.overflow='';
+  const returnFocus=welcomeReturnFocus;welcomeReturnFocus=null;if(returnFocus&&typeof returnFocus.focus==='function')returnFocus.focus();
+}
+function continueOnThisDevice(){closeAccountWelcome({markSeen:true});}
+function dismissAccountWelcomeAndOpen(){closeAccountWelcome({markSeen:true});openAccountPanel();}
+function showAccountWelcome(){
+  try{
+    if(localStorage.getItem('ll_accountWelcomeSeen')!==null)return;
+    const welcome=document.getElementById('accountWelcome');if(!welcome||!welcome.hidden)return;
+    welcomeReturnFocus=document.activeElement;welcome.hidden=false;const app=document.querySelector('.app');app.inert=true;app.setAttribute('aria-hidden','true');document.body.style.overflow='hidden';
+    setTimeout(()=>welcome.querySelectorAll('button:not([disabled]),input:not([disabled])')[0]?.focus(),0);
+  }catch(error){}
+}
+function welcomeModalKeydown(event){
+  if(event.key==='Escape'){event.preventDefault();continueOnThisDevice();return;}
+  if(event.key!=='Tab')return;
+  const welcome=document.getElementById('accountWelcome'),focusable=[...welcome.querySelectorAll('button:not([disabled]),input:not([disabled])')].filter(item=>!item.hidden&&item.offsetParent!==null);
+  if(!focusable.length)return;const first=focusable[0],last=focusable.at(-1);
+  if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+  else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+}
 function coreId(){
   if(globalThis.crypto?.randomUUID)return globalThis.crypto.randomUUID();
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,char=>{

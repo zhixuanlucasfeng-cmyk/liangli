@@ -60,6 +60,7 @@ assert(!recovery.includes('syncOps'), 'recovery serialization excludes the mutab
 assert.deepEqual(api.parseCoreRecovery(recovery), {...state,syncOps:[]}, 'recovery parsing starts with an empty operation queue');
 assert.throws(()=>api.parseCoreRecovery('{"bad":true}'), /invalid/i, 'recovery parser fails closed');
 
+
 async function testAccountClient(){
   assert.deepEqual(Object.values(api.CORE_REMOTE_TABLES).sort(),[
     'liangli_focus_sessions','liangli_goals','liangli_growth_items','liangli_mood_entries','liangli_tasks'
@@ -239,6 +240,25 @@ function coreState(overrides={}){
     focusSessions:[{...state.focusSessions[0]}], moodEntries:[{...state.moodEntries[0]}], syncOps:[], ...overrides,
   };
 }
+const anonymousDevice=coreState({tasks:[{...state.tasks[0],name:'anonymous device only'}]});
+const requestedScopes=[];
+assert.deepEqual(api.readAnonymousCoreState(scope=>{requestedScopes.push(scope);return scope==='local'?{status:'valid',state:anonymousDevice}:null;}),anonymousDevice,
+  'first-login upload resolves its payload from the anonymous local scope');
+assert.deepEqual(requestedScopes,['local'], 'first-login upload never reads the visible account scope');
+assert.equal(api.readAnonymousCoreState(()=>({status:'invalid',state:anonymousDevice})),null, 'invalid local scope cannot be uploaded');
+
+async function testReconciliationGate(){
+  assert.equal(typeof api.createAccountReconciliationGate,'function', 'account onboarding exposes a single-flight reconciliation gate');
+  const gate=api.createAccountReconciliationGate();
+  let release,deferred=new Promise(resolve=>{release=resolve;}),pipelines=0;
+  const initialize=async()=>{const token=gate.acquire('user-b',2);if(!token)return false;pipelines++;try{await deferred;return gate.owns(token);}finally{gate.release(token);}};
+  const first=initialize(),second=initialize();
+  assert.equal(await second,false, 'a double click is rejected while the first onboarding pipeline is in flight');
+  assert.equal(pipelines,1, 'concurrent same-owner attempts start exactly one controller pipeline');
+  release();assert.equal(await first,true);assert.equal(gate.active(),null, 'completion releases the reconciliation lock');
+  const stale=gate.acquire('user-a',3);gate.cancel();
+  assert.equal(gate.owns(stale),false, 'account change cancellation invalidates stale onboarding completion');
+}
 function remoteRow(entity){
   return {id:entity.id,user_id:'user-a',payload:clone(entity),client_updated_at:entity.updatedAt,deleted_at:entity.deletedAt};
 }
@@ -250,10 +270,10 @@ function createCoreHarness(){
     liangli_sync_profiles:[{user_id:'user-a',core_version:1,initialized_at:'2026-08-10T00:00:00.000Z',updated_at:'2026-08-10T00:00:00.000Z'}],
     liangli_tasks:[],liangli_growth_items:[],liangli_goals:[],liangli_focus_sessions:[],liangli_mood_entries:[],
   };
-  const statuses=[],writes=[],recovery=[],selects=[],upserts=[],timers=[];
+  const statuses=[],writes=[],recovery=[],selects=[],upserts=[],events=[],timers=[];
   const tableFor={task:'liangli_tasks',growth:'liangli_growth_items',goal:'liangli_goals',focus:'liangli_focus_sessions',mood:'liangli_mood_entries'};
   currentSession=sessions.a;
-  const harness={activeScope:'user-a',sessions,remote,statuses,writes,recovery,selects,upserts,timers,failTables:new Set(),tableFor,
+  const harness={activeScope:'user-a',sessions,remote,statuses,writes,recovery,selects,upserts,events,timers,failTables:new Set(),failWrites:false,tableFor,
     state(){return scopes.get(this.activeScope);},
     switchTo(session){generation++;currentSession=session;this.activeScope=session.user.id;},
     resolveOld(rows){hold.resolve(rows);hold=null;},
@@ -263,11 +283,12 @@ function createCoreHarness(){
   };
   harness.deps={
     readScope:scope=>clone(scopes.get(scope)||null),
-    writeScope:(scope,next)=>{writes.push({scope,state:clone(next)});if(scope!==harness.activeScope)return false;scopes.set(scope,clone(next));return true;},
+    writeScope:(scope,next)=>{events.push(`write:${scope}`);writes.push({scope,state:clone(next)});if(harness.failWrites||scope!==harness.activeScope)return false;scopes.set(scope,clone(next));return true;},
     createRecovery:async next=>{recovery.push(clone(next));return true;},
     restClient:()=>({table(name){return {
       select:async(_columns,options={})=>{selects.push({name,options:clone(options)});if(hold&&hold.table===name)return await hold.promise;const after=options.clientUpdatedAfter,inclusive=options.clientUpdatedAtOrAfter;const rows=inclusive!==undefined?(remote[name]||[]).filter(row=>Number(row.client_updated_at??row.updatedAt)>=inclusive):after===undefined?remote[name]||[]:(remote[name]||[]).filter(row=>Number(row.client_updated_at??row.updatedAt)>after);return {data:clone(rows),error:null};},
       upsert:async(rows,options={})=>{
+        events.push(`upsert:${name}`);
         upserts.push({name,rows:clone(rows),options:clone(options)});
         if(harness.failTables.has(name))return {data:null,error:true,status:503};
         const existing=remote[name]||[];
@@ -279,6 +300,7 @@ function createCoreHarness(){
         });
         return {data:echoes,error:null};
       },
+      delete:()=>({eq:async(column,value)=>{events.push(`delete:${name}`);if(harness.failTables.has(`${name}:delete`))return {data:null,error:true,status:503};remote[name]=(remote[name]||[]).filter(row=>row[column]!==value);return {data:null,error:null};}}),
     };}}),
     getGeneration:()=>generation,getSession:()=>currentSession,now:()=>clockNow,onStatus:status=>statuses.push(status),onActivate:(scope,next)=>{harness.activeScope=scope;scopes.set(scope,clone(next));},
     isOnline:()=>online,setTimeout:(fn,delay)=>{const timer={fn,delay,cancelled:false};timers.push(timer);return timer;},clearTimeout:timer=>{if(timer)timer.cancelled=true;},
@@ -498,9 +520,54 @@ async function testFirstLoginAndRecoveryBoundaries(){
   records.set(history[0].key,'{"version":1,"createdAt":"2026-08-13T00:00:00.000Z","core":"{\\"lifeState\\":{}}"}');
   assert.throws(()=>recoveryStore.restore(history[0].key),/invalid/i, 'invalid recovery is rejected before a caller can mutate local state');
   assert.deepEqual(beforeInvalid,{...coreState({moodEntries:[]}),syncOps:[]});
+
+  const strictStore=api.createCoreRecoveryStore(storage);
+  assert.throws(()=>strictStore.save(capturedDevice,'2026-08-13'),/timestamp/i, 'recovery timestamps are canonical UTC ISO strings, not Date.parse-compatible shortcuts');
+  records.set('coreRecovery_2026-08-14T00:00:00.000Z',JSON.stringify({version:1,createdAt:'2026-08-13T00:00:00.000Z',core:recovery}));
+  assert.equal(strictStore.list().some(entry=>entry.key==='coreRecovery_2026-08-14T00:00:00.000Z'),false, 'a key/payload timestamp mismatch is never listed as restorable');
+
+  const collisionRecords=new Map(),collisionStorage={get length(){return collisionRecords.size;},key:index=>[...collisionRecords.keys()][index]??null,getItem:key=>collisionRecords.get(key)??null,setItem:(key,value)=>collisionRecords.set(key,value),removeItem:key=>collisionRecords.delete(key)};
+  const collisionStore=api.createCoreRecoveryStore(collisionStorage),collisionTime='2026-08-15T00:00:00.000Z';
+  const firstKey=collisionStore.save(capturedDevice,collisionTime),secondKey=collisionStore.save(coreState({tasks:[]}),collisionTime);
+  assert.notEqual(firstKey,secondKey, 'same-millisecond recovery saves advance to a fresh canonical UTC key instead of overwriting');
+  const retentionRecords=new Map(),retentionStorage={get length(){return retentionRecords.size;},key:index=>[...retentionRecords.keys()][index]??null,getItem:key=>retentionRecords.get(key)??null,setItem:(key,value)=>retentionRecords.set(key,value),removeItem(){throw new Error('blocked');}};
+  const retentionStore=api.createCoreRecoveryStore(retentionStorage);
+  retentionStore.save(capturedDevice,'2026-08-16T00:00:00.000Z');retentionStore.save(capturedDevice,'2026-08-16T00:00:00.001Z');retentionStore.save(capturedDevice,'2026-08-16T00:00:00.002Z');
+  assert.equal(retentionStore.list().length,3, 'the controlled storage reaches the retention boundary before removal is tested');
+  assert.throws(()=>retentionStore.save(capturedDevice,'2026-08-16T00:00:00.003Z'),/retention/i, 'a failed retention removal reports failure before destructive onboarding can continue');
+
+  const initOrderHarness=createCoreHarness();
+  initOrderHarness.remote.liangli_sync_profiles=[];
+  initOrderHarness.remote.liangli_tasks=[remoteRow({...state.tasks[0],name:'orphan'})];
+  await api.createCoreSyncController(initOrderHarness.deps).initializeEmpty(initOrderHarness.sessions.a);
+  assert.equal(initOrderHarness.remote.liangli_tasks.length,0, 'empty initialization clears orphan rows before committing its manifest');
+  assert(initOrderHarness.events.indexOf('write:user-a')<initOrderHarness.events.indexOf('upsert:liangli_sync_profiles'), 'the account-scoped local write succeeds before manifest becomes visible');
+
+  const failedInitHarness=createCoreHarness();
+  failedInitHarness.remote.liangli_sync_profiles=[];
+  failedInitHarness.failWrites=true;
+  await assert.rejects(()=>api.createCoreSyncController(failedInitHarness.deps).initializeFromDevice(failedInitHarness.sessions.a,capturedDevice),/initialization/i);
+  assert.equal(failedInitHarness.remote.liangli_sync_profiles.length,0, 'a local write failure leaves a missing-manifest account uninitialized');
+
+  const clearFailureHarness=createCoreHarness();
+  clearFailureHarness.remote.liangli_sync_profiles=[];clearFailureHarness.failTables.add('liangli_tasks:delete');
+  await assert.rejects(()=>api.createCoreSyncController(clearFailureHarness.deps).initializeEmpty(clearFailureHarness.sessions.a),/initialization/i);
+  assert.equal(clearFailureHarness.remote.liangli_sync_profiles.length,0, 'a failed orphan cleanup never creates a manifest');
+  assert.equal(clearFailureHarness.writes.length,0, 'a failed orphan cleanup does not alter account-local state');
+
+  const tableFailureHarness=createCoreHarness();
+  tableFailureHarness.remote.liangli_sync_profiles=[];tableFailureHarness.failTables.add('liangli_growth_items');
+  await assert.rejects(()=>api.createCoreSyncController(tableFailureHarness.deps).initializeFromDevice(tableFailureHarness.sessions.a,capturedDevice),/initialization/i);
+  assert.equal(tableFailureHarness.remote.liangli_sync_profiles.length,0, 'a mid-table upload failure leaves the account uninitialized');
+
+  const manifestFailureHarness=createCoreHarness();
+  manifestFailureHarness.remote.liangli_sync_profiles=[];manifestFailureHarness.failTables.add('liangli_sync_profiles');
+  await assert.rejects(()=>api.createCoreSyncController(manifestFailureHarness.deps).initializeEmpty(manifestFailureHarness.sessions.a),/initialization/i);
+  assert.equal(manifestFailureHarness.remote.liangli_sync_profiles.length,0, 'a manifest write failure leaves no initialized marker');
 }
 
 async function run(){
+  await testReconciliationGate();
   await testAccountClient();
   await testCoreSyncEngine();
   await testFirstLoginAndRecoveryBoundaries();

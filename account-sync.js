@@ -106,25 +106,32 @@
   function createCoreRecoveryStore(storage){
     if(!storage||typeof storage.getItem!=='function'||typeof storage.setItem!=='function'||typeof storage.removeItem!=='function'||typeof storage.key!=='function')throw new Error('Invalid recovery storage');
     const prefix='coreRecovery_';
+    const canonicalTimestamp=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString()===value;
     const counts=state=>({tasks:state.tasks.length,growth:state.growthItems.length,goals:state.goals.length,focus:state.focusSessions.length,mood:state.moodEntries.length});
     const list=()=>{
       const entries=[];
       for(let index=0;index<Number(storage.length)||0;index++){
         const key=storage.key(index);if(typeof key!=='string'||!key.startsWith(prefix))continue;
-        try{const record=JSON.parse(storage.getItem(key));if(!plain(record)||record.version!==1||typeof record.createdAt!=='string'||!Number.isFinite(Date.parse(record.createdAt))||typeof record.core!=='string')continue;const state=parseCoreRecovery(record.core);entries.push({key,createdAt:record.createdAt,counts:counts(state)});}catch(error){}
+        try{const record=JSON.parse(storage.getItem(key));if(!plain(record)||record.version!==1||!canonicalTimestamp(record.createdAt)||key!==`${prefix}${record.createdAt}`||typeof record.core!=='string')continue;const state=parseCoreRecovery(record.core);entries.push({key,createdAt:record.createdAt,counts:counts(state)});}catch(error){}
       }
       return entries.sort((left,right)=>right.createdAt.localeCompare(left.createdAt));
     };
     return Object.freeze({
       save(state,createdAt=new Date().toISOString()){
-        if(typeof createdAt!=='string'||!Number.isFinite(Date.parse(createdAt)))throw new Error('Invalid recovery timestamp');
-        const key=`${prefix}${createdAt}`,record={version:1,createdAt,core:serializeCoreRecovery(state)};
-        storage.setItem(key,JSON.stringify(record));for(const entry of list().slice(3))storage.removeItem(entry.key);return key;
+        if(!canonicalTimestamp(createdAt))throw new Error('Invalid recovery timestamp');
+        let timestampValue=createdAt,key=`${prefix}${timestampValue}`;
+        for(let attempt=0;storage.getItem(key)!==null&&attempt<1000;attempt++){timestampValue=new Date(Date.parse(timestampValue)+1).toISOString();key=`${prefix}${timestampValue}`;}
+        if(storage.getItem(key)!==null)throw new Error('Recovery timestamp collision');
+        const record={version:1,createdAt:timestampValue,core:serializeCoreRecovery(state)};
+        storage.setItem(key,JSON.stringify(record));
+        for(const entry of list().slice(3)){try{storage.removeItem(entry.key);}catch(error){throw new Error('Recovery retention failed');}if(storage.getItem(entry.key)!==null)throw new Error('Recovery retention failed');}
+        if(list().length>3)throw new Error('Recovery retention failed');
+        return key;
       },list,
       restore(key){
         if(typeof key!=='string'||!key.startsWith(prefix))throw new Error('Invalid recovery key');
         let record;try{record=JSON.parse(storage.getItem(key));}catch(error){throw new Error('Invalid core recovery data');}
-        if(!plain(record)||record.version!==1||typeof record.createdAt!=='string'||typeof record.core!=='string')throw new Error('Invalid core recovery data');
+        if(!plain(record)||record.version!==1||!canonicalTimestamp(record.createdAt)||key!==`${prefix}${record.createdAt}`||typeof record.core!=='string')throw new Error('Invalid core recovery data');
         return parseCoreRecovery(record.core);
       }
     });
@@ -146,6 +153,25 @@
     const prepared={...normalized,syncOps};
     if(!normalizeCoreState(prepared))throw new Error('Invalid device upload state');
     return prepared;
+  }
+  function readAnonymousCoreState(readScope){
+    if(typeof readScope!=='function')throw new Error('Invalid local core reader');
+    const scoped=readScope('local');
+    if(!plain(scoped)||scoped.status!=='valid')return null;
+    return normalizeCoreState(scoped.state);
+  }
+  function createAccountReconciliationGate(){
+    let current=null;
+    return Object.freeze({
+      acquire(userId,generation){
+        if(current||typeof userId!=='string'||!userId||!Number.isInteger(generation)||generation<0)return null;
+        current=Object.freeze({userId,generation});return current;
+      },
+      owns:token=>current===token,
+      release(token){if(current!==token)return false;current=null;return true;},
+      cancel(){current=null;},
+      active:()=>current
+    });
   }
 
   const CORE_REMOTE_TABLES=Object.freeze({
@@ -279,6 +305,7 @@
           }
         },
         upsert(rows,options={}){return request(name,'POST',rows,`?on_conflict=${encodeURIComponent(options.onConflict||'id')}`,options.ignoreDuplicates?'resolution=ignore-duplicates,return=minimal':'resolution=merge-duplicates,return=minimal');},
+        delete(){let filters='';return {eq(column,value){filters+=`&${encodeURIComponent(column)}=eq.${encodeURIComponent(value)}`;return request(name,'DELETE',null,`?${filters.slice(1)}`,'return=minimal');}};},
         update(values){let filters='';return {eq(column,value){filters+=`&${encodeURIComponent(column)}=eq.${encodeURIComponent(value)}`;return this;},lte(column,value){filters+=`&${encodeURIComponent(column)}=lte.${encodeURIComponent(value)}`;return request(name,'PATCH',values,`?${filters.slice(1)}`,'return=minimal');}};}
       };
     };
@@ -350,6 +377,16 @@
       if(!owner(session,generation,epoch)||result?.discarded)return {discarded:true};
       return result;
     };
+    const clearEntities=async(session,generation,epoch)=>{
+      const client=clientFor(session,generation);
+      for(const type of CORE_SYNC_TYPES){
+        if(!owner(session,generation,epoch))return {discarded:true};
+        const result=await client.table(CORE_REMOTE_TABLES[type]).delete().eq('user_id',session.user.id);
+        if(!owner(session,generation,epoch)||result?.discarded)return {discarded:true};
+        if(result?.error)throw new Error('Cloud initialization failed');
+      }
+      return {discarded:false};
+    };
     const readState=async(session)=>{
       const state=await readScope(session.user.id);return normalizeCoreState(state);
     };
@@ -389,25 +426,27 @@
     const initializeEmpty=async session=>{
       const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;const client=clientFor(session,generation);
       if(!owner(session,generation,epoch))return {discarded:true};
+      const cleared=await clearEntities(session,generation,epoch);if(cleared.discarded)return cleared;
+      const state=emptyCoreState();if(!await writeState(session,generation,epoch,state))throw new Error('Cloud initialization failed');
       const manifest={user_id:session.user.id,core_version:CORE_STATE_VERSION,initialized_at:new Date(now()).toISOString(),updated_at:new Date(now()).toISOString()};
       const result=await callUpsert(client,CORE_MANIFEST_TABLE,[manifest],session,generation,epoch);
       if(result.discarded||result?.error)throw new Error('Cloud initialization failed');
-      const state=emptyCoreState();if(!await writeState(session,generation,epoch,state))return {discarded:true};
       if(owner(session,generation,epoch)&&typeof deps.onActivate==='function')deps.onActivate(session.user.id,state);
       return {initialized:true,state};
     };
     const initializeFromDevice=async(session,state)=>{
       const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;const normalized=normalizeCoreState(state),client=clientFor(session,generation);
       if(!normalized)throw new Error('Invalid core state');
+      const cleared=await clearEntities(session,generation,epoch);if(cleared.discarded)return cleared;
       for(const type of CORE_SYNC_TYPES){
         if(!owner(session,generation,epoch))return {discarded:true};
         const result=await callUpsert(client,CORE_REMOTE_TABLES[type],normalized[CORE_STATE_KEYS[type]].map(entity=>coreRow(type,entity,session.user.id)),session,generation,epoch);
         if(result.discarded)return result;if(result?.error)throw new Error('Cloud initialization failed');
       }
+      if(!await writeState(session,generation,epoch,normalized))throw new Error('Cloud initialization failed');
       const manifest={user_id:session.user.id,core_version:CORE_STATE_VERSION,initialized_at:new Date(now()).toISOString(),updated_at:new Date(now()).toISOString()};
       const result=await callUpsert(client,CORE_MANIFEST_TABLE,[manifest],session,generation,epoch);
       if(result.discarded)return result;if(result?.error)throw new Error('Cloud initialization failed');
-      if(!await writeState(session,generation,epoch,normalized))return {discarded:true};
       if(owner(session,generation,epoch)&&typeof deps.onActivate==='function')deps.onActivate(session.user.id,normalized);
       return {initialized:true,state:normalized};
     };
@@ -500,6 +539,6 @@
 
   root.AccountClient=AccountClient;
   root.CommunityClient=AccountClient;
-  root.LiangliAccountSync=Object.freeze({CORE_STATE_VERSION,CORE_SYNC_TYPES,CORE_REMOTE_TABLES,CORE_MANIFEST_TABLE,coreStorageKey,normalizeCoreState,migrateLegacyCoreState,serializeCoreRecovery,parseCoreRecovery,createCoreRecoveryStore,prepareDeviceUploadState,mergeCoreEntity,coalesceCoreOps,createCoreSyncController,createOwnerRestClient,AccountClient});
+  root.LiangliAccountSync=Object.freeze({CORE_STATE_VERSION,CORE_SYNC_TYPES,CORE_REMOTE_TABLES,CORE_MANIFEST_TABLE,coreStorageKey,normalizeCoreState,migrateLegacyCoreState,serializeCoreRecovery,parseCoreRecovery,createCoreRecoveryStore,prepareDeviceUploadState,readAnonymousCoreState,createAccountReconciliationGate,mergeCoreEntity,coalesceCoreOps,createCoreSyncController,createOwnerRestClient,AccountClient});
   if(typeof module!=='undefined'&&module.exports)module.exports=root.LiangliAccountSync;
 })(typeof window==='undefined'?globalThis:window);

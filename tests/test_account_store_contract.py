@@ -41,7 +41,9 @@ class AccountStoreContractTests(unittest.TestCase):
                      'createCoreRecoverySnapshot', 'restoreCoreRecovery'):
             self.assertIn(f'function {name}', HTML)
         self.assertIn('createCoreRecoveryStore(coreRecoveryStorage)', HTML)
-        self.assertIn('prepareDeviceUploadState(visible,Date.now())', HTML)
+        self.assertIn('readAnonymousCoreState(scope=>readCoreScope(scope))', HTML)
+        self.assertIn('createCoreRecoverySnapshot(local)', HTML)
+        self.assertIn('prepareDeviceUploadState(local,Date.now())', HTML)
         self.assertIn("writeCoreScope('local',state)", HTML)
         self.assertNotIn('ll_lifeState', HTML[HTML.index('function createCoreRecoverySnapshot'):HTML.index('function coreId')])
 
