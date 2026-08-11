@@ -2665,8 +2665,8 @@ async function createDeck(){
   }
   try{await store.finalizeDeckMutation([{type:'deck',entityId:deck.id,payload:deck,updatedAt:deck.updatedAt}]);}
   catch(error){
-    const compensation=await store.discardDeckComponentsIfCurrent({deck,cards:[]}).catch(()=>({outcome:'failed'}));
-    if(shouldLink&&compensation.outcome==='discarded')restoreCoreTransaction(transaction);
+    const coreRestored=!shouldLink||restoreCoreTransaction(transaction);
+    if(coreRestored)await store.discardDeckComponentsIfCurrent({deck,cards:[]}).catch(()=>({outcome:'failed'}));
     if(ownsCoreTransaction(transaction))toast(T('flashcardStoreError'));return false;
   }
   if(!ownsCoreTransaction(transaction))return true;
