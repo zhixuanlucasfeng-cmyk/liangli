@@ -32,6 +32,7 @@ function element(id) {
 }
 const context = {
   Date, console, localStorage, LiangliAccountSync:bridge, crypto:{}, currentDayKey:'2026-08-10',
+  AccountClient:{generation:1,session:{user:{id:'create-user'}}},
   __coreSyncController:{schedule:reason=>coreSchedules.push(reason)},
   document:{getElementById:element}, confirm:()=>true, lang:'en',
   queueFlashcardSync:()=>flashSchedules.push('flash'), renderTasks:()=>renders.push('tasks'),
@@ -64,9 +65,17 @@ function put(scope, state) { bytes.set(`ll_${api.coreStorageKey(scope)}`, JSON.s
 function taskFor(scope) { return context.core.activateCoreScope(scope).tasks[0]; }
 
 function createStore(scope) {
-  const decks = new Map(), syncOps = [];
+  const decks = new Map(), stagedDeletes = new Map(), syncOps = [];
   return {
-    scope, decks, syncOps, failPut:false, failDelete:false, failFinalize:false,
+    scope, decks, stagedDeletes, syncOps, failPut:false, failDelete:false, failFinalize:false,
+    finalizeStarted:null, releaseFinalize:null,
+    deferFinalize(){
+      let started,release;
+      this.finalizeStarted=new Promise(resolve=>{started=resolve;});
+      this.releaseFinalize=()=>release();
+      this._finalizeGate=new Promise(resolve=>{release=resolve;});
+      this._notifyFinalize=started;
+    },
     async putDeck(deck, {sync=true}={}) {
       if(this.failPut)throw new Error('flash write rejected');
       decks.set(deck.id, {...deck});if(sync)syncOps.push(`put:${deck.id}`);
@@ -75,13 +84,22 @@ function createStore(scope) {
       if(this.failDelete)throw new Error('flash delete rejected');
       const deck=decks.get(deckId);if(!deck)return;
       const updatedAt=deck.updatedAt+1,deleted={...deck,deletedAt:updatedAt,updatedAt};
-      decks.delete(deckId);if(sync)syncOps.push(`delete:${deckId}`);
+      decks.delete(deckId);stagedDeletes.set(deckId,deleted);if(sync)syncOps.push(`delete:${deckId}`);
       return {deck:deleted,cards:[]};
     },
     async snapshotDeck(deckId) { return decks.has(deckId)?{deck:{...decks.get(deckId)}}:null; },
-    async restoreDeckSnapshot(snapshot) { if(snapshot?.deck)decks.set(snapshot.deck.id,{...snapshot.deck}); },
+    async restoreDeckSnapshot(snapshot) { if(snapshot?.deck){stagedDeletes.delete(snapshot.deck.id);decks.set(snapshot.deck.id,{...snapshot.deck});} },
     async discardNewDeck(deckId) { decks.delete(deckId); },
+    async discardNewDeckIfCurrent(deck) {
+      if(JSON.stringify(decks.get(deck.id))!==JSON.stringify(deck))return false;
+      decks.delete(deck.id);return true;
+    },
+    async restoreDeckSnapshotIfCurrent(snapshot,deleted) {
+      if(JSON.stringify(stagedDeletes.get(snapshot.deck.id))!==JSON.stringify(deleted?.deck))return false;
+      stagedDeletes.delete(snapshot.deck.id);decks.set(snapshot.deck.id,{...snapshot.deck});return true;
+    },
     async finalizeDeckMutation(ops) {
+      if(this._finalizeGate){this._notifyFinalize();await this._finalizeGate;this._finalizeGate=null;}
       if(this.failFinalize)throw new Error('flash queue rejected');
       ops.forEach(op=>syncOps.push(`${op.type}:${op.entityId}`));
     },
@@ -183,6 +201,114 @@ async function run() {
   assert.equal(context.core.activeCoreItems('growth').filter(item=>item.rolloverSourceId===rolloverState.tasks[0].id).length, 1,
     'a successful retry creates one growth item');
   assert.equal(context.actions.rolloverIfNeeded(false), false, 'the next call does not duplicate rollover growth');
+
+  async function switchDuringCreate({failFinalize}) {
+    const aScope=failFinalize?'race-failure-a':'race-success-a',bScope=failFinalize?'race-failure-b':'race-success-b';
+    put(aScope,coreState('Account A'));
+    put(bScope,coreState('Account B'));
+    const aStore=createStore(aScope),bStore=createStore(bScope);
+    context.AccountClient={generation:100,session:{user:{id:aScope}}};
+    context.ActiveFlashcardStore=aStore;
+    context.activeTaskId=taskFor(aScope).id;
+    context.taskFlashcardRef=task=>task.helperRefs?.[aScope]||task.helperRef||null;
+    element('deckName').value='Delayed linked deck';
+    aStore.deferFinalize();
+    const aBefore=bytes.get(`ll_${api.coreStorageKey(aScope)}`);
+    const pending=context.actions.createDeck();
+    await aStore.finalizeStarted;
+    context.AccountClient={generation:101,session:{user:{id:bScope}}};
+    context.ActiveFlashcardStore=bStore;
+    context.activeTaskId=taskFor(bScope).id;
+    context.taskFlashcardRef=task=>task.helperRefs?.[bScope]||task.helperRef||null;
+    const bBefore=bytes.get(`ll_${api.coreStorageKey(bScope)}`),bView=JSON.stringify(context.S);
+    const coreBefore=coreSchedules.length,flashBefore=flashSchedules.length,renderBefore=renders.length;
+    aStore.failFinalize=failFinalize;
+    aStore.releaseFinalize();
+    await assert.doesNotReject(pending, 'a delayed finalization is contained after an account switch');
+    assert.equal(bytes.get(`ll_${api.coreStorageKey(bScope)}`),bBefore,'an old transaction never writes account B canonical bytes');
+    assert.equal(JSON.stringify(context.S),bView,'an old transaction never mutates account B view state');
+    assert.equal(coreSchedules.length,coreBefore,'an old transaction never schedules account B core sync');
+    assert.equal(flashSchedules.length,flashBefore,'an old transaction never schedules account B Flashcard sync');
+    assert.equal(renders.length,renderBefore,'an old transaction never renders account B');
+    if(failFinalize){
+      assert.equal(bytes.get(`ll_${api.coreStorageKey(aScope)}`),aBefore,'a failed old transaction conditionally restores only account A');
+      assert.equal(aStore.decks.size,0,'a failed old transaction removes its staged A deck without a dangling task reference');
+      assert.equal(aStore.syncOps.length,0,'a failed old transaction leaves account A Flashcard queue unchanged');
+    }else{
+      const aState=JSON.parse(bytes.get(`ll_${api.coreStorageKey(aScope)}`));
+      assert.equal(aStore.decks.size,1,'a successful old transaction remains durable in account A store');
+      assert.equal(aState.tasks[0].helperRefs[aScope],'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','a successful old transaction remains linked only in account A');
+      assert.equal(aStore.syncOps.length,1,'a successful old transaction retains account A durable Flashcard queue');
+    }
+  }
+  await switchDuringCreate({failFinalize:false});
+  await switchDuringCreate({failFinalize:true});
+
+  async function switchDuringDelete({failFinalize}) {
+    const aScope=failFinalize?'race-delete-failure-a':'race-delete-success-a',bScope=failFinalize?'race-delete-failure-b':'race-delete-success-b';
+    const deckId='cccccccc-cccc-4ccc-8ccc-cccccccccccc',aState=coreState('Delete A'),bState=coreState('Delete B');
+    aState.tasks[0]={...aState.tasks[0],helperRefs:{[aScope]:deckId}};
+    put(aScope,aState);put(bScope,bState);
+    const aStore=createStore(aScope),bStore=createStore(bScope);
+    aStore.decks.set(deckId,{id:deckId,name:'A deck',createdAt:1,updatedAt:1});
+    context.AccountClient={generation:200,session:{user:{id:aScope}}};
+    context.ActiveFlashcardStore=aStore;
+    context.activeTaskId=taskFor(aScope).id;
+    context.taskFlashcardRef=task=>task.helperRefs?.[aScope]||null;
+    aStore.deferFinalize();
+    const aBefore=bytes.get(`ll_${api.coreStorageKey(aScope)}`),pending=context.actions.deleteFlashcardDeck(deckId);
+    await aStore.finalizeStarted;
+    context.AccountClient={generation:201,session:{user:{id:bScope}}};
+    context.ActiveFlashcardStore=bStore;
+    context.activeTaskId=taskFor(bScope).id;
+    context.taskFlashcardRef=task=>task.helperRefs?.[bScope]||null;
+    const bBefore=bytes.get(`ll_${api.coreStorageKey(bScope)}`),bView=JSON.stringify(context.S);
+    const coreBefore=coreSchedules.length,flashBefore=flashSchedules.length,renderBefore=renders.length;
+    aStore.failFinalize=failFinalize;aStore.releaseFinalize();
+    await assert.doesNotReject(pending, 'a delayed delete finalization is contained after an account switch');
+    assert.equal(bytes.get(`ll_${api.coreStorageKey(bScope)}`),bBefore,'an old delete transaction never writes account B canonical bytes');
+    assert.equal(JSON.stringify(context.S),bView,'an old delete transaction never mutates account B view state');
+    assert.equal(coreSchedules.length,coreBefore,'an old delete transaction never schedules account B core sync');
+    assert.equal(flashSchedules.length,flashBefore,'an old delete transaction never schedules account B Flashcard sync');
+    assert.equal(renders.length,renderBefore,'an old delete transaction never renders account B');
+    if(failFinalize){
+      assert.equal(bytes.get(`ll_${api.coreStorageKey(aScope)}`),aBefore,'a failed old delete transaction conditionally restores only account A');
+      assert.equal(aStore.decks.has(deckId),true,'a failed old delete transaction restores the A deck and avoids a dangling task reference');
+      assert.equal(aStore.syncOps.length,0,'a failed old delete transaction leaves account A Flashcard queue unchanged');
+    }else{
+      const aAfter=JSON.parse(bytes.get(`ll_${api.coreStorageKey(aScope)}`));
+      assert.equal(aStore.decks.has(deckId),false,'a successful old delete transaction remains durable in account A store');
+      assert.equal(aAfter.tasks[0].helperRefs[aScope],undefined,'a successful old delete transaction unlinks only account A');
+      assert.equal(aStore.syncOps.length,1,'a successful old delete transaction retains account A durable Flashcard queue');
+    }
+  }
+  await switchDuringDelete({failFinalize:false});
+  await switchDuringDelete({failFinalize:true});
+
+  const generationScope='race-generation-user';
+  put(generationScope,coreState('Generation A'));
+  const generationStoreA=createStore(generationScope),generationStoreB=createStore(generationScope);
+  context.AccountClient={generation:300,session:{user:{id:generationScope}}};
+  context.ActiveFlashcardStore=generationStoreA;
+  context.activeTaskId=taskFor(generationScope).id;
+  context.taskFlashcardRef=task=>task.helperRefs?.[generationScope]||task.helperRef||null;
+  element('deckName').value='Generation linked deck';
+  generationStoreA.deferFinalize();
+  const generationPending=context.actions.createDeck();
+  await generationStoreA.finalizeStarted;
+  context.AccountClient={generation:301,session:{user:{id:generationScope}}};
+  context.ActiveFlashcardStore=generationStoreB;
+  context.activeTaskId=taskFor(generationScope).id;
+  context.taskFlashcardRef=task=>task.helperRefs?.[generationScope]||task.helperRef||null;
+  const generationView=JSON.stringify(context.S),generationCoreBefore=coreSchedules.length,generationFlashBefore=flashSchedules.length,generationRenderBefore=renders.length;
+  generationStoreA.releaseFinalize();
+  await generationPending;
+  assert.equal(JSON.stringify(context.S),generationView,'a same-user new generation is not re-rendered by the old transaction');
+  assert.equal(coreSchedules.length,generationCoreBefore,'a same-user new generation is not scheduled by the old transaction');
+  assert.equal(flashSchedules.length,generationFlashBefore,'a same-user new generation does not receive old Flashcard scheduling');
+  assert.equal(renders.length,generationRenderBefore,'a same-user new generation receives no old render');
+  assert.equal(generationStoreA.syncOps.length,1,'the old generation retains its durable Flashcard queue');
+  assert.equal(generationStoreB.syncOps.length,0,'the new generation store remains untouched by old work');
 }
 
 run().then(()=>console.log('core Flashcard transaction behavior: ok')).catch(error=>{console.error(error);process.exitCode=1;});

@@ -934,10 +934,31 @@ function applyCoreStateToView(state=activeCoreState){
   return S;
 }
 function coreMutationSnapshot(){return activeCoreState?cloneCoreState(activeCoreState):null;}
+function captureCoreTransaction(store){
+  const client=typeof AccountClient==='undefined'?null:AccountClient;
+  return {scope:activeCoreScope,generation:client?.generation??null,userId:client?.session?.user?.id??null,
+    store,previousCore:coreMutationSnapshot(),committedCore:null};
+}
+function ownsCoreTransaction(transaction){
+  const client=typeof AccountClient==='undefined'?null:AccountClient;
+  return activeCoreScope===transaction.scope&&ActiveFlashcardStore===transaction.store
+    &&(client?.generation??null)===transaction.generation&&(client?.session?.user?.id??null)===transaction.userId;
+}
+function sameCoreState(left,right){return JSON.stringify(left)===JSON.stringify(right);}
 function restoreCoreMutation(snapshot){
   const normalized=LiangliAccountSync.normalizeCoreState(snapshot);
   if(!normalized||!writeCoreScope(activeCoreScope,normalized))return false;
   activeCoreState=normalized;coreStateStorageStatus='valid';applyCoreStateToView(normalized);
+  return true;
+}
+function restoreCoreTransaction(transaction){
+  if(!transaction.previousCore||!transaction.committedCore)return false;
+  const record=readCoreScope(transaction.scope);
+  if(record.status!=='valid'||!sameCoreState(record.state,transaction.committedCore))return false;
+  if(!writeCoreScope(transaction.scope,transaction.previousCore))return false;
+  if(ownsCoreTransaction(transaction)){
+    activeCoreState=transaction.previousCore;coreStateStorageStatus='valid';applyCoreStateToView(transaction.previousCore);
+  }
   return true;
 }
 function scheduleCoreMutation(type,entityId){
@@ -1155,11 +1176,21 @@ const FlashcardStore={
     tx.objectStore('decks').delete(deckId);cards.forEach(card=>tx.objectStore('cards').delete(card.id));
     await this.complete(tx);
   },
+  async discardNewDeckIfCurrent(deck){
+    const db=await this.open(),current=await this.request(db.transaction('decks').objectStore('decks').get(deck.id));
+    if(!sameCoreState(current,deck))return false;
+    await this.discardNewDeck(deck.id);return true;
+  },
   async restoreDeckSnapshot(snapshot){
     if(!snapshot?.deck)return;
     const db=await this.open(),tx=db.transaction(['decks','cards'],'readwrite');
     tx.objectStore('decks').put(snapshot.deck);snapshot.cards.forEach(card=>tx.objectStore('cards').put(card));
     await this.complete(tx);
+  },
+  async restoreDeckSnapshotIfCurrent(snapshot,deleted){
+    const db=await this.open(),current=await this.request(db.transaction('decks').objectStore('decks').get(snapshot.deck.id));
+    if(!sameCoreState(current,deleted?.deck))return false;
+    await this.restoreDeckSnapshot(snapshot);return true;
   },
   async putCard(card){
     const db=await this.open(),tx=db.transaction(['cards','syncOps'],'readwrite');
@@ -2579,33 +2610,37 @@ async function renderDecks(){
 }
 async function createDeck(){
   const store=ActiveFlashcardStore;
+  const transaction=captureCoreTransaction(store);
   const input=document.getElementById('deckName'),name=input.value.trim();
   if(!name){toast(T('deckNameNeeded'));return;}
   if(name.length>120){toast(T('contentTooLong'));return;}
   const now=Date.now(),deck={id:flashId('deck'),name,createdAt:now,updatedAt:now};
   const linkedTask=S.tasks.find(task=>task.id===activeTaskId&&task.helper==='flashcards');
-  try{await store.putDeck(deck,{sync:false});}catch(error){toast(T('flashcardStoreError'));return false;}
-  if(store!==ActiveFlashcardStore){await store.discardNewDeck(deck.id).catch(()=>{});return false;}
-  const shouldLink=Boolean(linkedTask&&!taskFlashcardRef(linkedTask)),previous=shouldLink?coreMutationSnapshot():null;
+  try{await store.putDeck(deck,{sync:false});}catch(error){if(ownsCoreTransaction(transaction))toast(T('flashcardStoreError'));return false;}
+  if(!ownsCoreTransaction(transaction)){await store.discardNewDeckIfCurrent(deck).catch(()=>{});return false;}
+  const shouldLink=Boolean(linkedTask&&!taskFlashcardRef(linkedTask));
   if(shouldLink){
     const committed=commitCoreMutation('task',linkedTask.id,candidate=>{
       const updatedAt=Date.now();
       return {...candidate,tasks:candidate.tasks.map(task=>task.id!==linkedTask.id?task:{...task,
         helperRefs:{...(task.helperRefs||{}),[store.scope]:deck.id},helperRef:store.scope==='local'?deck.id:task.helperRef,updatedAt})};
     },{schedule:false});
-    if(!committed){await store.discardNewDeck(deck.id).catch(()=>{});toast(T('flashcardStoreError'));return false;}
+    if(!committed){await store.discardNewDeckIfCurrent(deck).catch(()=>{});toast(T('flashcardStoreError'));return false;}
+    transaction.committedCore=coreMutationSnapshot();
   }
   try{await store.finalizeDeckMutation([{type:'deck',entityId:deck.id,payload:deck,updatedAt:deck.updatedAt}]);}
   catch(error){
-    const restored=!previous||restoreCoreMutation(previous);
-    if(restored)await store.discardNewDeck(deck.id).catch(()=>{});
-    toast(T('flashcardStoreError'));return false;
+    const restored=!shouldLink||restoreCoreTransaction(transaction);
+    if(restored)await store.discardNewDeckIfCurrent(deck).catch(()=>{});
+    if(ownsCoreTransaction(transaction))toast(T('flashcardStoreError'));return false;
   }
-  if(previous)scheduleCoreMutation('task',linkedTask.id);
+  if(!ownsCoreTransaction(transaction))return true;
+  if(shouldLink)scheduleCoreMutation('task',linkedTask.id);
   queueFlashcardSync();
   input.value='';
   if(shouldLink)renderTasks();
   await renderDecks();
+  if(!ownsCoreTransaction(transaction))return true;
   await selectDeck(deck.id);
   return true;
 }
@@ -2650,12 +2685,16 @@ async function deleteFlashcard(cardId){
 async function deleteFlashcardDeck(deckId){
   if(!confirm(lang==='zh'?'删除这个牌组和其中所有卡片？':'Delete this deck and all its cards?'))return;
   const store=ActiveFlashcardStore;
+  const transaction=captureCoreTransaction(store);
   let snapshot,deleted;
-  try{snapshot=await store.snapshotDeck(deckId);if(!snapshot)return false;deleted=await store.deleteDeck(deckId,{sync:false});}
-  catch(error){toast(T('flashcardStoreError'));return false;}
-  if(store!==ActiveFlashcardStore){await store.restoreDeckSnapshot(snapshot).catch(()=>{});return false;}
+  try{
+    snapshot=await store.snapshotDeck(deckId);if(!snapshot)return false;
+    if(!ownsCoreTransaction(transaction))return false;
+    deleted=await store.deleteDeck(deckId,{sync:false});
+  }
+  catch(error){if(ownsCoreTransaction(transaction))toast(T('flashcardStoreError'));return false;}
+  if(!ownsCoreTransaction(transaction)){await store.restoreDeckSnapshotIfCurrent(snapshot,deleted).catch(()=>{});return false;}
   const linkedTask=S.tasks.find(task=>taskFlashcardRef(task)===deckId);
-  const previous=linkedTask?coreMutationSnapshot():null;
   if(linkedTask){
     const committed=commitCoreMutation('task',linkedTask.id,candidate=>{
       const updatedAt=Date.now();
@@ -2665,16 +2704,19 @@ async function deleteFlashcardDeck(deckId){
         return {...task,helperRefs,helperRef:store.scope==='local'?null:task.helperRef,updatedAt};
       })};
     },{schedule:false});
-    if(!committed){await store.restoreDeckSnapshot(snapshot).catch(()=>{});toast(T('flashcardStoreError'));return false;}
+    if(!committed){await store.restoreDeckSnapshotIfCurrent(snapshot,deleted).catch(()=>{});toast(T('flashcardStoreError'));return false;}
+    transaction.committedCore=coreMutationSnapshot();
   }
   try{await store.finalizeDeckMutation([
     {type:'delete-deck',entityId:deckId,payload:deleted.deck,updatedAt:deleted.deck.updatedAt},
     ...deleted.cards.map(card=>({type:'delete-card',entityId:card.id,payload:card,updatedAt:card.updatedAt}))
   ]);}catch(error){
-    if(previous)restoreCoreMutation(previous);
-    await store.restoreDeckSnapshot(snapshot).catch(()=>{});toast(T('flashcardStoreError'));return false;
+    if(linkedTask)restoreCoreTransaction(transaction);
+    await store.restoreDeckSnapshotIfCurrent(snapshot,deleted).catch(()=>{});
+    if(ownsCoreTransaction(transaction))toast(T('flashcardStoreError'));return false;
   }
-  if(previous)scheduleCoreMutation('task',linkedTask.id);
+  if(!ownsCoreTransaction(transaction))return true;
+  if(linkedTask)scheduleCoreMutation('task',linkedTask.id);
   queueFlashcardSync();
   if(flashcardState.activeDeckId===deckId){flashcardState.activeDeckId=null;document.getElementById('deckEditor').hidden=true;}
   if(linkedTask)renderTasks();await renderDecks();
