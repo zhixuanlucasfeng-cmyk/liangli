@@ -125,7 +125,7 @@
   }
 
   const AccountClient={
-    client:null,session:null,refreshPromise:null,authInvalid:false,authorizationBlocked:false,generation:0,
+    client:null,session:null,refreshPromise:null,refreshOwner:null,authInvalid:false,authorizationBlocked:false,generation:0,
     configure(options={}){
       for(const key of ['url','anonKey','fetch','location','getStoredSession','setStoredSession','onSessionChange'])if(Object.hasOwn(options,key))accountRuntime[key]=options[key];
       return this;
@@ -151,8 +151,8 @@
     },
     async refreshSession(expectedUserId=this.session?.user?.id){
       if(!expectedUserId||this.session?.user?.id!==expectedUserId)throw new Error('Session changed');
-      if(this.refreshPromise)return this.refreshPromise;
       const expectedGeneration=this.generation,expectedToken=this.session.access_token,expectedRefreshToken=this.session.refresh_token;
+      if(this.refreshPromise&&this.refreshOwner?.generation===expectedGeneration&&this.refreshOwner.userId===expectedUserId&&this.refreshOwner.accessToken===expectedToken)return this.refreshPromise;
       const refresh=async()=>{
         const latest=accountRuntime.getStoredSession();
         if(this.generation!==expectedGeneration||this.session?.user?.id!==expectedUserId||this.session.access_token!==expectedToken)throw new Error('Session changed');
@@ -164,8 +164,10 @@
         return await this.activate(session,true,true);
       };
       const locks=root.navigator?.locks;
-      const promise=(locks?locks.request('liangli-auth-refresh',refresh):refresh()).finally(()=>{if(this.refreshPromise===promise)this.refreshPromise=null;});
-      this.refreshPromise=promise;return promise;
+      const promise=(locks?locks.request('liangli-auth-refresh',refresh):refresh()).finally(()=>{
+        if(this.refreshPromise===promise){this.refreshPromise=null;this.refreshOwner=null;}
+      });
+      this.refreshOwner={generation:expectedGeneration,userId:expectedUserId,accessToken:expectedToken};this.refreshPromise=promise;return promise;
     },
     async restoreSession(){
       if(!this.isConfigured())return await this.activate(null,false);

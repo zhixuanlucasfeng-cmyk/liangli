@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const api = require('../account-sync.js');
 
 const uuid = '11111111-1111-4111-8111-111111111111';
@@ -106,6 +107,11 @@ async function testAccountClient(){
   await AccountClient.activate(session);
   const client=api.createOwnerRestClient(session,AccountClient.generation,['liangli_tasks']);
   assert.throws(()=>client.table('liangli_expenses'),/not allowed/i, 'the client rejects tables outside its exact allowlist');
+  const mutableAllowlist=['liangli_tasks'];
+  const snapshottedClient=api.createOwnerRestClient(session,AccountClient.generation,mutableAllowlist);
+  mutableAllowlist[0]='liangli_expenses';mutableAllowlist.push('liangli_mood_entries');
+  assert.doesNotThrow(()=>snapshottedClient.table('liangli_tasks'), 'the table allowlist is copied when the owner client is created');
+  assert.throws(()=>snapshottedClient.table('liangli_expenses'),/not allowed/i, 'later allowlist mutations cannot expand or reduce the client snapshot');
   nextResponses=[{ok:true,status:200,json:async()=>[{id:'task-1'}]}];
   const listed=await client.table('liangli_tasks').select('*');
   assert.deepEqual(listed,{data:[{id:'task-1'}],error:null});
@@ -134,6 +140,36 @@ async function testAccountClient(){
   assert.deepEqual(refreshed[1],{data:[{id:'after-refresh'}],error:null});
   assert.equal(AccountClient.session.access_token,'fresh');
 
+  let rejectOldRefresh;
+  let oldRefreshStartedResolve;
+  const oldRefreshStarted=new Promise(resolve=>{oldRefreshStartedResolve=resolve;});
+  const oldSession={access_token:'old-generation-token',refresh_token:'old-generation-refresh',expires_at:4102444800,user:{id:'u1'}};
+  AccountClient.session=oldSession;stored.session=oldSession;AccountClient.generation=50;AccountClient.refreshPromise=null;AccountClient.authInvalid=false;
+  validConfig.fetch=async(url,options)=>{
+    requests.push({url,options});
+    if(url.includes('/auth/v1/token?grant_type=refresh_token')){
+      const refreshToken=JSON.parse(options.body).refresh_token;
+      if(refreshToken==='old-generation-refresh'){
+        oldRefreshStartedResolve();
+        return await new Promise((_,reject)=>{rejectOldRefresh=reject;});
+      }
+      assert.equal(refreshToken,'new-generation-refresh');
+      return {ok:true,status:200,json:async()=>({access_token:'new-generation-fresh',refresh_token:'new-generation-refresh',expires_in:3600,user:{id:'u1'}})};
+    }
+    if(options.headers.Authorization==='Bearer new-generation-fresh')return {ok:true,status:200,json:async()=>[{id:'new-generation-row'}]};
+    return {ok:false,status:401,json:async()=>({})};
+  };
+  AccountClient.configure(validConfig);
+  const oldRequest=api.createOwnerRestClient(oldSession,50,['liangli_tasks']).table('liangli_tasks').select('*');
+  await oldRefreshStarted;
+  const newSession={access_token:'new-generation-token',refresh_token:'new-generation-refresh',expires_at:4102444800,user:{id:'u1'}};
+  await AccountClient.activate(newSession);
+  const newRequest=api.createOwnerRestClient(newSession,AccountClient.generation,['liangli_tasks']).table('liangli_tasks').select('*');
+  rejectOldRefresh(new Error('old refresh rejected'));
+  assert.deepEqual(await newRequest,{data:[{id:'new-generation-row'}],error:null}, 'a new generation runs its own refresh after an old refresh rejects');
+  assert.equal(AccountClient.authInvalid,false, 'an old refresh rejection cannot invalidate the current generation');
+  assert.equal((await oldRequest).discarded,true, 'the old owner request remains discarded after its refresh rejects');
+
   AccountClient.session={access_token:'old',user:{id:'u1'}};AccountClient.generation=30;AccountClient.authInvalid=false;
   const staleClient=api.createOwnerRestClient(AccountClient.session,30,['liangli_tasks']);
   let release;
@@ -147,6 +183,18 @@ async function testAccountClient(){
   assert.equal(stale.discarded,true, 'responses from an old account generation are discarded');
   assert.equal(AccountClient.authInvalid,false, 'stale responses cannot mutate active auth state');
 
+  AccountClient.session={access_token:'old-forbidden',user:{id:'u1'}};AccountClient.generation=35;AccountClient.authorizationBlocked=false;
+  const staleForbiddenClient=api.createOwnerRestClient(AccountClient.session,35,['liangli_tasks']);
+  let releaseForbidden;
+  nextResponses=[new Promise(resolve=>{releaseForbidden=resolve;})];
+  validConfig.fetch=async(url,options)=>{requests.push({url,options});return await nextResponses.shift();};
+  AccountClient.configure(validConfig);
+  const staleForbiddenRequest=staleForbiddenClient.table('liangli_tasks').select('*');
+  await AccountClient.activate({access_token:'active-after-forbidden',user:{id:'u2'}});
+  releaseForbidden({ok:false,status:403,json:async()=>({})});
+  assert.equal((await staleForbiddenRequest).discarded,true);
+  assert.equal(AccountClient.authorizationBlocked,false, 'a stale 403 cannot block the active account');
+
   AccountClient.session={access_token:'bad',user:{id:'u2'}};AccountClient.generation=40;AccountClient.authInvalid=false;
   const unauthorized=api.createOwnerRestClient(AccountClient.session,40,['liangli_tasks']);
   nextResponses=[{ok:false,status:401,json:async()=>({})}];
@@ -154,6 +202,23 @@ async function testAccountClient(){
   assert.equal(unauthorizedResult.status,401);
   assert.equal(AccountClient.authInvalid,true, 'an active 401 without a refresh token invalidates only its owner');
 
+  const executableSource=fs.readFileSync(require.resolve('../account-sync.js'),'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm,'');
+  assert.doesNotMatch(executableSource,/\bconsole\s*\./, 'account code contains no runtime logging calls');
+  const logged=[];
+  const originalConsole=Object.fromEntries(['debug','error','info','log','warn'].map(method=>[method,console[method]]));
+  for(const method of Object.keys(originalConsole))console[method]=(...values)=>{logged.push(values);};
+  try{
+    validConfig.fetch=async()=>({ok:true,status:200,json:async()=>({access_token:'log-safe-token',refresh_token:'log-safe-refresh',expires_in:3600,user:{id:'u3'}})});
+    AccountClient.configure(validConfig);
+    await AccountClient.signIn('log-safe@example.com','log-safe-password');
+  }finally{Object.assign(console,originalConsole);}
+  assert.equal(logged.length,0, 'auth operations do not log token, email, password, or response bodies');
+
+  validConfig.fetch=async(url,options)=>{
+    requests.push({url,options});
+    return nextResponses.shift()||{ok:true,status:200,json:async()=>({})};
+  };
+  AccountClient.configure(validConfig);
   nextResponses=[{ok:true,status:204,json:async()=>({})}];
   await AccountClient.signOut();
   assert.equal(requests.at(-1).url,'https://project.supabase.co/auth/v1/logout');
