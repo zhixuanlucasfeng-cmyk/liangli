@@ -122,6 +122,10 @@ async function testAccountClient(){
   assert.equal(requests[3].options.headers['Content-Type'],'application/json');
   assert.equal(requests[3].options.headers.apikey,'a'.repeat(41));
 
+  nextResponses=[{ok:true,status:200,json:async()=>[]}];
+  await client.table('liangli_tasks').select('*',{clientUpdatedAtOrAfter:now});
+  assert.equal(requests[4].url,`https://project.supabase.co/rest/v1/liangli_tasks?select=*&client_updated_at=gte.${now}`, 'the explicit inclusive core cursor option produces a gte REST filter');
+
   let refreshRequests=0;
   AccountClient.session={access_token:'expired',refresh_token:'refresh-two',expires_at:4102444800,user:{id:'u1'}};
   stored.session=AccountClient.session;
@@ -262,7 +266,7 @@ function createCoreHarness(){
     writeScope:(scope,next)=>{writes.push({scope,state:clone(next)});if(scope!==harness.activeScope)return false;scopes.set(scope,clone(next));return true;},
     createRecovery:async next=>{recovery.push(clone(next));return true;},
     restClient:()=>({table(name){return {
-      select:async(_columns,options={})=>{selects.push({name,options:clone(options)});if(hold&&hold.table===name)return await hold.promise;const after=options.clientUpdatedAfter;const rows=after===undefined?remote[name]||[]:(remote[name]||[]).filter(row=>Number(row.client_updated_at??row.updatedAt)>after);return {data:clone(rows),error:null};},
+      select:async(_columns,options={})=>{selects.push({name,options:clone(options)});if(hold&&hold.table===name)return await hold.promise;const after=options.clientUpdatedAfter,inclusive=options.clientUpdatedAtOrAfter;const rows=inclusive!==undefined?(remote[name]||[]).filter(row=>Number(row.client_updated_at??row.updatedAt)>=inclusive):after===undefined?remote[name]||[]:(remote[name]||[]).filter(row=>Number(row.client_updated_at??row.updatedAt)>after);return {data:clone(rows),error:null};},
       upsert:async(rows,options={})=>{
         upserts.push({name,rows:clone(rows),options:clone(options)});
         if(harness.failTables.has(name))return {data:null,error:true,status:503};
@@ -388,8 +392,23 @@ async function testCoreSyncEngine(){
   clockHarness.selects.length=0;
   await clockController.sync(clockHarness.sessions.a);
   const clockPull=clockHarness.selects.find(call=>call.name==='liangli_tasks');
-  assert.equal(clockPull.options.clientUpdatedAfter,0, 'an empty pull does not advance the cursor to the local clock');
+  assert.equal(clockPull.options.clientUpdatedAtOrAfter,0, 'an empty pull does not advance the cursor to the local clock');
   assert.equal(clockHarness.state().tasks[0].name,'clock-safe', 'a server row behind a clock-ahead device is not skipped');
+
+  const boundaryHarness=createCoreHarness();
+  const boundaryTime=now+20;
+  const firstBoundaryTask={...state.tasks[0],id:uuid6,name:'first boundary',updatedAt:boundaryTime};
+  boundaryHarness.remote.liangli_tasks=[remoteRow(firstBoundaryTask)];
+  const boundaryController=api.createCoreSyncController(boundaryHarness.deps);
+  await boundaryController.sync(boundaryHarness.sessions.a);
+  const secondBoundaryTask={...state.tasks[0],id:uuid7,name:'second boundary',updatedAt:boundaryTime};
+  boundaryHarness.remote.liangli_tasks.push(remoteRow(secondBoundaryTask));
+  boundaryHarness.selects.length=0;
+  await boundaryController.sync(boundaryHarness.sessions.a);
+  const boundaryPull=boundaryHarness.selects.find(call=>call.name==='liangli_tasks');
+  assert.equal(boundaryPull.options.clientUpdatedAtOrAfter,boundaryTime, 'core pulls include their timestamp boundary to avoid equal-millisecond gaps');
+  assert.equal(boundaryHarness.state().tasks.filter(item=>item.id===uuid6).length,1, 'inclusive boundary rereads merge idempotently without duplicates');
+  assert(boundaryHarness.state().tasks.some(item=>item.id===uuid7), 'a later equal-timestamp row is merged instead of skipped');
 
   const concurrencyHarness=createCoreHarness();
   concurrencyHarness.deferTable('liangli_sync_profiles');

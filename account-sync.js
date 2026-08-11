@@ -225,7 +225,8 @@
       if(!allowed.has(name))throw new Error('Cloud table not allowed');
       return {
         async select(columns='*',options={}){
-          const after=timestamp(options.clientUpdatedAfter)?`&client_updated_at=gt.${encodeURIComponent(options.clientUpdatedAfter)}`:'';
+          const after=timestamp(options.clientUpdatedAfter)?`&client_updated_at=gt.${encodeURIComponent(options.clientUpdatedAfter)}`
+            :timestamp(options.clientUpdatedAtOrAfter)?`&client_updated_at=gte.${encodeURIComponent(options.clientUpdatedAtOrAfter)}`:'';
           const rows=[];let offset=0;
           while(true){
             const result=await request(name,'GET',null,`?select=${encodeURIComponent(columns)}${after}`,'',{'Range-Unit':'items',Range:`${offset}-${offset+999}`});
@@ -293,7 +294,7 @@
     const notify=(status,session,generation,epoch)=>{if(owner(session,generation,epoch)&&typeof deps.onStatus==='function')deps.onStatus(status);};
     const callSelect=async(client,table,session,generation,epoch,changedAfter)=>{
       if(!owner(session,generation,epoch))return {discarded:true};
-      const result=await client.table(table).select('*',changedAfter===undefined?{}:{clientUpdatedAfter:changedAfter});
+      const result=await client.table(table).select('*',changedAfter===undefined?{}:{clientUpdatedAtOrAfter:changedAfter});
       if(!owner(session,generation,epoch)||result?.discarded)return {discarded:true};
       if(result?.error||!Array.isArray(result?.data))throw new Error('Cloud fetch failed');
       return result;
