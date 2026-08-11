@@ -1181,6 +1181,39 @@ const FlashcardStore={
     if(!sameCoreState(current,deck))return false;
     await this.discardNewDeck(deck.id);return true;
   },
+  async mutateDeckComponentsIfCurrent(expected,{mode,snapshot}={}){
+    if(!expected?.deck||!['discard','restore'].includes(mode))return {outcome:'invalid'};
+    const db=await this.open();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction(['decks','cards'],'readwrite'),decks=tx.objectStore('decks'),cards=tx.objectStore('cards');
+      let currentDeck,currentCards,reads=0,outcome='mismatch';
+      const sorted=items=>(items||[]).slice().sort((left,right)=>String(left.id).localeCompare(String(right.id)));
+      const componentsMatch=()=>sameCoreState(currentDeck,expected.deck)&&sameCoreState(sorted(currentCards),sorted(expected.cards));
+      const decide=()=>{
+        reads+=1;if(reads!==2)return;
+        if(!componentsMatch())return;
+        if(mode==='discard'){
+          decks.delete(expected.deck.id);currentCards.forEach(card=>cards.delete(card.id));outcome='discarded';return;
+        }
+        if(!snapshot?.deck){outcome='invalid';return;}
+        decks.put(snapshot.deck);snapshot.cards.forEach(card=>cards.put(card));outcome='restored';
+      };
+      const deckRequest=decks.get(expected.deck.id),cardRequest=cards.index('deckId').getAll(expected.deck.id);
+      deckRequest.onsuccess=()=>{currentDeck=deckRequest.result;decide();};
+      deckRequest.onerror=()=>reject(deckRequest.error);
+      cardRequest.onsuccess=()=>{currentCards=cardRequest.result;decide();};
+      cardRequest.onerror=()=>reject(cardRequest.error);
+      tx.oncomplete=()=>resolve({outcome});
+      tx.onerror=()=>reject(tx.error);
+      tx.onabort=()=>reject(tx.error||new Error('Flashcard transaction aborted'));
+    });
+  },
+  async discardDeckComponentsIfCurrent(expected){
+    return this.mutateDeckComponentsIfCurrent(expected,{mode:'discard'});
+  },
+  async restoreDeckSnapshotComponentsIfCurrent(snapshot,expected){
+    return this.mutateDeckComponentsIfCurrent(expected,{mode:'restore',snapshot});
+  },
   async restoreDeckSnapshot(snapshot){
     if(!snapshot?.deck)return;
     const db=await this.open(),tx=db.transaction(['decks','cards'],'readwrite');
@@ -1255,19 +1288,21 @@ const FlashcardStore={
     await this.complete(tx);
   },
   async deleteDeck(deckId,{sync=true}={}){
-    const cards=await this.listCards(deckId),db=await this.open();
+    const allCards=(await this.listAllCards()).filter(card=>card.deckId===deckId),cards=allCards.filter(card=>!card.deletedAt),db=await this.open();
     const deck=await this.request(db.transaction('decks').objectStore('decks').get(deckId));
     if(!deck)return;
     const updatedAt=Date.now(),tx=db.transaction(sync?['decks','cards','syncOps']:['decks','cards'],'readwrite');
-    tx.objectStore('decks').put({...deck,deletedAt:updatedAt,updatedAt});
-    if(sync)tx.objectStore('syncOps').add({type:'delete-deck',entityId:deckId,payload:{...deck,deletedAt:updatedAt,updatedAt},updatedAt});
-    cards.forEach(card=>{
-      const tombstone={...card,deletedAt:updatedAt,updatedAt};
+    const deletedDeck={...deck,deletedAt:updatedAt,updatedAt},changedCards=cards.map(card=>({...card,deletedAt:updatedAt,updatedAt}));
+    const changedCardsById=new Map(changedCards.map(card=>[card.id,card]));
+    const deletedCards=allCards.map(card=>card.deletedAt?card:changedCardsById.get(card.id));
+    tx.objectStore('decks').put(deletedDeck);
+    if(sync)tx.objectStore('syncOps').add({type:'delete-deck',entityId:deckId,payload:deletedDeck,updatedAt});
+    changedCards.forEach(tombstone=>{
       tx.objectStore('cards').put(tombstone);
-      if(sync)tx.objectStore('syncOps').add({type:'delete-card',entityId:card.id,payload:tombstone,updatedAt});
+      if(sync)tx.objectStore('syncOps').add({type:'delete-card',entityId:tombstone.id,payload:tombstone,updatedAt});
     });
     await this.complete(tx);
-    return {deck:{...deck,deletedAt:updatedAt,updatedAt},cards:cards.map(card=>({...card,deletedAt:updatedAt,updatedAt}) )};
+    return {deck:deletedDeck,cards:changedCards,components:{deck:deletedDeck,cards:deletedCards}};
   },
   async importBundle(bundle){
     const db=await this.open(),tx=db.transaction(['decks','cards','reviews','syncOps'],'readwrite');
@@ -2617,7 +2652,7 @@ async function createDeck(){
   const now=Date.now(),deck={id:flashId('deck'),name,createdAt:now,updatedAt:now};
   const linkedTask=S.tasks.find(task=>task.id===activeTaskId&&task.helper==='flashcards');
   try{await store.putDeck(deck,{sync:false});}catch(error){if(ownsCoreTransaction(transaction))toast(T('flashcardStoreError'));return false;}
-  if(!ownsCoreTransaction(transaction)){await store.discardNewDeckIfCurrent(deck).catch(()=>{});return false;}
+  if(!ownsCoreTransaction(transaction)){await store.discardDeckComponentsIfCurrent({deck,cards:[]}).catch(()=>{});return false;}
   const shouldLink=Boolean(linkedTask&&!taskFlashcardRef(linkedTask));
   if(shouldLink){
     const committed=commitCoreMutation('task',linkedTask.id,candidate=>{
@@ -2625,13 +2660,13 @@ async function createDeck(){
       return {...candidate,tasks:candidate.tasks.map(task=>task.id!==linkedTask.id?task:{...task,
         helperRefs:{...(task.helperRefs||{}),[store.scope]:deck.id},helperRef:store.scope==='local'?deck.id:task.helperRef,updatedAt})};
     },{schedule:false});
-    if(!committed){await store.discardNewDeckIfCurrent(deck).catch(()=>{});toast(T('flashcardStoreError'));return false;}
+    if(!committed){await store.discardDeckComponentsIfCurrent({deck,cards:[]}).catch(()=>{});toast(T('flashcardStoreError'));return false;}
     transaction.committedCore=coreMutationSnapshot();
   }
   try{await store.finalizeDeckMutation([{type:'deck',entityId:deck.id,payload:deck,updatedAt:deck.updatedAt}]);}
   catch(error){
-    const restored=!shouldLink||restoreCoreTransaction(transaction);
-    if(restored)await store.discardNewDeckIfCurrent(deck).catch(()=>{});
+    const compensation=await store.discardDeckComponentsIfCurrent({deck,cards:[]}).catch(()=>({outcome:'failed'}));
+    if(shouldLink&&compensation.outcome==='discarded')restoreCoreTransaction(transaction);
     if(ownsCoreTransaction(transaction))toast(T('flashcardStoreError'));return false;
   }
   if(!ownsCoreTransaction(transaction))return true;
@@ -2693,7 +2728,10 @@ async function deleteFlashcardDeck(deckId){
     deleted=await store.deleteDeck(deckId,{sync:false});
   }
   catch(error){if(ownsCoreTransaction(transaction))toast(T('flashcardStoreError'));return false;}
-  if(!ownsCoreTransaction(transaction)){await store.restoreDeckSnapshotIfCurrent(snapshot,deleted).catch(()=>{});return false;}
+  if(!ownsCoreTransaction(transaction)){
+    if(deleted)await store.restoreDeckSnapshotComponentsIfCurrent(snapshot,deleted.components||deleted).catch(()=>{});
+    return false;
+  }
   const linkedTask=S.tasks.find(task=>taskFlashcardRef(task)===deckId);
   if(linkedTask){
     const committed=commitCoreMutation('task',linkedTask.id,candidate=>{
@@ -2704,15 +2742,25 @@ async function deleteFlashcardDeck(deckId){
         return {...task,helperRefs,helperRef:store.scope==='local'?null:task.helperRef,updatedAt};
       })};
     },{schedule:false});
-    if(!committed){await store.restoreDeckSnapshotIfCurrent(snapshot,deleted).catch(()=>{});toast(T('flashcardStoreError'));return false;}
+    if(!committed){
+      if(deleted)await store.restoreDeckSnapshotComponentsIfCurrent(snapshot,deleted.components||deleted).catch(()=>{});
+      toast(T('flashcardStoreError'));return false;
+    }
     transaction.committedCore=coreMutationSnapshot();
+  }
+  if(!deleted){
+    if(!ownsCoreTransaction(transaction))return true;
+    if(linkedTask)scheduleCoreMutation('task',linkedTask.id);
+    if(flashcardState.activeDeckId===deckId){flashcardState.activeDeckId=null;document.getElementById('deckEditor').hidden=true;}
+    if(linkedTask)renderTasks();await renderDecks();
+    return true;
   }
   try{await store.finalizeDeckMutation([
     {type:'delete-deck',entityId:deckId,payload:deleted.deck,updatedAt:deleted.deck.updatedAt},
     ...deleted.cards.map(card=>({type:'delete-card',entityId:card.id,payload:card,updatedAt:card.updatedAt}))
   ]);}catch(error){
-    if(linkedTask)restoreCoreTransaction(transaction);
-    await store.restoreDeckSnapshotIfCurrent(snapshot,deleted).catch(()=>{});
+    const compensation=await store.restoreDeckSnapshotComponentsIfCurrent(snapshot,deleted.components||deleted).catch(()=>({outcome:'failed'}));
+    if(linkedTask&&compensation.outcome==='restored')restoreCoreTransaction(transaction);
     if(ownsCoreTransaction(transaction))toast(T('flashcardStoreError'));return false;
   }
   if(!ownsCoreTransaction(transaction))return true;
