@@ -885,10 +885,10 @@ function writeCoreScope(scope,state){
   if(!LiangliAccountSync.normalizeCoreState(state))return false;
   return DB.set(LiangliAccountSync.coreStorageKey(scope),state);
 }
-function coreStateToViewState(state,S){
-  const week=[0,0,0,0,0,0,0],todayOrdinal=dayOrdinal(currentDayKey),weekStart=todayOrdinal-6;
+function computeFocusStats(focusSessions,currentDay=currentDayKey){
+  const week=[0,0,0,0,0,0,0],todayOrdinal=dayOrdinal(currentDay),weekStart=todayOrdinal-6;
   let focusMin=0,pomo=0;
-  for(const session of state.focusSessions){
+  for(const session of focusSessions.filter(session=>session.deletedAt===null)){
     const sessionDay=dayOrdinal(session.dayKey);
     if(sessionDay===todayOrdinal){focusMin+=session.minutes;pomo+=session.pomodoroCount;}
     if(session.kind==='legacy-summary')session.weekMinutes.forEach((minutes,index)=>{
@@ -900,22 +900,52 @@ function coreStateToViewState(state,S){
       if(slot>=0&&slot<7)week[slot]+=session.minutes;
     }
   }
-  return {...S,tasks:state.tasks,ideas:state.growthItems,goals:state.goals,logs:state.moodEntries,
-    focusSessions:state.focusSessions,focusMin,pomo,week,lastDay:currentDayKey};
+  return {focusMin,pomo,week};
 }
-function coreStateFromViewState(state=S){
-  const growthItems=state.ideas.map(({id,name,energy,rolloverSourceId=null,createdAt,updatedAt,deletedAt})=>({id,name,energy,rolloverSourceId,createdAt,updatedAt,deletedAt}));
-  return {version:LiangliAccountSync.CORE_STATE_VERSION,tasks:state.tasks,growthItems,
-    goals:state.goals,focusSessions:state.focusSessions||[],moodEntries:state.logs,
-    syncOps:activeCoreState?.syncOps||[]};
+function coreStateToViewState(state,S){
+  const active=items=>items.filter(item=>item.deletedAt===null),focus=computeFocusStats(state.focusSessions,currentDayKey);
+  return {...S,tasks:active(state.tasks),ideas:active(state.growthItems),goals:active(state.goals),logs:active(state.moodEntries),
+    focusSessions:active(state.focusSessions),...focus,lastDay:currentDayKey};
 }
-function persistCoreState(){
-  if(!AccountCore)return false;
-  if(['invalid','read-error','write-error'].includes(coreStateStorageStatus))return false;
-  const state=coreStateFromViewState();
-  if(!writeCoreScope(activeCoreScope,state))return false;
-  activeCoreState=state;coreStateStorageStatus='valid';
-  if(activeCoreScope!=='local'&&coreSyncController)coreSyncController.schedule('mutation');
+function cloneCoreState(value){
+  if(typeof structuredClone==='function')return structuredClone(value);
+  return JSON.parse(JSON.stringify(value));
+}
+const CORE_COLLECTIONS=Object.freeze({task:'tasks',growth:'growthItems',goal:'goals',focus:'focusSessions',mood:'moodEntries'});
+function activeCoreItems(type){
+  const key=CORE_COLLECTIONS[type];
+  return key&&activeCoreState?activeCoreState[key].filter(item=>item.deletedAt===null):[];
+}
+function appendCoreSyncOps(previous,candidate){
+  const changed=[];
+  for(const [type,key] of Object.entries(CORE_COLLECTIONS)){
+    const prior=new Map(previous[key].map(item=>[item.id,item]));
+    for(const item of candidate[key]){
+      if(JSON.stringify(prior.get(item.id))===JSON.stringify(item))continue;
+      changed.push({type,entityId:item.id,op:item.deletedAt===null?'upsert':'delete'});
+    }
+  }
+  if(!changed.length)return candidate;
+  const createdAt=Date.now();
+  return {...candidate,syncOps:[...candidate.syncOps,...changed.map(item=>({...item,id:coreId(),createdAt}))]};
+}
+function applyCoreStateToView(state=activeCoreState){
+  if(state&&typeof S!=='undefined')S=coreStateToViewState(state,S);
+  return S;
+}
+function commitCoreMutation(type,entityId,mutate){
+  if(!AccountCore||!activeCoreState||['invalid','read-error','write-error'].includes(coreStateStorageStatus)||typeof mutate!=='function')return false;
+  const previous=activeCoreState;
+  let candidate;
+  try{candidate=mutate(cloneCoreState(previous));}catch(error){return false;}
+  try{candidate=appendCoreSyncOps(previous,candidate);}catch(error){return false;}
+  const normalized=LiangliAccountSync.normalizeCoreState(candidate);
+  if(!normalized||!writeCoreScope(activeCoreScope,normalized)){
+    writeCoreScope(activeCoreScope,previous);
+    return false;
+  }
+  activeCoreState=normalized;coreStateStorageStatus='valid';applyCoreStateToView(normalized);
+  if(activeCoreScope!=='local'&&coreSyncController)coreSyncController.schedule(`mutation:${type}:${entityId}`);
   return true;
 }
 function activateCoreScope(scope,state){
@@ -953,7 +983,9 @@ if(AccountCore){
 }
 function coreId(){
   if(globalThis.crypto?.randomUUID)return globalThis.crypto.randomUUID();
-  return 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g,()=>Math.floor(Math.random()*16).toString(16));
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,char=>{
+    const value=Math.floor(Math.random()*16);return (char==='x'?value:(value&3)|8).toString(16);
+  });
 }
 function coreTimestamps(){const now=Date.now();return {createdAt:now,updatedAt:now,deletedAt:null};}
 function localDayKey(date=new Date()){
@@ -1768,8 +1800,6 @@ if(typeof AccountCore!=='undefined'&&AccountCore){
     }else coreStateStorageStatus='write-error';
 }else coreStateStorageStatus=storedCore.status;
 }
-const useLegacyCore=!(typeof AccountCore!=='undefined'&&AccountCore)||['missing','write-error'].includes(coreStateStorageStatus);
-if(useLegacyCore)storedLastDay=DB.get('lastDay',currentDayKey);
 const LIFE_STATE_VERSION=2;
 const LEGACY_LIFE_STATE_VERSION=1;
 const LIFE_BUNDLE_FORMAT='liangli-life';
@@ -1905,14 +1935,14 @@ const legacyNutritionState=migrateLegacyNutritionState(DB.get('calorieTarget',20
 let S={
   companion:DB.get('companion', 'cat')==='human'?'human':'cat',
   loadMax:DB.get('loadMax',100),
-  tasks:useLegacyCore?normalizeTaskDays(DB.get('tasks',[]),storedLastDay):[],
-  ideas:useLegacyCore?DB.get('ideas',[]):[],
-  goals:useLegacyCore?DB.get('goals',[]):[],
-  logs:useLegacyCore?DB.get('logs',[]):[],
+  tasks:[],
+  ideas:[],
+  goals:[],
+  logs:[],
   focusSessions:[],
-  focusMin:useLegacyCore?DB.get('focusMin',0):0,
-  pomo:useLegacyCore?DB.get('pomo',0):0,
-  week:useLegacyCore?DB.get('week',[0,0,0,0,0,0,0]):[0,0,0,0,0,0,0],
+  focusMin:0,
+  pomo:0,
+  week:[0,0,0,0,0,0,0],
   lastDay:storedLastDay,
   calorieTarget:storedLifeState?storedLifeState.calorieTarget:lifeStateStorageStatus==='missing'?legacyNutritionState.calorieTarget:2000,
   foodEntries:storedLifeState?storedLifeState.foodEntries:lifeStateStorageStatus==='missing'?legacyNutritionState.foodEntries:[],
@@ -2081,12 +2111,19 @@ function commitLifeImport(){
 /* 跨天重置：使用设备本地日历日，未完成任务回到成长池 */
 function rolloverIfNeeded(render=true){
   const nextDay=localDayKey();
-  const migrated=migrateDailyState(S,nextDay);
+  if(nextDay===currentDayKey)return false;
   currentDayKey=nextDay;
-  if(!migrated.changed)return false;
-  S=migrated;
-  DB.set('tasks',S.tasks);DB.set('ideas',S.ideas);DB.set('week',S.week);
-  DB.set('focusMin',S.focusMin);DB.set('pomo',S.pomo);DB.set('lastDay',S.lastDay);persistCoreState();
+  const additions=activeCoreItems('task').filter(task=>!task.done&&task.dayKey!==nextDay
+    &&!activeCoreItems('growth').some(item=>item.rolloverSourceId===task.id));
+  if(!additions.length){applyCoreStateToView();return false;}
+  const committed=commitCoreMutation('growth','rollover',candidate=>{
+    const known=new Set(candidate.growthItems.map(item=>item.rolloverSourceId));
+    const createdAt=Date.now();
+    candidate.growthItems.push(...candidate.tasks.filter(task=>task.deletedAt===null&&!task.done&&task.dayKey!==nextDay&&!known.has(task.id))
+      .map(task=>({id:coreId(),name:task.name,energy:task.energy,rolloverSourceId:task.id,createdAt,updatedAt:createdAt,deletedAt:null})));
+    return candidate;
+  });
+  if(!committed)return false;
   if(render){renderAll();toast(T('newDayReset'));}
   return true;
 }
@@ -2101,7 +2138,6 @@ function scheduleNextRollover(){
   },midnight-now);
 }
 const rolledOverAtStartup=rolloverIfNeeded(false);
-DB.set('tasks',S.tasks);
 
 let pickedEnergy=25, pickedMood='😐';
 
@@ -2335,21 +2371,33 @@ function addTask(){
   const endTime=document.getElementById('taskEndTime').value;
   const helper=document.getElementById('taskHelper').value;
   if(!validateTaskTimes(startTime,endTime)){toast(T('timeOrderError'));return;}
-  S.tasks.push(normalizeTask({
+  const task=normalizeTask({
     id:coreId(),name,energy:pickedEnergy,done:false,dayKey:currentDayKey,
     startTime:startTime||null,endTime:endTime||null,helper,helperRef:null,helperRefs:{},pomodoroCount:0,...coreTimestamps()
-  },currentDayKey));
+  },currentDayKey);
+  if(!commitCoreMutation('task',task.id,candidate=>({...candidate,tasks:[...candidate.tasks,task]})))return;
   el.value='';
   document.getElementById('taskStartTime').value='';
   document.getElementById('taskEndTime').value='';
   document.getElementById('taskHelper').value='none';
-  DB.set('tasks',S.tasks);persistCoreState(); renderTasks();
+  renderTasks();
 }
 function toggleTask(id){
-  const t=S.tasks.find(x=>x.id===id); if(!t)return;
-  t.done=!t.done;t.updatedAt=Date.now(); DB.set('tasks',S.tasks);persistCoreState(); renderTasks();
+  if(!activeCoreItems('task').some(task=>task.id===id))return;
+  if(!commitCoreMutation('task',id,candidate=>{
+    const updatedAt=Date.now();
+    return {...candidate,tasks:candidate.tasks.map(task=>task.id===id?{...task,done:!task.done,updatedAt}:task)};
+  }))return;
+  renderTasks();
 }
-function delTask(id){ S.tasks=S.tasks.filter(x=>x.id!==id); DB.set('tasks',S.tasks);persistCoreState(); renderTasks(); }
+function delTask(id){
+  if(!activeCoreItems('task').some(task=>task.id===id))return;
+  if(!commitCoreMutation('task',id,candidate=>{
+    const deletedAt=Date.now();
+    return {...candidate,tasks:candidate.tasks.map(task=>task.id===id?{...task,updatedAt:deletedAt,deletedAt}:task)};
+  }))return;
+  renderTasks();
+}
 let activeTaskId=null;
 function openTaskHelper(taskId){
   const task=S.tasks.find(item=>item.id===taskId);
@@ -2428,10 +2476,15 @@ async function copyLocalFlashcardsToAccount(){
       const copiedReviews=reviews.map(review=>{const id=saved.reviews[review.id]||newFlashcardId();saved.reviews[review.id]=id;return destinationReviews.get(id)||{...review,id,deckId:deckMap.get(review.deckId),cardId:cardMap.get(review.cardId)};});
       await accountStore.importBundle({decks:copiedDecks,cards:copiedCards,reviews:copiedReviews});
       DB.set(`flashCopyMap_${accountScope}`,saved);
-      S.tasks=S.tasks.map(task=>{
-        const localRef=task.helperRefs?.local||task.helperRef,mapped=deckMap.get(localRef);return mapped?{...task,helperRefs:{...(task.helperRefs||{}),[accountScope]:mapped}}:task;
-      });
-      DB.set('tasks',S.tasks);renderTasks();if(ActiveFlashcardStore.scope===FlashcardStore.normalizeScope(accountScope))await renderDecks();toast(T('copyLocalDone'));return true;
+      if(!commitCoreMutation('task','flashcard-copy',candidate=>{
+        const updatedAt=Date.now();
+        return {...candidate,tasks:candidate.tasks.map(task=>{
+          const localRef=task.helperRefs?.local||task.helperRef,mapped=deckMap.get(localRef);
+          if(!mapped)return task;
+          return {...task,helperRefs:{...(task.helperRefs||{}),[accountScope]:mapped},updatedAt};
+        })};
+      }))return false;
+      renderTasks();if(ActiveFlashcardStore.scope===FlashcardStore.normalizeScope(accountScope))await renderDecks();toast(T('copyLocalDone'));return true;
     }catch(error){toast(T('flashcardStoreError'));return false;}
     finally{shell.inert=false;}
   })().finally(()=>{flashcardCopyInFlight=null;});
@@ -2499,9 +2552,12 @@ async function createDeck(){
   input.value='';
   const linkedTask=S.tasks.find(task=>task.id===activeTaskId&&task.helper==='flashcards');
   if(linkedTask&&!taskFlashcardRef(linkedTask)){
-    linkedTask.helperRefs={...(linkedTask.helperRefs||{}),[store.scope]:deck.id};
-    if(store.scope==='local')linkedTask.helperRef=deck.id;
-    DB.set('tasks',S.tasks);renderTasks();
+    commitCoreMutation('task',linkedTask.id,candidate=>{
+      const updatedAt=Date.now();
+      return {...candidate,tasks:candidate.tasks.map(task=>task.id!==linkedTask.id?task:{...task,
+        helperRefs:{...(task.helperRefs||{}),[store.scope]:deck.id},helperRef:store.scope==='local'?deck.id:task.helperRef,updatedAt})};
+    });
+    renderTasks();
   }
   await renderDecks();
   await selectDeck(deck.id);
@@ -2550,12 +2606,15 @@ async function deleteFlashcardDeck(deckId){
   if(store!==ActiveFlashcardStore)return;
   queueFlashcardSync();
   if(flashcardState.activeDeckId===deckId){flashcardState.activeDeckId=null;document.getElementById('deckEditor').hidden=true;}
-  S.tasks=S.tasks.map(task=>{
-    if(taskFlashcardRef(task)!==deckId)return task;
-    const helperRefs={...(task.helperRefs||{})};delete helperRefs[store.scope];
-    return {...task,helperRefs,helperRef:store.scope==='local'?null:task.helperRef};
+  commitCoreMutation('task',deckId,candidate=>{
+    const updatedAt=Date.now();
+    return {...candidate,tasks:candidate.tasks.map(task=>{
+      if(taskFlashcardRef(task)!==deckId)return task;
+      const helperRefs={...(task.helperRefs||{})};delete helperRefs[store.scope];
+      return {...task,helperRefs,helperRef:store.scope==='local'?null:task.helperRef,updatedAt};
+    })};
   });
-  DB.set('tasks',S.tasks);renderTasks();await renderDecks();
+  renderTasks();await renderDecks();
 }
 async function startReview(deckId=flashcardState.activeDeckId){
   const store=ActiveFlashcardStore;
@@ -2763,16 +2822,26 @@ function renderIdeas(){
 function addIdea(){
   const el=document.getElementById('ideaName'), name=el.value.trim();
   if(!name) return;
-  S.ideas.push({id:coreId(),name,energy:25,rolloverSourceId:null,...coreTimestamps()}); el.value='';
-  DB.set('ideas',S.ideas);persistCoreState(); renderIdeas();
+  const idea={id:coreId(),name,energy:25,rolloverSourceId:null,...coreTimestamps()};
+  if(!commitCoreMutation('growth',idea.id,candidate=>({...candidate,growthItems:[...candidate.growthItems,idea]})))return;
+  el.value='';renderIdeas();
 }
-function delIdea(id){ S.ideas=S.ideas.filter(x=>x.id!==id); DB.set('ideas',S.ideas);persistCoreState(); renderIdeas(); }
+function delIdea(id){
+  if(!activeCoreItems('growth').some(item=>item.id===id))return;
+  if(!commitCoreMutation('growth',id,candidate=>{
+    const deletedAt=Date.now();
+    return {...candidate,growthItems:candidate.growthItems.map(item=>item.id===id?{...item,updatedAt:deletedAt,deletedAt}:item)};
+  }))return;
+  renderIdeas();
+}
 function promote(id){
-  const i=S.ideas.find(x=>x.id===id); if(!i)return;
-  S.tasks.push(normalizeTask({id:coreId(),name:i.name,energy:i.energy||25,done:false,dayKey:currentDayKey,
-    startTime:null,endTime:null,helper:'none',helperRef:null,helperRefs:{},pomodoroCount:0,...coreTimestamps()},currentDayKey));
-  S.ideas=S.ideas.filter(x=>x.id!==id);
-  DB.set('tasks',S.tasks); DB.set('ideas',S.ideas);persistCoreState();
+  const idea=activeCoreItems('growth').find(item=>item.id===id); if(!idea)return;
+  const task=normalizeTask({id:coreId(),name:idea.name,energy:idea.energy||25,done:false,dayKey:currentDayKey,
+    startTime:null,endTime:null,helper:'none',helperRef:null,helperRefs:{},pomodoroCount:0,...coreTimestamps()},currentDayKey);
+  if(!commitCoreMutation('growth',id,candidate=>{
+    const deletedAt=Date.now();
+    return {...candidate,tasks:[...candidate.tasks,task],growthItems:candidate.growthItems.map(item=>item.id===id?{...item,updatedAt:deletedAt,deletedAt}:item)};
+  }))return;
   renderIdeas(); renderTasks(); toast(T('movedTask'));
   go('today',document.querySelector('nav button[data-v=today]'));
 }
@@ -2799,16 +2868,27 @@ function addGoal(){
   const n=document.getElementById('goalName'), tg=document.getElementById('goalTarget'), u=document.getElementById('goalUnit');
   const name=n.value.trim(), target=Math.max(1,parseInt(tg.value)||1);
   if(!name) return;
-  S.goals.push({id:coreId(),name,target,cur:0,unit:u.value.trim(),...coreTimestamps()});
+  const goal={id:coreId(),name,target,cur:0,unit:u.value.trim(),...coreTimestamps()};
+  if(!commitCoreMutation('goal',goal.id,candidate=>({...candidate,goals:[...candidate.goals,goal]})))return;
   n.value=''; u.value=''; tg.value=10;
-  DB.set('goals',S.goals);persistCoreState(); renderGoals();
+  renderGoals();
 }
 function stepGoal(id,d){
-  const g=S.goals.find(x=>x.id===id); if(!g)return;
-  g.cur=Math.max(0,Math.min(g.target,g.cur+d));g.updatedAt=Date.now();
-  DB.set('goals',S.goals);persistCoreState(); renderGoals();
+  if(!activeCoreItems('goal').some(goal=>goal.id===id))return;
+  if(!commitCoreMutation('goal',id,candidate=>{
+    const updatedAt=Date.now();
+    return {...candidate,goals:candidate.goals.map(goal=>goal.id===id?{...goal,cur:Math.max(0,Math.min(goal.target,goal.cur+d)),updatedAt}:goal)};
+  }))return;
+  renderGoals();
 }
-function delGoal(id){ S.goals=S.goals.filter(x=>x.id!==id); DB.set('goals',S.goals);persistCoreState(); renderGoals(); }
+function delGoal(id){
+  if(!activeCoreItems('goal').some(goal=>goal.id===id))return;
+  if(!commitCoreMutation('goal',id,candidate=>{
+    const deletedAt=Date.now();
+    return {...candidate,goals:candidate.goals.map(goal=>goal.id===id?{...goal,updatedAt:deletedAt,deletedAt}:goal)};
+  }))return;
+  renderGoals();
+}
 
 /* ============ 番茄钟 ============ */
 const TOTAL=25*60, RING=502.4;
@@ -2846,9 +2926,12 @@ function triggerPomoBurst(){
 }
 function finishPomo(){
   clearInterval(timer); running=false;
-  S=recordPomodoroCompletion(S,activeTaskId);
-  S.focusSessions=[...(S.focusSessions||[]),{id:coreId(),kind:'pomodoro',minutes:25,pomodoroCount:1,dayKey:currentDayKey,...coreTimestamps()}];
-  DB.set('pomo',S.pomo); DB.set('focusMin',S.focusMin); DB.set('week',S.week);DB.set('tasks',S.tasks);persistCoreState();
+  const session={id:coreId(),kind:'pomodoro',minutes:25,pomodoroCount:1,dayKey:currentDayKey,...coreTimestamps()};
+  if(!commitCoreMutation('focus',session.id,candidate=>{
+    const updatedAt=Date.now();
+    return {...candidate,focusSessions:[...candidate.focusSessions,session],tasks:candidate.tasks.map(task=>task.id===activeTaskId
+      ?{...task,pomodoroCount:task.pomodoroCount+1,updatedAt}:task)};
+  }))return;
   document.getElementById('clabel').textContent=T('doneOne');
   document.getElementById('startBtn').textContent=T('again');
   left=TOTAL; drawRing(); renderStats();
@@ -3360,10 +3443,18 @@ function renderLogs(){
 function addLog(){
   const el=document.getElementById('logText'), text=el.value.trim();
   if(!text) return;
-  S.logs.push({id:coreId(),date:today(),mood:pickedMood,text,...coreTimestamps()});
-  el.value=''; DB.set('logs',S.logs);persistCoreState(); renderLogs(); toast(T('savedLog'));
+  const entry={id:coreId(),date:today(),mood:pickedMood,text,...coreTimestamps()};
+  if(!commitCoreMutation('mood',entry.id,candidate=>({...candidate,moodEntries:[...candidate.moodEntries,entry]})))return;
+  el.value='';renderLogs();toast(T('savedLog'));
 }
-function delLog(id){ S.logs=S.logs.filter(x=>x.id!==id); DB.set('logs',S.logs);persistCoreState(); renderLogs(); }
+function delLog(id){
+  if(!activeCoreItems('mood').some(entry=>entry.id===id))return;
+  if(!commitCoreMutation('mood',id,candidate=>{
+    const deletedAt=Date.now();
+    return {...candidate,moodEntries:candidate.moodEntries.map(entry=>entry.id===id?{...entry,updatedAt:deletedAt,deletedAt}:entry)};
+  }))return;
+  renderLogs();
+}
 document.getElementById('moodPick').addEventListener('click',e=>{
   const d=e.target.closest('[data-m]'); if(!d)return;
   pickedMood=d.dataset.m;

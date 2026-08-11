@@ -41,7 +41,7 @@ class AccountStoreContractTests(unittest.TestCase):
                                 capture_output=True, timeout=5, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_scope_focus_and_rollover_integration_suite(self):
+    def test_scope_focus_rollover_and_atomic_mutation_integration_suite(self):
         result = subprocess.run(['node', 'tests/test_account_store_integration.js'], cwd=ROOT, text=True,
                                 capture_output=True, timeout=5, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

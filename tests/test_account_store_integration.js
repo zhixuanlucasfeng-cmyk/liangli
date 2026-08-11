@@ -4,16 +4,21 @@ const vm = require('node:vm');
 const api = require('../account-sync.js');
 
 const html = fs.readFileSync('index.html', 'utf8');
-const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+const script = html.match(/<script>([\s\S]*?)<\/script>/)[1]
+  .replace('let coreSyncController=null;', 'let coreSyncController=globalThis.__coreSyncController||null;');
 const start = script.indexOf('const DB={');
 const end = script.indexOf('function normalizeTask', start);
 assert.notEqual(start, -1);
 assert.notEqual(end, -1);
 
 const bytes = new Map();
+let rejectCoreWrites = false;
 const localStorage = {
   getItem(key) { return bytes.has(key) ? bytes.get(key) : null; },
-  setItem(key, value) { bytes.set(key, String(value)); },
+  setItem(key, value) {
+    if(rejectCoreWrites && key.startsWith('ll_coreState_'))throw new Error('storage full');
+    bytes.set(key, String(value));
+  },
 };
 const bridge = {
   ...api,
@@ -22,11 +27,16 @@ const bridge = {
     return normalized && JSON.parse(JSON.stringify(normalized));
   },
 };
-const context = {Date, console, localStorage, LiangliAccountSync: bridge, currentDayKey: '2026-08-10'};
+const scheduled = [];
+const context = {
+  Date, console, localStorage, LiangliAccountSync: bridge, currentDayKey: '2026-08-10',
+  __coreSyncController:{schedule:reason=>scheduled.push(reason)}, crypto:{},
+};
+bridge.createCoreSyncController = () => context.__coreSyncController;
 context.globalThis = context;
 context.S = {tasks:[], ideas:[], goals:[], logs:[], focusSessions:[], focusMin:0, pomo:0, week:[0,0,0,0,0,0,0]};
 vm.createContext(context);
-vm.runInContext(`${script.slice(start, end)}\n;globalThis.core={DB,readCoreScope,writeCoreScope,activateCoreScope,coreStateToViewState,persistCoreState,getScope:()=>activeCoreScope,getStatus:()=>coreStateStorageStatus};`, context);
+vm.runInContext(`${script.slice(start, end)}\n;globalThis.core={DB,readCoreScope,writeCoreScope,activateCoreScope,coreStateToViewState,commitCoreMutation,activeCoreItems,coreId,getScope:()=>activeCoreScope,getStatus:()=>coreStateStorageStatus};`, context);
 const dailyStart = script.indexOf('function migrateDailyState');
 const dailyEnd = script.indexOf('const today=', dailyStart);
 vm.runInContext(`${script.slice(dailyStart, dailyEnd)}\n;globalThis.migrateDailyState=migrateDailyState;`, context);
@@ -53,6 +63,54 @@ assert.equal(core.activateCoreScope('beta-user').tasks[0].name, 'beta');
 assert.equal(core.getScope(), 'beta-user');
 assert.equal(core.activateCoreScope('alpha-user').tasks[0].name, 'alpha', 'two accounts retain separate canonical core views');
 assert.deepEqual(JSON.parse(bytes.get('ll_tasks')), [{id:1,name:'legacy global'}], 'account activation never falls back to or writes global legacy data');
+
+const alphaTask = core.activateCoreScope('alpha-user').tasks[0];
+const beforeMutation = JSON.parse(bytes.get('ll_coreState_alpha-user'));
+assert.equal(core.commitCoreMutation('task', alphaTask.id, candidate=>{
+  candidate.tasks = candidate.tasks.map(task=>task.id===alphaTask.id ? {...task,done:true,updatedAt:task.updatedAt+1} : task);
+  return candidate;
+}), true, 'core mutations commit canonical bytes before exposing the changed view');
+const committedMutation = JSON.parse(bytes.get('ll_coreState_alpha-user'));
+assert.equal(committedMutation.tasks[0].done, true, 'the canonical task is updated');
+assert.equal(context.S.tasks[0].done, true, 'the visible task updates only after the canonical commit');
+assert.equal(committedMutation.syncOps.length, beforeMutation.syncOps.length+1, 'the durable sync queue is appended with the mutation');
+assert.deepEqual(scheduled, [`mutation:task:${alphaTask.id}`], 'an account-scoped mutation schedules sync only after saving');
+
+const beforeFailureBytes = bytes.get('ll_coreState_alpha-user');
+const beforeFailureView = JSON.stringify(context.S);
+const beforeFailureQueue = scheduled.length;
+rejectCoreWrites = true;
+assert.equal(core.commitCoreMutation('task', alphaTask.id, candidate=>{
+  candidate.tasks = candidate.tasks.map(task=>task.id===alphaTask.id ? {...task,deletedAt:task.updatedAt+2,updatedAt:task.updatedAt+2} : task);
+  return candidate;
+}), false, 'a failed canonical write rejects the mutation');
+rejectCoreWrites = false;
+assert.equal(bytes.get('ll_coreState_alpha-user'), beforeFailureBytes, 'a failed write restores the prior canonical bytes');
+assert.equal(JSON.stringify(context.S), beforeFailureView, 'a failed write leaves the visible state unchanged');
+assert.equal(scheduled.length, beforeFailureQueue, 'a failed write never schedules sync');
+
+assert.equal(core.commitCoreMutation('task', alphaTask.id, () => null), false, 'an invalid mutation candidate is rejected without escaping the gateway');
+assert.equal(bytes.get('ll_coreState_alpha-user'), beforeFailureBytes, 'an invalid candidate leaves canonical bytes unchanged');
+assert.equal(JSON.stringify(context.S), beforeFailureView, 'an invalid candidate leaves the visible state unchanged');
+assert.equal(scheduled.length, beforeFailureQueue, 'an invalid candidate never schedules sync');
+
+assert.equal(core.commitCoreMutation('task', alphaTask.id, candidate=>{
+  candidate.tasks = candidate.tasks.map(task=>task.id===alphaTask.id ? {...task,deletedAt:task.updatedAt+2,updatedAt:task.updatedAt+2} : task);
+  return candidate;
+}), true, 'delete mutations are durable');
+assert.equal(core.activeCoreItems('task').some(task=>task.id===alphaTask.id), false, 'tombstones are hidden from active views');
+assert.equal(JSON.parse(bytes.get('ll_coreState_alpha-user')).tasks[0].deletedAt, committedMutation.tasks[0].updatedAt+2, 'deletes retain a canonical tombstone');
+assert.match(core.coreId(), /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  'the UUID fallback creates RFC4122 v4 IDs without crypto.randomUUID');
+
+core.activateCoreScope('local');
+const localScheduleCount = scheduled.length;
+const localTask = core.activeCoreItems('task')[0];
+assert.equal(core.commitCoreMutation('task', localTask.id, candidate=>{
+  candidate.tasks = candidate.tasks.map(task=>task.id===localTask.id ? {...task,done:true,updatedAt:task.updatedAt+1} : task);
+  return candidate;
+}), true, 'local core mutations remain durable locally');
+assert.equal(scheduled.length, localScheduleCount, 'local-scope mutations stay offline and do not schedule account sync');
 
 const earlierV1 = stateFor('earlier-v1');
 earlierV1.growthItems = [(({rolloverSourceId,...growth})=>growth)({
