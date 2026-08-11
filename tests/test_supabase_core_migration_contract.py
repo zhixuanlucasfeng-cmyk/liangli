@@ -6,6 +6,8 @@ import unittest
 ROOT = Path(__file__).parents[1]
 MIGRATION_PATH = ROOT / "supabase/migrations/003_core_sync.sql"
 SQL = MIGRATION_PATH.read_text() if MIGRATION_PATH.exists() else ""
+RLS_TEST_PATH = ROOT / "supabase/tests/core_sync_rls.sql"
+RLS_TEST = RLS_TEST_PATH.read_text() if RLS_TEST_PATH.exists() else ""
 
 CORE_TABLES = (
     "liangli_sync_profiles",
@@ -97,6 +99,22 @@ class SupabaseCoreMigrationContractTests(unittest.TestCase):
 
     def test_migration_does_not_use_email_claims(self):
         self.assertNotIn("email", SQL.lower())
+
+    def test_rls_acceptance_covers_lower_version_stale_writes(self):
+        self.assertIn("select plan(28);", RLS_TEST)
+        for table in ENTITY_TABLES:
+            self.assertIn(
+                f"update public.{table} set payload = '{{\"state\":\"lower-version\"}}', client_updated_at = 9;",
+                RLS_TEST,
+            )
+            self.assertIn(
+                f"'lower-version stale {table} update retains the newer payload'",
+                RLS_TEST,
+            )
+            self.assertIn(
+                f"'lower-version stale {table} update retains the newer version'",
+                RLS_TEST,
+            )
 
 
 if __name__ == "__main__":

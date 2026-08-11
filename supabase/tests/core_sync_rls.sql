@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(23);
+select plan(28);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, created_at, updated_at)
 values
@@ -62,11 +62,21 @@ update public.liangli_growth_items set payload = '{"state":"stale"}', client_upd
 update public.liangli_goals set payload = '{"state":"stale"}', client_updated_at = 10;
 update public.liangli_focus_sessions set payload = '{"state":"stale"}', client_updated_at = 10;
 update public.liangli_mood_entries set payload = '{"state":"stale"}', client_updated_at = 10;
-select is((select payload->>'state' from public.liangli_tasks), 'newer', 'stale task update retains the newer row');
-select is((select payload->>'state' from public.liangli_growth_items), 'newer', 'stale growth item update retains the newer row');
-select is((select payload->>'state' from public.liangli_goals), 'newer', 'stale goal update retains the newer row');
-select is((select payload->>'state' from public.liangli_focus_sessions), 'newer', 'stale focus session update retains the newer row');
-select is((select payload->>'state' from public.liangli_mood_entries), 'newer', 'stale mood entry update retains the newer row');
+update public.liangli_tasks set payload = '{"state":"lower-version"}', client_updated_at = 9;
+update public.liangli_growth_items set payload = '{"state":"lower-version"}', client_updated_at = 9;
+update public.liangli_goals set payload = '{"state":"lower-version"}', client_updated_at = 9;
+update public.liangli_focus_sessions set payload = '{"state":"lower-version"}', client_updated_at = 9;
+update public.liangli_mood_entries set payload = '{"state":"lower-version"}', client_updated_at = 9;
+select is((select payload->>'state' from public.liangli_tasks), 'newer', 'lower-version stale liangli_tasks update retains the newer payload');
+select is((select client_updated_at from public.liangli_tasks), 10::bigint, 'lower-version stale liangli_tasks update retains the newer version');
+select is((select payload->>'state' from public.liangli_growth_items), 'newer', 'lower-version stale liangli_growth_items update retains the newer payload');
+select is((select client_updated_at from public.liangli_growth_items), 10::bigint, 'lower-version stale liangli_growth_items update retains the newer version');
+select is((select payload->>'state' from public.liangli_goals), 'newer', 'lower-version stale liangli_goals update retains the newer payload');
+select is((select client_updated_at from public.liangli_goals), 10::bigint, 'lower-version stale liangli_goals update retains the newer version');
+select is((select payload->>'state' from public.liangli_focus_sessions), 'newer', 'lower-version stale liangli_focus_sessions update retains the newer payload');
+select is((select client_updated_at from public.liangli_focus_sessions), 10::bigint, 'lower-version stale liangli_focus_sessions update retains the newer version');
+select is((select payload->>'state' from public.liangli_mood_entries), 'newer', 'lower-version stale liangli_mood_entries update retains the newer payload');
+select is((select client_updated_at from public.liangli_mood_entries), 10::bigint, 'lower-version stale liangli_mood_entries update retains the newer version');
 
 select * from finish();
 rollback;
