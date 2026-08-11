@@ -967,6 +967,7 @@ function readCoreScope(scope){
   if(record.status==='missing')return {status:'missing',state:null,raw:null};
   if(record.status!=='present')return {status:record.status,state:null,raw:record.raw};
   const state=LiangliAccountSync.normalizeCoreState(record.value);
+  if(state&&state!==record.value)DB.set(key,state);
   return state?{status:'valid',state,raw:record.raw}:{status:'invalid',state:null,raw:record.raw};
 }
 function writeCoreScope(scope,state){

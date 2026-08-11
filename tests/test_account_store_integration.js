@@ -54,6 +54,15 @@ assert.equal(core.getScope(), 'beta-user');
 assert.equal(core.activateCoreScope('alpha-user').tasks[0].name, 'alpha', 'two accounts retain separate canonical core views');
 assert.deepEqual(JSON.parse(bytes.get('ll_tasks')), [{id:1,name:'legacy global'}], 'account activation never falls back to or writes global legacy data');
 
+const earlierV1 = stateFor('earlier-v1');
+earlierV1.growthItems = [(({rolloverSourceId,...growth})=>growth)({
+  id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', name:'Earlier growth', energy:25, rolloverSourceId:null,
+  createdAt:1700000005000, updatedAt:1700000005000, deletedAt:null,
+})];
+put('earlier-v1', earlierV1);
+assert.equal(core.readCoreScope('earlier-v1').state.growthItems[0].rolloverSourceId, null, 'earlier v1 canonical bytes load with a deterministic transition default');
+assert.equal(JSON.parse(bytes.get('ll_coreState_earlier-v1')).growthItems[0].rolloverSourceId, null, 'earlier v1 bytes are upgraded and persisted once');
+
 const invalidBytes = '{ not json';
 bytes.set('ll_coreState_corrupt-user', invalidBytes);
 context.S = {...context.S, tasks:[{id:'unsafe'}], ideas:[{name:'unsafe'}], goals:[], logs:[], focusSessions:[]};

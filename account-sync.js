@@ -7,6 +7,7 @@
   const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const DAY=/^\d{4}-\d{2}-\d{2}$/,TIME=/^([01]\d|2[0-3]):[0-5]\d$/;
   const STATE_KEYS=['version','tasks','growthItems','goals','focusSessions','moodEntries','syncOps'];
+  const LEGACY_GROWTH_KEYS=['id','name','energy','createdAt','updatedAt','deletedAt'];
 
   function plain(value){return value!==null&&typeof value==='object'&&!Array.isArray(value)&&Object.getPrototypeOf(value)===Object.prototype;}
   function exact(value,keys){return plain(value)&&Object.keys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key));}
@@ -45,10 +46,12 @@
   function normalizeCoreState(raw){
     if(!exact(raw,STATE_KEYS)||raw.version!==CORE_STATE_VERSION||!collection(raw.tasks)||!collection(raw.growthItems)||!collection(raw.goals)
       ||!collection(raw.focusSessions)||!collection(raw.moodEntries)||!collection(raw.syncOps))return null;
+    const growthItems=raw.growthItems.map(item=>exact(item,LEGACY_GROWTH_KEYS)?{...item,rolloverSourceId:null}:item);
+    const state=growthItems.some((item,index)=>item!==raw.growthItems[index])?{...raw,growthItems}:raw;
     const ids=new Set(),add=(items,validator)=>items.every(item=>validator(item)&&!ids.has(item.id)&&(ids.add(item.id),true));
-    if(!add(raw.tasks,task)||!add(raw.growthItems,growth)||!add(raw.goals,goal)||!add(raw.focusSessions,focus)||!add(raw.moodEntries,mood))return null;
-    if(!add(raw.syncOps,item=>syncOp(item,ids)))return null;
-    return raw;
+    if(!add(state.tasks,task)||!add(state.growthItems,growth)||!add(state.goals,goal)||!add(state.focusSessions,focus)||!add(state.moodEntries,mood))return null;
+    if(!add(state.syncOps,item=>syncOp(item,ids)))return null;
+    return state;
   }
 
   function hash(text,seed){let hash=seed>>>0;for(let index=0;index<text.length;index++)hash=Math.imul(hash^text.charCodeAt(index),16777619)>>>0;return hash>>>0;}

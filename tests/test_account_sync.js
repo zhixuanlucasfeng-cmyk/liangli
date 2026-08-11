@@ -32,6 +32,13 @@ assert.equal(api.normalizeCoreState({...state, moodEntries:[{...state.moodEntrie
 assert.equal(api.normalizeCoreState({...state, growthItems:[{...state.growthItems[0],id:uuid}]}), null, 'IDs are globally unique across entity collections');
 assert.equal(api.normalizeCoreState({...state, syncOps:[{...state.syncOps[0],type:'food'}]}), null, 'recovery queue cannot contain Life entity types');
 
+const earlierV1 = {...state, growthItems:[(({rolloverSourceId,...growth})=>growth)(state.growthItems[0])]};
+assert.deepEqual(api.normalizeCoreState(earlierV1), state, 'earlier v1 growth entries upgrade only the missing rollover transition');
+assert.equal(api.normalizeCoreState({...earlierV1, growthItems:[(({name,...growth})=>growth)(earlierV1.growthItems[0])]}), null,
+  'compatibility does not permit unrelated missing growth keys');
+assert.equal(api.normalizeCoreState({...earlierV1, growthItems:[{...earlierV1.growthItems[0],unexpected:true}]}), null,
+  'compatibility does not permit extra growth keys');
+
 const migrated = api.migrateLegacyCoreState({
   tasks:[{id:1700000000000,name:'Read',energy:25,done:false,dayKey:'2026-08-10'}],
   ideas:[{id:1700000000001,name:'Essay idea'}],
