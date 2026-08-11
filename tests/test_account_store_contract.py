@@ -75,6 +75,16 @@ class AccountStoreContractTests(unittest.TestCase):
             self.assertRegex(migration, rf'(?is)drop\s+constraint\s+if\s+exists\s+{re.escape(table)}_client_updated_at_check')
             self.assertRegex(migration, rf'(?is)add\s+constraint\s+{re.escape(constraint)}\s+check\s*\(\s*client_updated_at\s+between\s+0\s+and\s+253402300799999\s*\)')
 
+    def test_existing_core_mutations_use_the_monotonic_entity_clock(self):
+        mutation_region = HTML[HTML.index('function toggleTask'):HTML.index('/* ============ utils ============ */')]
+        core_blocks = re.findall(r"commitCoreMutation\((?:.|\n)*?\}\)\)", mutation_region)
+        self.assertGreaterEqual(len(core_blocks), 10)
+        for block in core_blocks:
+            if 'updatedAt' in block or 'deletedAt' in block:
+                self.assertNotIn('Date.now()', block, 'existing core entities must never receive a raw wall-clock version')
+        self.assertIn('nextEntityTimestamp', HTML)
+        self.assertIn("changed.map(({updatedAt,...item})=>({...item,id:coreId(),createdAt:updatedAt}))", HTML)
+
 
 if __name__ == '__main__':
     unittest.main()

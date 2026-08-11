@@ -853,16 +853,29 @@ let coreSyncController=null;
 /* Legacy CommunityClient refreshPromises:new Map(), this.generation!==expectedGeneration,
    CommunityClient.generation===ownerGeneration, and this.generation!==restoreGeneration checks
    are now enforced by the single AccountClient owner in account-sync.js. */
+async function activateAccountSession(session){
+  const record=readCoreScope(session.user.id);
+  if(record.status==='valid'){
+    pendingAccountDeviceState=null;pendingFirstLoginSession=null;
+    const result=await coreSyncController.resume(session,record.state);
+    if(result?.discarded)return result;
+    setAccountSyncStatus('waiting');renderAccountPanel();return result;
+  }
+  if(record.status==='missing')return await beginAccountFirstLogin(session);
+  pendingAccountDeviceState=null;pendingFirstLoginSession=null;activateCoreScope(session.user.id);
+  setAccountPanelError(T('accountFirstLoginFailed'));renderAll();renderAccountPanel();return {invalid:true};
+}
+async function handleAccountSessionChange(session){
+  abortAccountReconciliation();if(coreSyncController)coreSyncController.cancel();cancelStartEmpty();accountPanelMessageOverride=null;
+  const nextScope=session?session.user.id:'local',scopeChanged=ActiveFlashcardStore.scope!==FlashcardStore.normalizeScope(nextScope);
+  ActiveFlashcardStore=FlashcardStore.forScope(nextScope);updateFlashcardAccountUI(session);
+  if(session)await activateAccountSession(session);
+  else {pendingAccountDeviceState=null;pendingFirstLoginSession=null;activateCoreScope('local');renderAll();}
+  if(scopeChanged&&typeof resetFlashcardScopeUI==='function')resetFlashcardScopeUI();
+}
 AccountClient.configure({
   url:SUPABASE_URL,anonKey:SUPABASE_ANON_KEY,getStoredSession:()=>DB.get('supabaseSession',null),setStoredSession:session=>DB.set('supabaseSession',session),
-  onSessionChange:async session=>{
-    abortAccountReconciliation();if(coreSyncController)coreSyncController.cancel();cancelStartEmpty();accountPanelMessageOverride=null;
-    const nextScope=session?session.user.id:'local',scopeChanged=ActiveFlashcardStore.scope!==FlashcardStore.normalizeScope(nextScope);
-    ActiveFlashcardStore=FlashcardStore.forScope(nextScope);updateFlashcardAccountUI(session);
-    if(session)await beginAccountFirstLogin(session);
-    else {pendingAccountDeviceState=null;pendingFirstLoginSession=null;activateCoreScope('local');}
-    if(scopeChanged&&typeof resetFlashcardScopeUI==='function')resetFlashcardScopeUI();
-  }
+  onSessionChange:handleAccountSessionChange
 });
 
 function applyLang(){
@@ -950,12 +963,11 @@ function appendCoreSyncOps(previous,candidate){
     const prior=new Map(previous[key].map(item=>[item.id,item]));
     for(const item of candidate[key]){
       if(JSON.stringify(prior.get(item.id))===JSON.stringify(item))continue;
-      changed.push({type,entityId:item.id,op:item.deletedAt===null?'upsert':'delete'});
+      changed.push({type,entityId:item.id,op:item.deletedAt===null?'upsert':'delete',updatedAt:item.updatedAt});
     }
   }
   if(!changed.length)return candidate;
-  const createdAt=Date.now();
-  return {...candidate,syncOps:[...candidate.syncOps,...changed.map(item=>({...item,id:coreId(),createdAt}))]};
+  return {...candidate,syncOps:[...candidate.syncOps,...changed.map(({updatedAt,...item})=>({...item,id:coreId(),createdAt:updatedAt}))]};
 }
 function applyCoreStateToView(state=activeCoreState){
   if(state&&typeof S!=='undefined')S=coreStateToViewState(state,S);
@@ -1231,7 +1243,12 @@ function coreId(){
     const value=Math.floor(Math.random()*16);return (char==='x'?value:(value&3)|8).toString(16);
   });
 }
-function coreTimestamps(){const now=Date.now();return {createdAt:now,updatedAt:now,deletedAt:null};}
+function coreTimestamps(){const now=LiangliAccountSync.nextEntityTimestamp(null,Date.now());return {createdAt:now,updatedAt:now,deletedAt:null};}
+function nextCoreUpdatedAt(entity,now=Date.now()){
+  const updatedAt=LiangliAccountSync.nextEntityTimestamp(entity?.updatedAt,now);
+  if(updatedAt===null)throw new Error('Core timestamp exhausted');
+  return updatedAt;
+}
 function localDayKey(date=new Date()){
   const year=date.getFullYear();
   const month=String(date.getMonth()+1).padStart(2,'0');
@@ -2433,7 +2450,7 @@ function rolloverIfNeeded(render=true){
   }
   const committed=commitCoreMutation('growth','rollover',candidate=>{
     const known=new Set(candidate.growthItems.map(item=>item.rolloverSourceId));
-    const createdAt=Date.now();
+    const createdAt=LiangliAccountSync.nextEntityTimestamp(null,Date.now());
     candidate.growthItems.push(...candidate.tasks.filter(task=>task.deletedAt===null&&!task.done&&task.dayKey!==nextDay&&!known.has(task.id))
       .map(task=>({id:coreId(),name:task.name,energy:task.energy,rolloverSourceId:task.id,createdAt,updatedAt:createdAt,deletedAt:null})));
     return candidate;
@@ -2701,16 +2718,16 @@ function addTask(){
 function toggleTask(id){
   if(!activeCoreItems('task').some(task=>task.id===id))return;
   if(!commitCoreMutation('task',id,candidate=>{
-    const updatedAt=Date.now();
-    return {...candidate,tasks:candidate.tasks.map(task=>task.id===id?{...task,done:!task.done,updatedAt}:task)};
+    return {...candidate,tasks:candidate.tasks.map(task=>task.id===id?{...task,done:!task.done,updatedAt:nextCoreUpdatedAt(task)}:task)};
   }))return;
   renderTasks();
 }
 function delTask(id){
   if(!activeCoreItems('task').some(task=>task.id===id))return;
   if(!commitCoreMutation('task',id,candidate=>{
-    const deletedAt=Date.now();
-    return {...candidate,tasks:candidate.tasks.map(task=>task.id===id?{...task,updatedAt:deletedAt,deletedAt}:task)};
+    return {...candidate,tasks:candidate.tasks.map(task=>{
+      if(task.id!==id)return task;const deletedAt=nextCoreUpdatedAt(task);return {...task,updatedAt:deletedAt,deletedAt};
+    })};
   }))return;
   renderTasks();
 }
@@ -2773,11 +2790,10 @@ async function copyLocalFlashcardsToAccount(){
       await accountStore.importBundle({decks:copiedDecks,cards:copiedCards,reviews:copiedReviews});
       DB.set(`flashCopyMap_${accountScope}`,saved);
       if(!commitCoreMutation('task','flashcard-copy',candidate=>{
-        const updatedAt=Date.now();
         return {...candidate,tasks:candidate.tasks.map(task=>{
           const localRef=task.helperRefs?.local||task.helperRef,mapped=deckMap.get(localRef);
           if(!mapped)return task;
-          return {...task,helperRefs:{...(task.helperRefs||{}),[accountScope]:mapped},updatedAt};
+          return {...task,helperRefs:{...(task.helperRefs||{}),[accountScope]:mapped},updatedAt:nextCoreUpdatedAt(task)};
         })};
       }))return false;
       renderTasks();if(ActiveFlashcardStore.scope===FlashcardStore.normalizeScope(accountScope))await renderDecks();toast(T('copyLocalDone'));return true;
@@ -2849,9 +2865,8 @@ async function createDeck(){
   const shouldLink=Boolean(linkedTask&&!taskFlashcardRef(linkedTask));
   if(shouldLink){
     const committed=commitCoreMutation('task',linkedTask.id,candidate=>{
-      const updatedAt=Date.now();
       return {...candidate,tasks:candidate.tasks.map(task=>task.id!==linkedTask.id?task:{...task,
-        helperRefs:{...(task.helperRefs||{}),[store.scope]:deck.id},helperRef:store.scope==='local'?deck.id:task.helperRef,updatedAt})};
+        helperRefs:{...(task.helperRefs||{}),[store.scope]:deck.id},helperRef:store.scope==='local'?deck.id:task.helperRef,updatedAt:nextCoreUpdatedAt(task)})};
     },{schedule:false});
     if(!committed){await store.discardDeckComponentsIfCurrent({deck,cards:[]}).catch(()=>{});toast(T('flashcardStoreError'));return false;}
     transaction.committedCore=coreMutationSnapshot();
@@ -2928,11 +2943,10 @@ async function deleteFlashcardDeck(deckId){
   const linkedTask=S.tasks.find(task=>taskFlashcardRef(task)===deckId);
   if(linkedTask){
     const committed=commitCoreMutation('task',linkedTask.id,candidate=>{
-      const updatedAt=Date.now();
       return {...candidate,tasks:candidate.tasks.map(task=>{
         if(taskFlashcardRef(task)!==deckId)return task;
         const helperRefs={...(task.helperRefs||{})};delete helperRefs[store.scope];
-        return {...task,helperRefs,helperRef:store.scope==='local'?null:task.helperRef,updatedAt};
+        return {...task,helperRefs,helperRef:store.scope==='local'?null:task.helperRef,updatedAt:nextCoreUpdatedAt(task)};
       })};
     },{schedule:false});
     if(!committed){
@@ -3176,8 +3190,9 @@ function addIdea(){
 function delIdea(id){
   if(!activeCoreItems('growth').some(item=>item.id===id))return;
   if(!commitCoreMutation('growth',id,candidate=>{
-    const deletedAt=Date.now();
-    return {...candidate,growthItems:candidate.growthItems.map(item=>item.id===id?{...item,updatedAt:deletedAt,deletedAt}:item)};
+    return {...candidate,growthItems:candidate.growthItems.map(item=>{
+      if(item.id!==id)return item;const deletedAt=nextCoreUpdatedAt(item);return {...item,updatedAt:deletedAt,deletedAt};
+    })};
   }))return;
   renderIdeas();
 }
@@ -3186,8 +3201,9 @@ function promote(id){
   const task=normalizeTask({id:coreId(),name:idea.name,energy:idea.energy||25,done:false,dayKey:currentDayKey,
     startTime:null,endTime:null,helper:'none',helperRef:null,helperRefs:{},pomodoroCount:0,...coreTimestamps()},currentDayKey);
   if(!commitCoreMutation('growth',id,candidate=>{
-    const deletedAt=Date.now();
-    return {...candidate,tasks:[...candidate.tasks,task],growthItems:candidate.growthItems.map(item=>item.id===id?{...item,updatedAt:deletedAt,deletedAt}:item)};
+    return {...candidate,tasks:[...candidate.tasks,task],growthItems:candidate.growthItems.map(item=>{
+      if(item.id!==id)return item;const deletedAt=nextCoreUpdatedAt(item);return {...item,updatedAt:deletedAt,deletedAt};
+    })};
   }))return;
   renderIdeas(); renderTasks(); toast(T('movedTask'));
   go('today',document.querySelector('nav button[data-v=today]'));
@@ -3223,16 +3239,16 @@ function addGoal(){
 function stepGoal(id,d){
   if(!activeCoreItems('goal').some(goal=>goal.id===id))return;
   if(!commitCoreMutation('goal',id,candidate=>{
-    const updatedAt=Date.now();
-    return {...candidate,goals:candidate.goals.map(goal=>goal.id===id?{...goal,cur:Math.max(0,Math.min(goal.target,goal.cur+d)),updatedAt}:goal)};
+    return {...candidate,goals:candidate.goals.map(goal=>goal.id===id?{...goal,cur:Math.max(0,Math.min(goal.target,goal.cur+d)),updatedAt:nextCoreUpdatedAt(goal)}:goal)};
   }))return;
   renderGoals();
 }
 function delGoal(id){
   if(!activeCoreItems('goal').some(goal=>goal.id===id))return;
   if(!commitCoreMutation('goal',id,candidate=>{
-    const deletedAt=Date.now();
-    return {...candidate,goals:candidate.goals.map(goal=>goal.id===id?{...goal,updatedAt:deletedAt,deletedAt}:goal)};
+    return {...candidate,goals:candidate.goals.map(goal=>{
+      if(goal.id!==id)return goal;const deletedAt=nextCoreUpdatedAt(goal);return {...goal,updatedAt:deletedAt,deletedAt};
+    })};
   }))return;
   renderGoals();
 }
@@ -3275,9 +3291,8 @@ function finishPomo(){
   clearInterval(timer); running=false;
   const session={id:coreId(),kind:'pomodoro',minutes:25,pomodoroCount:1,dayKey:currentDayKey,...coreTimestamps()};
   if(!commitCoreMutation('focus',session.id,candidate=>{
-    const updatedAt=Date.now();
     return {...candidate,focusSessions:[...candidate.focusSessions,session],tasks:candidate.tasks.map(task=>task.id===activeTaskId
-      ?{...task,pomodoroCount:task.pomodoroCount+1,updatedAt}:task)};
+      ?{...task,pomodoroCount:task.pomodoroCount+1,updatedAt:nextCoreUpdatedAt(task)}:task)};
   }))return;
   document.getElementById('clabel').textContent=T('doneOne');
   document.getElementById('startBtn').textContent=T('again');
@@ -3797,8 +3812,9 @@ function addLog(){
 function delLog(id){
   if(!activeCoreItems('mood').some(entry=>entry.id===id))return;
   if(!commitCoreMutation('mood',id,candidate=>{
-    const deletedAt=Date.now();
-    return {...candidate,moodEntries:candidate.moodEntries.map(entry=>entry.id===id?{...entry,updatedAt:deletedAt,deletedAt}:entry)};
+    return {...candidate,moodEntries:candidate.moodEntries.map(entry=>{
+      if(entry.id!==id)return entry;const deletedAt=nextCoreUpdatedAt(entry);return {...entry,updatedAt:deletedAt,deletedAt};
+    })};
   }))return;
   renderLogs();
 }

@@ -33,9 +33,19 @@ vm.runInContext(`${script.slice(start,end)};globalThis.make=createFlashcardRestC
   await client.from('flashcard_reviews').upsert([{id:'r'}],{onConflict:'id',ignoreDuplicates:true});
   assert.match(requests[1].options.headers.Prefer,/ignore-duplicates/);
 
+  const representedRow={id:'c',user_id:'u1',payload:{id:'c'},client_updated_at:7,deleted_at:null};
+  responder=async()=>({ok:true,status:201,json:async()=>[representedRow]});
+  const represented=await client.from('flashcards').upsert([representedRow],{onConflict:'id',returning:true});
+  assert.equal(requests[2].options.headers.Prefer,'resolution=merge-duplicates,return=representation');
+  assert.deepEqual(represented,{data:[representedRow],error:null},'returning POST callers receive the stored PostgREST representation');
+
   await client.from('flashcards').update({deleted_at:'now'}).eq('id','c').lte('client_updated_at',9);
-  assert.match(requests[2].url,/id=eq\.c/);
-  assert.match(requests[2].url,/client_updated_at=lte\.9/);
+  assert.match(requests[3].url,/id=eq\.c/);
+  assert.match(requests[3].url,/client_updated_at=lte\.9/);
+  responder=async()=>({ok:true,status:200,json:async()=>[representedRow]});
+  const patched=await client.from('flashcards').update({payload:{id:'c'}},{returning:true}).eq('id','c').lte('client_updated_at',9);
+  assert.equal(requests[4].options.headers.Prefer,'return=representation');
+  assert.deepEqual(patched,{data:[representedRow],error:null},'returning PATCH callers receive the stored PostgREST representation');
   assert.throws(()=>client.from('tasks'),/not allowed/i);
 
   const pageRequests=[];

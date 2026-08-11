@@ -15,6 +15,14 @@
   function nullableText(value,max=MAX_TEXT){return value===null||(typeof value==='string'&&value.length<=max&&value.trim()===value);}
   function integer(value,min,max){return Number.isInteger(value)&&value>=min&&value<=max;}
   function timestamp(value){return integer(value,0,MAX_TIMESTAMP);}
+  function nextEntityTimestamp(previousUpdatedAt=null,now=Date.now()){
+    if(previousUpdatedAt!==null&&!timestamp(previousUpdatedAt))return null;
+    const boundedNow=Number.isFinite(now)?Math.min(MAX_TIMESTAMP,Math.max(0,Math.trunc(now))):null;
+    if(boundedNow===null)return null;
+    if(previousUpdatedAt===null)return boundedNow;
+    if(previousUpdatedAt===MAX_TIMESTAMP)return null;
+    return Math.max(boundedNow,previousUpdatedAt+1);
+  }
   function deletion(value){return value===null||timestamp(value);}
   function entityTimes(value){return timestamp(value.createdAt)&&timestamp(value.updatedAt)&&value.updatedAt>=value.createdAt&&deletion(value.deletedAt)&&(value.deletedAt===null||value.deletedAt>=value.updatedAt);}
   function uuid(value){return typeof value==='string'&&UUID.test(value);}
@@ -170,7 +178,7 @@
       for(const entity of normalized[CORE_STATE_KEYS[type]]){
         let id=nextId();
         if(!uuid(id)||used.has(id))throw new Error('Invalid device upload operation id');
-        used.add(id);syncOps.push({id,type,entityId:entity.id,op:entity.deletedAt===null?'upsert':'delete',createdAt});
+        used.add(id);syncOps.push({id,type,entityId:entity.id,op:entity.deletedAt===null?'upsert':'delete',createdAt:entity.updatedAt});
       }
     }
     const prepared={...normalized,syncOps};
@@ -239,15 +247,15 @@
       if(!plain(data)||typeof data.access_token!=='string'||!data.access_token||!plain(data.user)||typeof data.user.id!=='string'||!data.user.id)return null;
       return {access_token:data.access_token,refresh_token:typeof data.refresh_token==='string'?data.refresh_token:null,expires_at:Math.floor(Date.now()/1000)+(Number.isFinite(data.expires_in)?data.expires_in:3600),user:data.user};
     },
-    async activate(session,persist=true,preserveGeneration=false){
+    async activate(session,persist=true,preserveGeneration=false,notifySessionChange=true){
       if(session!==null&&(!plain(session)||!plain(session.user)||typeof session.user.id!=='string'||!session.user.id))throw new Error('Invalid session');
       if(!preserveGeneration)this.generation++;
       this.session=session;this.client=session?createOwnerRestClient(session,this.generation,Object.values(CORE_REMOTE_TABLES)):null;this.authInvalid=false;this.authorizationBlocked=false;
       if(persist)accountRuntime.setStoredSession(session);
-      if(typeof accountRuntime.onSessionChange==='function')await accountRuntime.onSessionChange(session,persist);
+      if(notifySessionChange&&typeof accountRuntime.onSessionChange==='function')await accountRuntime.onSessionChange(session,persist);
       return session;
     },
-    async refreshSession(expectedUserId=this.session?.user?.id){
+    async refreshSession(expectedUserId=this.session?.user?.id,options={}){
       if(!expectedUserId||this.session?.user?.id!==expectedUserId)throw new Error('Session changed');
       const expectedGeneration=this.generation,expectedToken=this.session.access_token,expectedRefreshToken=this.session.refresh_token;
       if(this.refreshPromise&&this.refreshOwner?.generation===expectedGeneration&&this.refreshOwner.userId===expectedUserId&&this.refreshOwner.accessToken===expectedToken)return this.refreshPromise;
@@ -255,11 +263,11 @@
         const latest=accountRuntime.getStoredSession();
         if(this.generation!==expectedGeneration||this.session?.user?.id!==expectedUserId||this.session.access_token!==expectedToken)throw new Error('Session changed');
         if(latest&&latest.user?.id!==expectedUserId)throw new Error('Session changed');
-        if(latest&&latest.access_token!==expectedToken&&(latest.expires_at||0)>Math.floor(Date.now()/1000)+60)return await this.activate(latest,false,true);
+        if(latest&&latest.access_token!==expectedToken&&(latest.expires_at||0)>Math.floor(Date.now()/1000)+60)return await this.activate(latest,false,true,options.notifySessionChange===true);
         if(!expectedRefreshToken)throw new Error('Session expired');
         const session=this.sessionFromPayload(await this.authRequest('token?grant_type=refresh_token',{refresh_token:expectedRefreshToken}));
         if(!session||this.generation!==expectedGeneration||this.session?.user?.id!==expectedUserId||this.session.access_token!==expectedToken)throw new Error('Session changed');
-        return await this.activate(session,true,true);
+        return await this.activate(session,true,true,options.notifySessionChange===true);
       };
       const locks=root.navigator?.locks;
       const promise=(locks?locks.request('liangli-auth-refresh',refresh):refresh()).finally(()=>{
@@ -269,15 +277,26 @@
     },
     async restoreSession(){
       if(!this.isConfigured())return await this.activate(null,false);
-      const restoreGeneration=this.generation;let expectedUserId=null;
+      const restoreGeneration=this.generation;let expectedUserId=null,restoreOwnerGeneration=null;
       try{
         const session=accountRuntime.getStoredSession();
         if(!session||!session.refresh_token||!session.user)return await this.activate(null);
         expectedUserId=session.user.id;
-        if((session.expires_at||0)<=Math.floor(Date.now()/1000)+60){this.session=session;return await this.refreshSession(expectedUserId);}
-        return await this.activate(session);
+        const alreadyActive=this.session?.user?.id===expectedUserId;
+        if((session.expires_at||0)<=Math.floor(Date.now()/1000)+60){
+          if(alreadyActive){
+            if(this.session.access_token!==session.access_token)await this.activate(session,false,true,false);
+            return await this.refreshSession(expectedUserId);
+          }
+          if(this.generation!==restoreGeneration)return this.session;
+          this.generation++;restoreOwnerGeneration=this.generation;this.session=session;
+          this.client=createOwnerRestClient(session,this.generation,Object.values(CORE_REMOTE_TABLES));this.authInvalid=false;this.authorizationBlocked=false;
+          return await this.refreshSession(expectedUserId,{notifySessionChange:true});
+        }
+        return alreadyActive?await this.activate(session,false,true,false):await this.activate(session);
       }catch(error){
-        if(this.generation!==restoreGeneration||this.session?.user?.id!==expectedUserId)return this.session;
+        const ownerGeneration=restoreOwnerGeneration===null?restoreGeneration:restoreOwnerGeneration;
+        if(this.generation!==ownerGeneration||this.session?.user?.id!==expectedUserId)return this.session;
         await this.activate(null);throw error;
       }
     },
@@ -318,7 +337,7 @@
         let message='';try{const errorBody=await response.json();message=typeof errorBody?.message==='string'?errorBody.message:'';}catch(error){}
         return message?{data:null,error:true,status:response.status,message}:{data:null,error:true,status:response.status};
       }
-      const data=method==='GET'||path.startsWith('rpc/')?await response.json():null;
+      const data=method==='GET'||path.startsWith('rpc/')||prefer.includes('return=representation')?await response.json():null;
       return activeOwner(session,generation)?{data,error:null}:discarded();
     };
     const table=name=>{
@@ -327,16 +346,17 @@
         async select(columns='*',options={}){
           const after=timestamp(options.clientUpdatedAfter)?`&client_updated_at=gt.${encodeURIComponent(options.clientUpdatedAfter)}`
             :timestamp(options.clientUpdatedAtOrAfter)?`&client_updated_at=gte.${encodeURIComponent(options.clientUpdatedAtOrAfter)}`:'';
+          const byId=uuid(options.id)?`&id=eq.${encodeURIComponent(options.id)}`:'';
           const rows=[];let offset=0;
           while(true){
-            const result=await request(name,'GET',null,`?select=${encodeURIComponent(columns)}${after}`,'',{'Range-Unit':'items',Range:`${offset}-${offset+999}`});
+            const result=await request(name,'GET',null,`?select=${encodeURIComponent(columns)}${after}${byId}`,'',{'Range-Unit':'items',Range:`${offset}-${offset+999}`});
             if(result.error)return result;
             rows.push(...result.data);if(result.data.length<1000)return {data:rows,error:null};offset+=1000;
           }
         },
-        upsert(rows,options={}){return request(name,'POST',rows,`?on_conflict=${encodeURIComponent(options.onConflict||'id')}`,options.ignoreDuplicates?'resolution=ignore-duplicates,return=minimal':'resolution=merge-duplicates,return=minimal');},
+        upsert(rows,options={}){return request(name,'POST',rows,`?on_conflict=${encodeURIComponent(options.onConflict||'id')}`,options.ignoreDuplicates?'resolution=ignore-duplicates,return=minimal':`resolution=merge-duplicates,return=${options.returning?'representation':'minimal'}`);},
         delete(){let filters='';return {eq(column,value){filters+=`&${encodeURIComponent(column)}=eq.${encodeURIComponent(value)}`;return request(name,'DELETE',null,`?${filters.slice(1)}`,'return=minimal');}};},
-        update(values){let filters='';return {eq(column,value){filters+=`&${encodeURIComponent(column)}=eq.${encodeURIComponent(value)}`;return this;},lte(column,value){filters+=`&${encodeURIComponent(column)}=lte.${encodeURIComponent(value)}`;return request(name,'PATCH',values,`?${filters.slice(1)}`,'return=minimal');}};}
+        update(values,options={}){let filters='';return {eq(column,value){filters+=`&${encodeURIComponent(column)}=eq.${encodeURIComponent(value)}`;return this;},lte(column,value){filters+=`&${encodeURIComponent(column)}=lte.${encodeURIComponent(value)}`;return request(name,'PATCH',values,`?${filters.slice(1)}`,`return=${options.returning?'representation':'minimal'}`);}};}
       };
     };
     const rpc=(name,args)=>{
@@ -414,6 +434,19 @@
       const result=await client.table(table).upsert(rows,{onConflict:conflictKey,returning:true});
       if(!owner(session,generation,epoch)||result?.discarded)return {discarded:true};
       return result;
+    };
+    const pushedEntity=async(client,type,entity,result,session,generation,epoch)=>{
+      const validate=data=>{
+        if(!Array.isArray(data)||data.length!==1)return null;
+        const resolved=entityFromCloudRow(type,data[0],session.user.id);
+        return resolved?.id===entity.id?resolved:null;
+      };
+      const represented=validate(result?.data);if(represented)return represented;
+      if(!owner(session,generation,epoch))return {discarded:true};
+      const refetched=await client.table(CORE_REMOTE_TABLES[type]).select('*',{id:entity.id});
+      if(!owner(session,generation,epoch)||refetched?.discarded)return {discarded:true};
+      if(refetched?.error)return null;
+      return validate(refetched?.data);
     };
     const initializeCloud=async(client,state,session,generation,epoch)=>{
       if(!owner(session,generation,epoch))return {discarded:true};
@@ -504,6 +537,15 @@
       return {initialized:true,state:cloud};
     };
     const recoverCommittedWinner=async(session,recoveryState)=>await activateCloud(session,{recoveryState});
+    const resume=async(session,state)=>{
+      const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;
+      if(!owner(session,generation,epoch))return {discarded:true};
+      const normalized=normalizeCoreState(state===undefined?await readState(session):state);
+      if(!normalized)return {invalid:true};
+      if(typeof deps.onActivate==='function')deps.onActivate(session.user.id,normalized);
+      markReady(session,generation,epoch);notify('waiting',session,generation,epoch);
+      return {restored:true,state:normalized};
+    };
     const syncNow=async session=>{
       const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;
       if(!owner(session,generation,epoch))return {discarded:true};
@@ -511,37 +553,40 @@
       if(typeof deps.isOnline==='function'&&!deps.isOnline()){const error=new Error('Offline');error.offline=true;throw error;}
       notify('syncing',session,generation,epoch);
       const manifest=await fetchManifest(session,generation,epoch);if(manifest.discarded||!manifest.initialized)return manifest;
-      let state=await readState(session);if(!state)throw new Error('Invalid core state');
-      const client=clientFor(session,generation),sent=coalesceCoreOps(state.syncOps),succeeded=new Set();
+      const snapshot=await readState(session);if(!snapshot)throw new Error('Invalid core state');
+      const client=clientFor(session,generation),sent=coalesceCoreOps(snapshot.syncOps),succeeded=new Set(),pushWinners=new Map();
+      const initialOpIds=new Set(snapshot.syncOps.map(op=>op.id)),sentByGroup=new Map(sent.map(op=>[`${op.type}:${op.entityId}`,op]));
       let pushedHighWatermark=0;
       for(const op of sent){
         if(!owner(session,generation,epoch))return {discarded:true};
-        const entity=state[CORE_STATE_KEYS[op.type]].find(item=>item.id===op.entityId);
+        const entity=snapshot[CORE_STATE_KEYS[op.type]].find(item=>item.id===op.entityId);
         const group=`${op.type}:${op.entityId}`;
         if(!entity)continue;
         const result=await callUpsert(client,CORE_REMOTE_TABLES[op.type],[coreRow(op.type,entity,session.user.id)],session,generation,epoch);
         if(result.discarded)return result;
         if(result?.error)continue;
-        succeeded.add(group);
-        if(Array.isArray(result.data))for(const row of result.data)if(plain(row)&&row.user_id===session.user.id&&timestamp(row.client_updated_at))pushedHighWatermark=Math.max(pushedHighWatermark,row.client_updated_at);
+        const winner=await pushedEntity(client,op.type,entity,result,session,generation,epoch);
+        if(winner?.discarded)return winner;
+        if(!winner||winner.updatedAt<entity.updatedAt)continue;
+        succeeded.add(op.id);
+        pushWinners.set(group,{entity:winner,sentUpdatedAt:entity.updatedAt});
+        pushedHighWatermark=Math.max(pushedHighWatermark,winner.updatedAt);
       }
-      const latest=await readState(session);if(!latest)return {discarded:true};
-      const latestWinners=new Map(coalesceCoreOps(latest.syncOps).map(op=>[`${op.type}:${op.entityId}`,op]));
-      const sentWinners=new Map(sent.map(op=>[`${op.type}:${op.entityId}`,op]));
-      state={...latest,syncOps:latest.syncOps.filter(op=>{
-        const group=`${op.type}:${op.entityId}`,sentWinner=sentWinners.get(group);
-        if(!sentWinner)return true;
-        const latestWinner=latestWinners.get(group);
-        if(!latestWinner)return false;
-        if(succeeded.has(group)&&latestWinner.id===sentWinner.id)return false;
-        return op.id===latestWinner.id;
-      })};
-      if(!await writeState(session,generation,epoch,state))return {discarded:true};
       const cursor=cursors.get(session.user.id),changed=await fetchCloudState(session,generation,epoch,cursor);
       if(changed.discarded)return changed;
+      let state=await readState(session);if(!state)return {discarded:true};
+      state={...state,syncOps:state.syncOps.filter(op=>{
+        if(!initialOpIds.has(op.id))return true;
+        const sentWinner=sentByGroup.get(`${op.type}:${op.entityId}`);
+        return sentWinner?.id===op.id&&!succeeded.has(op.id);
+      })};
       for(const type of CORE_SYNC_TYPES){
         const key=CORE_STATE_KEYS[type],localById=new Map(state[key].map(item=>[item.id,item]));
         for(const remote of changed[key])localById.set(remote.id,mergeCoreEntity(localById.get(remote.id),remote));
+        for(const [group,pushed] of pushWinners)if(group.startsWith(`${type}:`)){
+          const local=localById.get(pushed.entity.id);
+          localById.set(pushed.entity.id,local&&local.updatedAt>pushed.sentUpdatedAt?mergeCoreEntity(local,pushed.entity):pushed.entity);
+        }
         state[key]=[...localById.values()];
       }
       const remoteTimes=CORE_SYNC_TYPES.flatMap(type=>changed[CORE_STATE_KEYS[type]].map(entity=>entity.updatedAt));
@@ -559,7 +604,7 @@
       if(!lastSession)return Promise.resolve(null);
       if(!coreReady(lastSession,getGeneration(),cancelEpoch))return Promise.resolve({quarantined:true});
       if(inFlight){
-        if(reason==='mutation'||runningUserId!==lastSession.user.id||runningGeneration!==getGeneration())rerunRequested=true;
+        if(reason.startsWith('mutation:')||runningUserId!==lastSession.user.id||runningGeneration!==getGeneration())rerunRequested=true;
         return inFlight;
       }
       inFlight=(async()=>{
@@ -575,11 +620,11 @@
       })().finally(()=>{inFlight=null;runningUserId=null;runningGeneration=null;});
       return inFlight;
     };
-    return Object.freeze({inspectCloud,initializeFromDevice,initializeEmpty,activateCloud,sync,schedule:reason=>sync(lastSession||(typeof deps.getSession==='function'?deps.getSession():null),reason),cancel:()=>{cancelEpoch++;markNotReady();clearTimer(timer);timer=null;attempt=0;rerunRequested=false;}});
+    return Object.freeze({inspectCloud,initializeFromDevice,initializeEmpty,activateCloud,resume,sync,schedule:reason=>sync(lastSession||(typeof deps.getSession==='function'?deps.getSession():null),reason),cancel:()=>{cancelEpoch++;markNotReady();clearTimer(timer);timer=null;attempt=0;rerunRequested=false;}});
   }
 
   root.AccountClient=AccountClient;
   root.CommunityClient=AccountClient;
-  root.LiangliAccountSync=Object.freeze({CORE_STATE_VERSION,CORE_SYNC_TYPES,CORE_REMOTE_TABLES,CORE_MANIFEST_TABLE,coreStorageKey,normalizeCoreState,migrateLegacyCoreState,serializeCoreRecovery,parseCoreRecovery,createCoreRecoveryStore,prepareDeviceUploadState,readAnonymousCoreState,createAccountReconciliationGate,mergeCoreEntity,coalesceCoreOps,createCoreSyncController,createOwnerRestClient,AccountClient});
+  root.LiangliAccountSync=Object.freeze({CORE_STATE_VERSION,CORE_SYNC_TYPES,CORE_REMOTE_TABLES,CORE_MANIFEST_TABLE,coreStorageKey,normalizeCoreState,migrateLegacyCoreState,serializeCoreRecovery,parseCoreRecovery,createCoreRecoveryStore,prepareDeviceUploadState,readAnonymousCoreState,createAccountReconciliationGate,mergeCoreEntity,coalesceCoreOps,nextEntityTimestamp,createCoreSyncController,createOwnerRestClient,AccountClient});
   if(typeof module!=='undefined'&&module.exports)module.exports=root.LiangliAccountSync;
 })(typeof window==='undefined'?globalThis:window);

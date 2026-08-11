@@ -112,6 +112,11 @@ assert.throws(()=>api.parseCoreRecovery('{"bad":true}'), /invalid/i, 'recovery p
 assert.deepEqual(api.parseCoreRecovery(api.serializeCoreRecovery(maximumTimestampState)),{...maximumTimestampState,syncOps:[]}, 'recovery accepts the maximum canonical entity timestamp');
 assert.throws(()=>api.parseCoreRecovery(JSON.stringify((({syncOps,...core})=>({...core,tasks:[{...core.tasks[0],dayKey:'2026-02-29'}]}))(state))),/invalid/i,
   'recovery rejects overflow calendar dates before changing visible state');
+assert.equal(typeof api.nextEntityTimestamp,'function','core edits expose one canonical per-entity timestamp helper');
+assert.equal(api.nextEntityTimestamp(now,now),now+1,'same-millisecond edits advance beyond the prior entity version');
+assert.equal(api.nextEntityTimestamp(now,now-1000),now+1,'backward device clocks cannot lower an existing entity version');
+assert.equal(api.nextEntityTimestamp(null,maxTimestamp+1000),maxTimestamp,'new entity clocks are bounded to the canonical maximum');
+assert.equal(api.nextEntityTimestamp(maxTimestamp,now),null,'an entity at the canonical maximum fails closed instead of overflowing');
 
 
 async function testAccountClient(){
@@ -188,7 +193,22 @@ async function testAccountClient(){
   assert.equal(requests[5].url,'https://project.supabase.co/rest/v1/rpc/initialize_liangli_core_sync');
   assert.deepEqual(JSON.parse(requests[5].options.body),{p_tasks:[],p_growth_items:[],p_goals:[],p_focus_sessions:[],p_mood_entries:[]});
 
+  const representedRow={id:uuid,user_id:'u1',payload:state.tasks[0],client_updated_at:state.tasks[0].updatedAt,deleted_at:null};
+  nextResponses=[{ok:true,status:201,json:async()=>[representedRow]}];
+  const represented=await client.table('liangli_tasks').upsert([representedRow],{onConflict:'id',returning:true});
+  assert.deepEqual(represented,{data:[representedRow],error:null},'a returning upsert parses the real PostgREST representation');
+  assert.equal(requests.at(-1).options.headers.Prefer,'resolution=merge-duplicates,return=representation',
+    'a returning upsert requests the stored row selected by the server stale-write guard');
+
+  let minimalJsonReads=0;
+  nextResponses=[{ok:true,status:201,json:async()=>{minimalJsonReads++;return [representedRow];}}];
+  assert.deepEqual(await client.table('liangli_tasks').upsert([representedRow],{onConflict:'id'}),{data:null,error:null});
+  assert.equal(requests.at(-1).options.headers.Prefer,'resolution=merge-duplicates,return=minimal','non-returning callers retain minimal responses');
+  assert.equal(minimalJsonReads,0,'minimal POST responses are not parsed as representations');
+
   let refreshRequests=0;
+  let refreshSessionChanges=0;
+  validConfig.onSessionChange=()=>{refreshSessionChanges++;};
   AccountClient.session={access_token:'expired',refresh_token:'refresh-two',expires_at:4102444800,user:{id:'u1'}};
   stored.session=AccountClient.session;
   AccountClient.generation=20;AccountClient.authInvalid=false;
@@ -207,6 +227,22 @@ async function testAccountClient(){
   assert.deepEqual(refreshed[0],{data:[{id:'after-refresh'}],error:null});
   assert.deepEqual(refreshed[1],{data:[{id:'after-refresh'}],error:null});
   assert.equal(AccountClient.session.access_token,'fresh');
+  assert.equal(refreshSessionChanges,0, 'same-user token refresh updates credentials without firing an identity-transition callback');
+
+  const restoredTransitions=[];
+  const expiredStored={access_token:'restore-expired',refresh_token:'restore-refresh',expires_at:1,user:{id:'u1'}};
+  stored.session=expiredStored;AccountClient.session=null;AccountClient.generation=25;AccountClient.refreshPromise=null;
+  validConfig.onSessionChange=session=>restoredTransitions.push(session);
+  validConfig.fetch=async()=>({ok:true,status:200,json:async()=>({access_token:'restore-fresh',refresh_token:'restore-next',expires_in:3600,user:{id:'u1'}})});
+  AccountClient.configure(validConfig);
+  const restoredSession=await AccountClient.restoreSession();
+  assert.equal(restoredSession.access_token,'restore-fresh');
+  assert.equal(restoredTransitions.length,1,'an expired returning-session restore emits one identity activation after credentials refresh');
+  const restoredGeneration=AccountClient.generation;
+  await AccountClient.restoreSession();
+  assert.equal(restoredTransitions.length,1,'re-reading the already-active same-user session does not emit another identity transition');
+  assert.equal(AccountClient.generation,restoredGeneration,'re-reading the already-active same-user session preserves its generation');
+  validConfig.onSessionChange=null;
 
   let rejectOldRefresh;
   let oldRefreshStartedResolve;
@@ -323,8 +359,8 @@ async function testReconciliationGate(){
 function remoteRow(entity){
   return {id:entity.id,user_id:'user-a',payload:clone(entity),client_updated_at:entity.updatedAt,deleted_at:entity.deletedAt};
 }
-function createCoreHarness(){
-  let generation=1,online=true,hold=null,currentSession,clockNow=now;
+function createCoreHarness({initialCoreReady=true}={}){
+  let generation=1,online=true,hold=null,upsertHold=null,currentSession,clockNow=now;
   const sessions={a:{access_token:'a',user:{id:'user-a'}},b:{access_token:'b',user:{id:'user-b'}}};
   const scopes=new Map([['user-a',coreState()],['user-b',coreState({tasks:[],growthItems:[],goals:[],focusSessions:[],moodEntries:[]})]]);
   const remote={
@@ -334,11 +370,13 @@ function createCoreHarness(){
   const statuses=[],writes=[],recovery=[],selects=[],upserts=[],rpcCalls=[],events=[],timers=[];
   const tableFor={task:'liangli_tasks',growth:'liangli_growth_items',goal:'liangli_goals',focus:'liangli_focus_sessions',mood:'liangli_mood_entries'};
   currentSession=sessions.a;
-  const harness={activeScope:'user-a',sessions,remote,statuses,writes,recovery,selects,upserts,rpcCalls,events,timers,failTables:new Set(),failRpc:false,failWrites:false,tableFor,
+  const harness={activeScope:'user-a',sessions,remote,statuses,writes,recovery,selects,upserts,rpcCalls,events,timers,failTables:new Set(),failEntityRefetchTables:new Set(),minimalUpsertTables:new Set(),malformedUpsertTables:new Set(),failRpc:false,failWrites:false,tableFor,
     state(){return scopes.get(this.activeScope);},
     switchTo(session){generation++;currentSession=session;this.activeScope=session.user.id;},
     resolveOld(rows){hold.resolve(rows);hold=null;},
     deferTable(table){let resolve;const promise=new Promise(done=>{resolve=done;});hold={table,promise,resolve:rows=>resolve({data:rows,error:null})};},
+    deferUpsert(table){let resolve;const promise=new Promise(done=>{resolve=done;});upsertHold={table,promise,resolve};},
+    resolveUpsert(){upsertHold.resolve();upsertHold=null;},
     async runTimers(){const pending=timers.filter(timer=>!timer.cancelled);timers.length=0;await Promise.all(pending.map(timer=>timer.fn()));},
     setNow:value=>{clockNow=value;},
   };
@@ -347,18 +385,21 @@ function createCoreHarness(){
     writeScope:(scope,next)=>{events.push(`write:${scope}`);writes.push({scope,state:clone(next)});if(harness.failWrites){if(typeof harness.failWrites==='number')harness.failWrites--;return false;}if(scope!==harness.activeScope)return false;scopes.set(scope,clone(next));return true;},
     createRecovery:async next=>{recovery.push(clone(next));return true;},
     restClient:session=>({table(name){return {
-      select:async(_columns,options={})=>{selects.push({name,options:clone(options)});if(hold&&hold.table===name)return await hold.promise;const after=options.clientUpdatedAfter,inclusive=options.clientUpdatedAtOrAfter;const rows=inclusive!==undefined?(remote[name]||[]).filter(row=>Number(row.client_updated_at??row.updatedAt)>=inclusive):after===undefined?remote[name]||[]:(remote[name]||[]).filter(row=>Number(row.client_updated_at??row.updatedAt)>after);return {data:clone(rows),error:null};},
+      select:async(_columns,options={})=>{selects.push({name,options:clone(options)});if(hold&&hold.table===name)return await hold.promise;if(options.id&&harness.failEntityRefetchTables.has(name))return {data:null,error:true,status:503};const after=options.clientUpdatedAfter,inclusive=options.clientUpdatedAtOrAfter;let rows=inclusive!==undefined?(remote[name]||[]).filter(row=>Number(row.client_updated_at??row.updatedAt)>=inclusive):after===undefined?remote[name]||[]:(remote[name]||[]).filter(row=>Number(row.client_updated_at??row.updatedAt)>after);if(options.id)rows=rows.filter(row=>row.id===options.id);return {data:clone(rows),error:null};},
       upsert:async(rows,options={})=>{
         events.push(`upsert:${name}`);
         upserts.push({name,rows:clone(rows),options:clone(options)});
+        if(upsertHold&&upsertHold.table===name)await upsertHold.promise;
         if(harness.failTables.has(name))return {data:null,error:true,status:503};
         const existing=remote[name]||[];
         const echoes=rows.map(row=>{
           const index=existing.findIndex(item=>(item.id||item.user_id)===(row.id||row.user_id));
-          if(index>=0&&Number(existing[index].client_updated_at||0)>Number(row.client_updated_at||0))return clone(existing[index]);
+          if(index>=0&&Number(existing[index].client_updated_at||0)>=Number(row.client_updated_at||0))return clone(existing[index]);
           if(index>=0)existing[index]=clone(row);else existing.push(clone(row));
           return clone(row);
         });
+        if(harness.minimalUpsertTables.has(name))return {data:null,error:null};
+        if(harness.malformedUpsertTables.has(name))return {data:[{...echoes[0],user_id:'wrong-owner'}],error:null};
         return {data:echoes,error:null};
       },
       delete:()=>({eq:async(column,value)=>{events.push(`delete:${name}`);if(harness.failTables.has(`${name}:delete`))return {data:null,error:true,status:503};remote[name]=(remote[name]||[]).filter(row=>row[column]!==value);return {data:null,error:null};}}),
@@ -371,7 +412,7 @@ function createCoreHarness(){
       remote.liangli_sync_profiles.push({user_id:session.user.id,core_version:1,initialized_at:'2026-08-10T00:00:00.000Z',updated_at:'2026-08-10T00:00:00.000Z'});
       return {data:{initialized:true},error:null};
     }}),
-    getGeneration:()=>generation,getSession:()=>currentSession,initialCoreReady:true,now:()=>clockNow,onStatus:status=>statuses.push(status),onActivate:(scope,next)=>{harness.activeScope=scope;scopes.set(scope,clone(next));},
+    getGeneration:()=>generation,getSession:()=>currentSession,initialCoreReady,now:()=>clockNow,onStatus:status=>statuses.push(status),onActivate:(scope,next)=>{harness.activeScope=scope;scopes.set(scope,clone(next));},
     isOnline:()=>online,setTimeout:(fn,delay)=>{const timer={fn,delay,cancelled:false};timers.push(timer);return timer;},clearTimeout:timer=>{if(timer)timer.cancelled=true;},
   };
   harness.setOnline=value=>{online=value;};
@@ -382,6 +423,21 @@ async function testCoreSyncEngine(){
   assert.equal(typeof api.createCoreSyncController,'function', 'core controller is available to coordinate manifest, queue, and account boundaries');
   assert.equal(typeof api.mergeCoreEntity,'function');
   assert.equal(typeof api.coalesceCoreOps,'function');
+
+  const restoredHarness=createCoreHarness({initialCoreReady:false});
+  const restoredOp={id:uuid7,type:'task',entityId:uuid,op:'upsert',createdAt:now};
+  const restoredState=coreState({syncOps:[restoredOp]});
+  restoredHarness.deps.writeScope('user-a',restoredState);restoredHarness.writes.length=0;restoredHarness.setOnline(false);
+  const restoredController=api.createCoreSyncController(restoredHarness.deps);
+  assert.equal(typeof restoredController.resume,'function','the core controller exposes a local returning-session resume path');
+  assert.deepEqual(await restoredController.resume(restoredHarness.sessions.a,restoredState),{restored:true,state:restoredState},
+    'a returning session resumes its strict account scope without cloud reconciliation');
+  assert.equal(restoredHarness.writes.length,0, 'session restore performs no canonical rewrite or recovery transition');
+  await restoredController.schedule('restore');
+  assert.deepEqual(restoredHarness.state().syncOps,[restoredOp], 'offline restore keeps the durable account queue intact');
+  assert.equal(restoredHarness.selects.length,0, 'offline restore makes no cloud read before rendering the account scope');
+  restoredHarness.setOnline(true);await restoredController.schedule('online');
+  assert.deepEqual(restoredHarness.state().syncOps,[], 'the reconnect trigger drains the restored durable queue');
 
   const older={...state.tasks[0],updatedAt:now-1};
   const deleted={...state.tasks[0],updatedAt:now+1,deletedAt:now+2};
@@ -479,6 +535,57 @@ async function testCoreSyncEngine(){
   await api.createCoreSyncController(echoHarness.deps).sync(echoHarness.sessions.a);
   assert.equal(echoHarness.state().tasks[0].name,'server', 'a stale upsert echo forces a pull instead of accepting the local value');
 
+  const missingEchoHarness=createCoreHarness();
+  const missingEchoTask={...state.tasks[0],name:'minimal response',updatedAt:now+5};
+  missingEchoHarness.deps.writeScope('user-a',coreState({tasks:[missingEchoTask],syncOps:[{...state.syncOps[0],id:uuid7,type:'task',entityId:uuid,op:'upsert',createdAt:now+5}]}));
+  missingEchoHarness.minimalUpsertTables.add('liangli_tasks');missingEchoHarness.failEntityRefetchTables.add('liangli_tasks');
+  await api.createCoreSyncController(missingEchoHarness.deps).sync(missingEchoHarness.sessions.a);
+  assert.deepEqual(missingEchoHarness.state().syncOps.map(op=>op.id),[uuid7],
+    'a missing PostgREST representation plus failed fixed-entity refetch retains the operation');
+  assert(missingEchoHarness.selects.some(call=>call.name==='liangli_tasks'&&call.options.id===uuid),
+    'a missing representation triggers an explicit fixed-table fixed-entity refetch');
+
+  const malformedEchoHarness=createCoreHarness();
+  malformedEchoHarness.deps.writeScope('user-a',coreState({syncOps:[{...state.syncOps[0],id:uuid7}]}));
+  malformedEchoHarness.malformedUpsertTables.add('liangli_tasks');malformedEchoHarness.failEntityRefetchTables.add('liangli_tasks');
+  await api.createCoreSyncController(malformedEchoHarness.deps).sync(malformedEchoHarness.sessions.a);
+  assert.deepEqual(malformedEchoHarness.state().syncOps.map(op=>op.id),[uuid7],
+    'a malformed owner/id/version/payload representation with failed refetch retains the operation');
+
+  const refetchedEchoHarness=createCoreHarness();
+  refetchedEchoHarness.deps.writeScope('user-a',coreState({syncOps:[{...state.syncOps[0],id:uuid7}]}));
+  refetchedEchoHarness.minimalUpsertTables.add('liangli_tasks');
+  await api.createCoreSyncController(refetchedEchoHarness.deps).sync(refetchedEchoHarness.sessions.a);
+  assert.deepEqual(refetchedEchoHarness.state().syncOps,[],
+    'a missing representation resolves only after a validated fixed-entity refetch');
+
+  const echoBehindCursorHarness=createCoreHarness();
+  const cursorMarker={...state.tasks[0],id:uuid8,name:'cursor marker',createdAt:now+100,updatedAt:now+100};
+  echoBehindCursorHarness.remote.liangli_tasks=[remoteRow(cursorMarker)];
+  const echoBehindCursorController=api.createCoreSyncController(echoBehindCursorHarness.deps);
+  await echoBehindCursorController.sync(echoBehindCursorHarness.sessions.a);
+  const behindServer={...state.tasks[0],name:'server newer behind cursor',updatedAt:now+10};
+  const behindClient={...state.tasks[0],name:'client stale',updatedAt:now+5};
+  echoBehindCursorHarness.remote.liangli_tasks=[remoteRow(behindServer)];
+  echoBehindCursorHarness.deps.writeScope('user-a',coreState({tasks:[behindClient,cursorMarker],syncOps:[{...state.syncOps[0],id:uuid7,type:'task',entityId:uuid,op:'upsert',createdAt:now+5}]}));
+  await echoBehindCursorController.sync(echoBehindCursorHarness.sessions.a);
+  assert.equal(echoBehindCursorHarness.state().tasks.find(item=>item.id===uuid).name,'server newer behind cursor',
+    'a validated server-newer representation is merged even when it sits behind the global cursor');
+  assert.deepEqual(echoBehindCursorHarness.state().syncOps,[],'a validated server-newer winner resolves the stale local operation');
+
+  const equalEchoHarness=createCoreHarness();
+  equalEchoHarness.remote.liangli_tasks=[remoteRow(cursorMarker)];
+  const equalEchoController=api.createCoreSyncController(equalEchoHarness.deps);
+  await equalEchoController.sync(equalEchoHarness.sessions.a);
+  const equalServer={...state.tasks[0],name:'server equal winner',updatedAt:now+15};
+  const equalClient={...state.tasks[0],name:'client equal loser',updatedAt:now+15};
+  equalEchoHarness.remote.liangli_tasks=[remoteRow(equalServer)];
+  equalEchoHarness.deps.writeScope('user-a',coreState({tasks:[equalClient,cursorMarker],syncOps:[{...state.syncOps[0],id:uuid7,type:'task',entityId:uuid,op:'upsert',createdAt:now+15}]}));
+  await equalEchoController.sync(equalEchoHarness.sessions.a);
+  assert.equal(equalEchoHarness.state().tasks.find(item=>item.id===uuid).name,'server equal winner',
+    'an equal-version different server representation is the stored winner selected by the stale guard');
+  assert.deepEqual(equalEchoHarness.state().syncOps,[],'the validated equal-version server winner resolves the local operation');
+
   const offlineHarness=createCoreHarness();
   offlineHarness.setOnline(false);
   const offlineController=api.createCoreSyncController(offlineHarness.deps);
@@ -531,6 +638,49 @@ async function testCoreSyncEngine(){
   await Promise.all([first,second,third]);
   assert.equal(concurrencyHarness.selects.filter(call=>call.name==='liangli_sync_profiles').length,1, 'three concurrent triggers share one request pipeline instead of trailing syncs');
 
+  const mutationDuringPullHarness=createCoreHarness();
+  mutationDuringPullHarness.deferTable('liangli_tasks');
+  const mutationDuringPullController=api.createCoreSyncController(mutationDuringPullHarness.deps);
+  const pulling=mutationDuringPullController.sync(mutationDuringPullHarness.sessions.a);
+  await new Promise(resolve=>setImmediate(resolve));
+  const laterTask={...state.tasks[0],id:uuid6,name:'created while pulling',createdAt:now+30,updatedAt:now+30};
+  const laterOp={id:uuid7,type:'task',entityId:laterTask.id,op:'upsert',createdAt:now+30};
+  mutationDuringPullHarness.deps.writeScope('user-a',coreState({tasks:[...mutationDuringPullHarness.state().tasks,laterTask],syncOps:[laterOp]}));
+  const trailing=mutationDuringPullController.schedule(`mutation:task:${laterTask.id}`);
+  mutationDuringPullHarness.resolveOld([]);
+  await Promise.all([pulling,trailing]);
+  assert.equal(mutationDuringPullHarness.state().tasks.filter(item=>item.id===laterTask.id).length,1,
+    'a mutation committed while pull is awaiting survives the remote merge without duplication');
+  assert.deepEqual(mutationDuringPullHarness.state().syncOps.map(item=>item.id),[],
+    'the trailing pipeline acknowledges the later mutation without a stale pull erasing its queue first');
+  assert.equal(mutationDuringPullHarness.selects.filter(call=>call.name==='liangli_sync_profiles').length,2,
+    'a mutation:* trigger during an in-flight pull requests exactly one trailing sync pipeline');
+
+  const mutationDuringPushHarness=createCoreHarness();
+  const firstPushTask={...state.tasks[0],name:'first push',updatedAt:now+40};
+  const firstPushOp={id:uuid6,type:'task',entityId:firstPushTask.id,op:'upsert',createdAt:now+40};
+  mutationDuringPushHarness.deps.writeScope('user-a',coreState({tasks:[firstPushTask],syncOps:[firstPushOp]}));
+  mutationDuringPushHarness.deferUpsert('liangli_tasks');
+  const mutationDuringPushController=api.createCoreSyncController(mutationDuringPushHarness.deps);
+  const pushing=mutationDuringPushController.sync(mutationDuringPushHarness.sessions.a);
+  await new Promise(resolve=>setImmediate(resolve));
+  const laterPushTask={...firstPushTask,name:'edited while pushing',updatedAt:now+41};
+  const laterPushOp={id:uuid7,type:'task',entityId:laterPushTask.id,op:'upsert',createdAt:now+41};
+  mutationDuringPushHarness.deps.writeScope('user-a',coreState({tasks:[laterPushTask],syncOps:[firstPushOp,laterPushOp]}));
+  const pushTrailing=mutationDuringPushController.schedule(`mutation:task:${laterPushTask.id}`);
+  mutationDuringPushHarness.resolveUpsert();
+  await Promise.all([pushing,pushTrailing]);
+  assert.equal(mutationDuringPushHarness.state().tasks.filter(item=>item.id===laterPushTask.id).length,1,
+    'a same-entity edit committed during push remains a single LWW entity');
+  assert.equal(mutationDuringPushHarness.state().tasks[0].name,'edited while pushing',
+    'the push echo and pull cannot replace a later same-entity edit');
+  assert.deepEqual(mutationDuringPushHarness.state().syncOps,[],
+    'the later same-entity operation is preserved for and acknowledged by the trailing pipeline');
+  assert.equal(mutationDuringPushHarness.upserts.filter(call=>call.name==='liangli_tasks').length,2,
+    'the initial and later entity versions are each pushed once');
+  assert.equal(mutationDuringPushHarness.selects.filter(call=>call.name==='liangli_sync_profiles').length,2,
+    'multiple mutation:* triggers coalesce into one trailing pipeline');
+
   const staleHarness=createCoreHarness();
   staleHarness.deferTable('liangli_tasks');
   const staleController=api.createCoreSyncController(staleHarness.deps);
@@ -548,7 +698,10 @@ async function testFirstLoginAndRecoveryBoundaries(){
   const uploadIds=[uuid6,uuid7,uuid8,'99999999-9999-4999-8999-999999999999','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'];
   const prepared=api.prepareDeviceUploadState(capturedDevice,now+50,()=>uploadIds.shift());
   assert.equal(prepared.syncOps.length,5, 'an upload queues every active or tombstoned core entity before its manifest');
-  assert(prepared.syncOps.every(op=>op.createdAt===now+50), 'fresh upload operations belong to this account initialization');
+  assert(prepared.syncOps.every(op=>{
+    const entity=prepared[({task:'tasks',growth:'growthItems',goal:'goals',focus:'focusSessions',mood:'moodEntries'})[op.type]].find(item=>item.id===op.entityId);
+    return op.createdAt===entity.updatedAt;
+  }), 'device-upload operation versions derive from each entity updatedAt');
   assert.deepEqual(prepared.tasks,capturedDevice.tasks, 'preparing an account upload does not mutate visible device data');
 
   const initializedHarness=createCoreHarness();

@@ -36,7 +36,7 @@ bridge.createCoreSyncController = () => context.__coreSyncController;
 context.globalThis = context;
 context.S = {tasks:[], ideas:[], goals:[], logs:[], focusSessions:[], focusMin:0, pomo:0, week:[0,0,0,0,0,0,0]};
 vm.createContext(context);
-vm.runInContext(`${script.slice(start, end)}\n;globalThis.core={DB,readCoreScope,writeCoreScope,activateCoreScope,coreStateToViewState,commitCoreMutation,activeCoreItems,coreId,getScope:()=>activeCoreScope,getStatus:()=>coreStateStorageStatus};`, context);
+vm.runInContext(`${script.slice(start, end)}\n;globalThis.core={DB,readCoreScope,writeCoreScope,activateCoreScope,coreStateToViewState,commitCoreMutation,activeCoreItems,coreId,nextCoreUpdatedAt,getScope:()=>activeCoreScope,getStatus:()=>coreStateStorageStatus};`, context);
 const dailyStart = script.indexOf('function migrateDailyState');
 const dailyEnd = script.indexOf('const today=', dailyStart);
 vm.runInContext(`${script.slice(dailyStart, dailyEnd)}\n;globalThis.migrateDailyState=migrateDailyState;`, context);
@@ -72,8 +72,10 @@ assert.equal(core.commitCoreMutation('task', alphaTask.id, candidate=>{
 }), true, 'core mutations commit canonical bytes before exposing the changed view');
 const committedMutation = JSON.parse(bytes.get('ll_coreState_alpha-user'));
 assert.equal(committedMutation.tasks[0].done, true, 'the canonical task is updated');
+assert.equal(committedMutation.tasks[0].createdAt, beforeMutation.tasks[0].createdAt, 'existing-entity edits preserve createdAt');
 assert.equal(context.S.tasks[0].done, true, 'the visible task updates only after the canonical commit');
 assert.equal(committedMutation.syncOps.length, beforeMutation.syncOps.length+1, 'the durable sync queue is appended with the mutation');
+assert.equal(committedMutation.syncOps.at(-1).createdAt, committedMutation.tasks[0].updatedAt, 'the sync operation version derives from the entity updatedAt');
 assert.deepEqual(scheduled, [`mutation:task:${alphaTask.id}`], 'an account-scoped mutation schedules sync only after saving');
 
 const beforeFailureBytes = bytes.get('ll_coreState_alpha-user');
@@ -102,6 +104,9 @@ assert.equal(core.activeCoreItems('task').some(task=>task.id===alphaTask.id), fa
 assert.equal(JSON.parse(bytes.get('ll_coreState_alpha-user')).tasks[0].deletedAt, committedMutation.tasks[0].updatedAt+2, 'deletes retain a canonical tombstone');
 assert.match(core.coreId(), /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   'the UUID fallback creates RFC4122 v4 IDs without crypto.randomUUID');
+assert.equal(core.nextCoreUpdatedAt({updatedAt:1700000005000},1700000005000),1700000005001,'same-millisecond existing edits advance monotonically');
+assert.equal(core.nextCoreUpdatedAt({updatedAt:1700000005000},1600000000000),1700000005001,'backward-clock existing edits advance monotonically');
+assert.throws(()=>core.nextCoreUpdatedAt({updatedAt:253402300799999},1700000005000),/exhausted/,'maximum-version existing entities fail closed');
 
 core.activateCoreScope('local');
 const localScheduleCount = scheduled.length;
