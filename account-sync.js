@@ -274,19 +274,18 @@
     return {id:entity.id,user_id:userId,payload:entity,client_updated_at:entity.updatedAt,deleted_at:entity.deletedAt===null?null:new Date(entity.deletedAt).toISOString()};
   }
   function entityFromCloudRow(type,row,userId){
-    if(!plain(row))return null;
-    const entity=plain(row.payload)?row.payload:row;
-    if(row.user_id!==undefined&&row.user_id!==userId)return null;
-    if(row.payload!==undefined){
-      if(row.id!==entity.id||!timestamp(row.client_updated_at)||row.client_updated_at!==entity.updatedAt)return null;
-      if(row.deleted_at!==undefined&&row.deleted_at!==null&&entity.deletedAt===null)return null;
-    }
+    if(!plain(row)||!plain(row.payload)||row.user_id!==userId)return null;
+    const entity=row.payload;
+    if(row.id!==entity.id||!timestamp(row.client_updated_at)||row.client_updated_at!==entity.updatedAt)return null;
+    if(row.deleted_at===undefined)return null;
+    if(row.deleted_at===null){if(entity.deletedAt!==null)return null;}
+    else if(typeof row.deleted_at!=='string'||!Number.isFinite(Date.parse(row.deleted_at))||entity.deletedAt===null||Date.parse(row.deleted_at)!==entity.deletedAt)return null;
     return entityForType(type,entity);
   }
   function createCoreSyncController(deps={}){
     const readScope=deps.readScope,writeScope=deps.writeScope,createRecovery=deps.createRecovery,restFactory=deps.restClient,getGeneration=deps.getGeneration,now=typeof deps.now==='function'?deps.now:Date.now;
     if(typeof readScope!=='function'||typeof writeScope!=='function'||typeof restFactory!=='function'||typeof getGeneration!=='function')throw new Error('Invalid core sync dependencies');
-    let inFlight=null,timer=null,attempt=0,cancelEpoch=0,lastSession=null;
+    let inFlight=null,timer=null,attempt=0,cancelEpoch=0,lastSession=null,rerunRequested=false,runningUserId=null,runningGeneration=null;
     const cursors=new Map();
     const clearTimer=typeof deps.clearTimeout==='function'?deps.clearTimeout:clearTimeout;
     const owner=(session,generation,epoch)=>Boolean(session?.user?.id)&&getGeneration()===generation&&epoch===cancelEpoch&&(!deps.getSession||deps.getSession()?.user?.id===session.user.id);
@@ -301,7 +300,8 @@
     };
     const callUpsert=async(client,table,rows,session,generation,epoch)=>{
       if(!owner(session,generation,epoch))return {discarded:true};
-      const result=await client.table(table).upsert(rows,{onConflict:'id',returning:true});
+      const conflictKey=table===CORE_MANIFEST_TABLE?'user_id':'id';
+      const result=await client.table(table).upsert(rows,{onConflict:conflictKey,returning:true});
       if(!owner(session,generation,epoch)||result?.discarded)return {discarded:true};
       return result;
     };
@@ -382,21 +382,34 @@
     const syncNow=async session=>{
       const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;
       if(!owner(session,generation,epoch))return {discarded:true};
-      if(typeof deps.isOnline==='function'&&!deps.isOnline()){notify('waiting',session,generation,epoch);return {offline:true};}
+      if(typeof deps.isOnline==='function'&&!deps.isOnline()){const error=new Error('Offline');error.offline=true;throw error;}
       notify('syncing',session,generation,epoch);
       const manifest=await fetchManifest(session,generation,epoch);if(manifest.discarded||!manifest.initialized)return manifest;
       let state=await readState(session);if(!state)throw new Error('Invalid core state');
       const client=clientFor(session,generation),sent=coalesceCoreOps(state.syncOps),succeeded=new Set();
+      let pushedHighWatermark=0;
       for(const op of sent){
         if(!owner(session,generation,epoch))return {discarded:true};
         const entity=state[CORE_STATE_KEYS[op.type]].find(item=>item.id===op.entityId);
+        const group=`${op.type}:${op.entityId}`;
         if(!entity)continue;
         const result=await callUpsert(client,CORE_REMOTE_TABLES[op.type],[coreRow(op.type,entity,session.user.id)],session,generation,epoch);
         if(result.discarded)return result;
-        if(!result?.error)succeeded.add(op.id);
+        if(result?.error)continue;
+        succeeded.add(group);
+        if(Array.isArray(result.data))for(const row of result.data)if(plain(row)&&row.user_id===session.user.id&&timestamp(row.client_updated_at))pushedHighWatermark=Math.max(pushedHighWatermark,row.client_updated_at);
       }
       const latest=await readState(session);if(!latest)return {discarded:true};
-      state={...latest,syncOps:latest.syncOps.filter(op=>!succeeded.has(op.id))};
+      const latestWinners=new Map(coalesceCoreOps(latest.syncOps).map(op=>[`${op.type}:${op.entityId}`,op]));
+      const sentWinners=new Map(sent.map(op=>[`${op.type}:${op.entityId}`,op]));
+      state={...latest,syncOps:latest.syncOps.filter(op=>{
+        const group=`${op.type}:${op.entityId}`,sentWinner=sentWinners.get(group);
+        if(!sentWinner)return true;
+        const latestWinner=latestWinners.get(group);
+        if(!latestWinner)return false;
+        if(succeeded.has(group)&&latestWinner.id===sentWinner.id)return false;
+        return op.id===latestWinner.id;
+      })};
       if(!await writeState(session,generation,epoch,state))return {discarded:true};
       const cursor=cursors.get(session.user.id),changed=await fetchCloudState(session,generation,epoch,cursor);
       if(changed.discarded)return changed;
@@ -407,21 +420,35 @@
       }
       const remoteTimes=CORE_SYNC_TYPES.flatMap(type=>changed[CORE_STATE_KEYS[type]].map(entity=>entity.updatedAt));
       if(!await writeState(session,generation,epoch,state))return {discarded:true};
-      cursors.set(session.user.id,Math.max(cursor||0,now(),...remoteTimes));
+      cursors.set(session.user.id,Math.max(cursor||0,pushedHighWatermark,...remoteTimes));
       attempt=0;notify('done',session,generation,epoch);return {initialized:true,state};
     };
-    const sync=session=>{
+    const scheduleRetry=(session,generation,epoch)=>{
+      if(attempt>=4||typeof deps.setTimeout!=='function'||!owner(session,generation,epoch))return;
+      const delay=Math.min(300000,1000*(2**attempt++));clearTimer(timer);
+      timer=deps.setTimeout(()=>{if(owner(session,generation,epoch))sync(session);},delay);
+    };
+    const sync=(session,reason='')=>{
       lastSession=session||lastSession||(typeof deps.getSession==='function'?deps.getSession():null);
       if(!lastSession)return Promise.resolve(null);
-      if(inFlight)return inFlight.then(()=>syncNow(lastSession));
-      inFlight=syncNow(lastSession).catch(error=>{
-        notify('failed',lastSession,getGeneration(),cancelEpoch);
-        if(attempt<4&&typeof deps.setTimeout==='function'){const retrySession=lastSession,retryGeneration=getGeneration(),retryEpoch=cancelEpoch;clearTimer(timer);timer=deps.setTimeout(()=>{if(owner(retrySession,retryGeneration,retryEpoch))sync(retrySession);},Math.min(300000,1000*(2**attempt++)));}
-        return {error:true};
-      }).finally(()=>{inFlight=null;});
+      if(inFlight){
+        if(reason==='mutation'||runningUserId!==lastSession.user.id||runningGeneration!==getGeneration())rerunRequested=true;
+        return inFlight;
+      }
+      inFlight=(async()=>{
+        let result={error:true};
+        do{
+          rerunRequested=false;
+          const runningSession=lastSession,generation=getGeneration(),epoch=cancelEpoch;
+          runningUserId=runningSession.user.id;runningGeneration=generation;
+          try{result=await syncNow(runningSession);}
+          catch(error){notify(error?.offline?'waiting':'failed',runningSession,generation,epoch);scheduleRetry(runningSession,generation,epoch);return {error:true,offline:Boolean(error?.offline)};}
+        }while(rerunRequested);
+        return result;
+      })().finally(()=>{inFlight=null;runningUserId=null;runningGeneration=null;});
       return inFlight;
     };
-    return Object.freeze({inspectCloud,initializeFromDevice,initializeEmpty,activateCloud,sync,schedule:reason=>{void reason;return sync(lastSession||(typeof deps.getSession==='function'?deps.getSession():null));},cancel:()=>{cancelEpoch++;clearTimer(timer);timer=null;attempt=0;}});
+    return Object.freeze({inspectCloud,initializeFromDevice,initializeEmpty,activateCloud,sync,schedule:reason=>sync(lastSession||(typeof deps.getSession==='function'?deps.getSession():null),reason),cancel:()=>{cancelEpoch++;clearTimer(timer);timer=null;attempt=0;rerunRequested=false;}});
   }
 
   root.AccountClient=AccountClient;

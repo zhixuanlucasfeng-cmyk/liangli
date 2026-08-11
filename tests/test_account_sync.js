@@ -239,29 +239,32 @@ function remoteRow(entity){
   return {id:entity.id,user_id:'user-a',payload:clone(entity),client_updated_at:entity.updatedAt,deleted_at:entity.deletedAt};
 }
 function createCoreHarness(){
-  let generation=1,online=true,hold=null,currentSession;
+  let generation=1,online=true,hold=null,currentSession,clockNow=now;
   const sessions={a:{access_token:'a',user:{id:'user-a'}},b:{access_token:'b',user:{id:'user-b'}}};
   const scopes=new Map([['user-a',coreState()],['user-b',coreState({tasks:[],growthItems:[],goals:[],focusSessions:[],moodEntries:[]})]]);
   const remote={
     liangli_sync_profiles:[{user_id:'user-a',core_version:1,initialized_at:'2026-08-10T00:00:00.000Z',updated_at:'2026-08-10T00:00:00.000Z'}],
     liangli_tasks:[],liangli_growth_items:[],liangli_goals:[],liangli_focus_sessions:[],liangli_mood_entries:[],
   };
-  const statuses=[],writes=[],recovery=[];
+  const statuses=[],writes=[],recovery=[],selects=[],upserts=[],timers=[];
   const tableFor={task:'liangli_tasks',growth:'liangli_growth_items',goal:'liangli_goals',focus:'liangli_focus_sessions',mood:'liangli_mood_entries'};
   currentSession=sessions.a;
-  const harness={activeScope:'user-a',sessions,remote,statuses,writes,recovery,failTables:new Set(),tableFor,
+  const harness={activeScope:'user-a',sessions,remote,statuses,writes,recovery,selects,upserts,timers,failTables:new Set(),tableFor,
     state(){return scopes.get(this.activeScope);},
     switchTo(session){generation++;currentSession=session;this.activeScope=session.user.id;},
     resolveOld(rows){hold.resolve(rows);hold=null;},
     deferTable(table){let resolve;const promise=new Promise(done=>{resolve=done;});hold={table,promise,resolve:rows=>resolve({data:rows,error:null})};},
+    async runTimers(){const pending=timers.filter(timer=>!timer.cancelled);timers.length=0;await Promise.all(pending.map(timer=>timer.fn()));},
+    setNow:value=>{clockNow=value;},
   };
   harness.deps={
     readScope:scope=>clone(scopes.get(scope)||null),
     writeScope:(scope,next)=>{writes.push({scope,state:clone(next)});if(scope!==harness.activeScope)return false;scopes.set(scope,clone(next));return true;},
     createRecovery:async next=>{recovery.push(clone(next));return true;},
     restClient:()=>({table(name){return {
-      select:async()=>{if(hold&&hold.table===name)return await hold.promise;return {data:clone(remote[name]||[]),error:null};},
-      upsert:async rows=>{
+      select:async(_columns,options={})=>{selects.push({name,options:clone(options)});if(hold&&hold.table===name)return await hold.promise;const after=options.clientUpdatedAfter;const rows=after===undefined?remote[name]||[]:(remote[name]||[]).filter(row=>Number(row.client_updated_at??row.updatedAt)>after);return {data:clone(rows),error:null};},
+      upsert:async(rows,options={})=>{
+        upserts.push({name,rows:clone(rows),options:clone(options)});
         if(harness.failTables.has(name))return {data:null,error:true,status:503};
         const existing=remote[name]||[];
         const echoes=rows.map(row=>{
@@ -273,8 +276,8 @@ function createCoreHarness(){
         return {data:echoes,error:null};
       },
     };}}),
-    getGeneration:()=>generation,getSession:()=>currentSession,now:()=>now,onStatus:status=>statuses.push(status),onActivate:(scope,next)=>{harness.activeScope=scope;scopes.set(scope,clone(next));},
-    isOnline:()=>online,setTimeout:()=>0,clearTimeout:()=>{},
+    getGeneration:()=>generation,getSession:()=>currentSession,now:()=>clockNow,onStatus:status=>statuses.push(status),onActivate:(scope,next)=>{harness.activeScope=scope;scopes.set(scope,clone(next));},
+    isOnline:()=>online,setTimeout:(fn,delay)=>{const timer={fn,delay,cancelled:false};timers.push(timer);return timer;},clearTimeout:timer=>{if(timer)timer.cancelled=true;},
   };
   harness.setOnline=value=>{online=value;};
   return harness;
@@ -309,9 +312,22 @@ async function testCoreSyncEngine(){
   manifestHarness.remote.liangli_sync_profiles=[];
   const manifestController=api.createCoreSyncController(manifestHarness.deps);
   assert.deepEqual(await manifestController.inspectCloud(manifestHarness.sessions.a),{initialized:false}, 'Flashcard-era accounts without a core manifest are uninitialized');
-  manifestHarness.remote.liangli_sync_profiles=[{user_id:'user-a',core_version:1,initialized_at:'x',updated_at:'x'}];
-  manifestHarness.remote.liangli_tasks=[{id:'not-a-uuid'}];
+  manifestHarness.remote.liangli_sync_profiles=[{user_id:'user-a',core_version:1,initialized_at:'2026-08-10T00:00:00.000Z',updated_at:'2026-08-10T00:00:00.000Z'}];
+  manifestHarness.remote.liangli_tasks=[{...remoteRow(state.tasks[0]),deleted_at:'not-a-timestamp'}];
   await assert.rejects(()=>manifestController.activateCloud(manifestHarness.sessions.a),/invalid cloud/i, 'one malformed core row rejects the whole activation');
+
+  const initHarness=createCoreHarness();
+  initHarness.remote.liangli_sync_profiles=[];
+  const initController=api.createCoreSyncController(initHarness.deps);
+  await initController.initializeEmpty(initHarness.sessions.a);
+  const emptyManifest=initHarness.upserts.find(call=>call.name==='liangli_sync_profiles');
+  assert.deepEqual(emptyManifest.options,{onConflict:'user_id',returning:true}, 'manifest writes use its user_id primary key, never an entity id conflict key');
+  assert.equal(emptyManifest.rows[0].user_id,'user-a');
+  initHarness.upserts.length=0;
+  await initController.initializeFromDevice(initHarness.sessions.a,coreState());
+  const deviceManifest=initHarness.upserts.at(-1);
+  assert.equal(deviceManifest.name,'liangli_sync_profiles');
+  assert.deepEqual(deviceManifest.options,{onConflict:'user_id',returning:true}, 'device initialization uses the schema-correct manifest conflict key');
 
   const queueHarness=createCoreHarness();
   const queued=coreState({syncOps:[
@@ -322,6 +338,23 @@ async function testCoreSyncEngine(){
   const queueController=api.createCoreSyncController(queueHarness.deps);
   await queueController.sync(queueHarness.sessions.a);
   assert.deepEqual(queueHarness.state().syncOps.map(item=>item.id),[uuid8], 'only failed batches remain queued for retry');
+
+  const cleanupHarness=createCoreHarness();
+  const deletedTask={...state.tasks[0],updatedAt:now+2,deletedAt:now+2};
+  cleanupHarness.deps.writeScope('user-a',coreState({tasks:[deletedTask],syncOps:[
+    {...state.syncOps[0],id:uuid6,type:'task',entityId:uuid,op:'upsert',createdAt:now},
+    {...state.syncOps[0],id:uuid7,type:'task',entityId:uuid,op:'delete',createdAt:now+1},
+  ]}));
+  await api.createCoreSyncController(cleanupHarness.deps).sync(cleanupHarness.sessions.a);
+  assert.equal(cleanupHarness.state().syncOps.length,0, 'a successful winning delete clears every superseded operation for that entity');
+  const cleanupFailureHarness=createCoreHarness();
+  cleanupFailureHarness.failTables.add('liangli_tasks');
+  cleanupFailureHarness.deps.writeScope('user-a',coreState({tasks:[deletedTask],syncOps:[
+    {...state.syncOps[0],id:uuid6,type:'task',entityId:uuid,op:'upsert',createdAt:now},
+    {...state.syncOps[0],id:uuid7,type:'task',entityId:uuid,op:'delete',createdAt:now+1},
+  ]}));
+  await api.createCoreSyncController(cleanupFailureHarness.deps).sync(cleanupFailureHarness.sessions.a);
+  assert.deepEqual(cleanupFailureHarness.state().syncOps.map(item=>item.id),[uuid7], 'a failed winner retains only the current operation, never an obsolete predecessor');
 
   const echoHarness=createCoreHarness();
   const clientTask={...state.tasks[0],name:'client',updatedAt:now+5};
@@ -336,6 +369,37 @@ async function testCoreSyncEngine(){
   const offlineController=api.createCoreSyncController(offlineHarness.deps);
   await offlineController.schedule('online-test');
   assert(offlineHarness.statuses.includes('waiting'), 'offline scheduling retains local work without fetches');
+  assert.equal(offlineHarness.timers.length,1, 'offline work receives a bounded retry without another browser hook');
+  assert.equal(offlineHarness.timers[0].delay,1000);
+  offlineHarness.switchTo(offlineHarness.sessions.b);await offlineHarness.runTimers();
+  assert.equal(offlineHarness.selects.length,0, 'an account switch invalidates an offline retry timer');
+  const retryHarness=createCoreHarness();
+  retryHarness.setOnline(false);
+  const retryController=api.createCoreSyncController(retryHarness.deps);
+  await retryController.schedule('offline-retry');
+  retryHarness.setOnline(true);await retryHarness.runTimers();
+  assert.equal(retryHarness.selects.filter(call=>call.name==='liangli_sync_profiles').length,1, 'the bounded offline retry re-enters the shared sync lifecycle once online');
+
+  const clockHarness=createCoreHarness();
+  clockHarness.setNow(now+100000);
+  const clockController=api.createCoreSyncController(clockHarness.deps);
+  await clockController.sync(clockHarness.sessions.a);
+  clockHarness.remote.liangli_tasks=[remoteRow({...state.tasks[0],name:'clock-safe',updatedAt:now+1})];
+  clockHarness.selects.length=0;
+  await clockController.sync(clockHarness.sessions.a);
+  const clockPull=clockHarness.selects.find(call=>call.name==='liangli_tasks');
+  assert.equal(clockPull.options.clientUpdatedAfter,0, 'an empty pull does not advance the cursor to the local clock');
+  assert.equal(clockHarness.state().tasks[0].name,'clock-safe', 'a server row behind a clock-ahead device is not skipped');
+
+  const concurrencyHarness=createCoreHarness();
+  concurrencyHarness.deferTable('liangli_sync_profiles');
+  const concurrencyController=api.createCoreSyncController(concurrencyHarness.deps);
+  const first=concurrencyController.sync(concurrencyHarness.sessions.a);
+  const second=concurrencyController.schedule('focus');
+  const third=concurrencyController.schedule('online');
+  concurrencyHarness.resolveOld(concurrencyHarness.remote.liangli_sync_profiles);
+  await Promise.all([first,second,third]);
+  assert.equal(concurrencyHarness.selects.filter(call=>call.name==='liangli_sync_profiles').length,1, 'three concurrent triggers share one request pipeline instead of trailing syncs');
 
   const staleHarness=createCoreHarness();
   staleHarness.deferTable('liangli_tasks');
