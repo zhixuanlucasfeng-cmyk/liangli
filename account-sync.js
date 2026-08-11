@@ -224,10 +224,11 @@
     const table=name=>{
       if(!allowed.has(name))throw new Error('Cloud table not allowed');
       return {
-        async select(columns='*'){
+        async select(columns='*',options={}){
+          const after=timestamp(options.clientUpdatedAfter)?`&client_updated_at=gt.${encodeURIComponent(options.clientUpdatedAfter)}`:'';
           const rows=[];let offset=0;
           while(true){
-            const result=await request(name,'GET',null,`?select=${encodeURIComponent(columns)}`,'',{'Range-Unit':'items',Range:`${offset}-${offset+999}`});
+            const result=await request(name,'GET',null,`?select=${encodeURIComponent(columns)}${after}`,'',{'Range-Unit':'items',Range:`${offset}-${offset+999}`});
             if(result.error)return result;
             rows.push(...result.data);if(result.data.length<1000)return {data:rows,error:null};offset+=1000;
           }
@@ -239,8 +240,192 @@
     return Object.freeze({table,from:table});
   }
 
+  const CORE_STATE_KEYS=Object.freeze({task:'tasks',growth:'growthItems',goal:'goals',focus:'focusSessions',mood:'moodEntries'});
+  const CORE_MANIFEST_TABLE='liangli_sync_profiles';
+  function emptyCoreState(){return {version:CORE_STATE_VERSION,tasks:[],growthItems:[],goals:[],focusSessions:[],moodEntries:[],syncOps:[]};}
+  function entityForType(type,value){
+    const key=CORE_STATE_KEYS[type];if(!key)return null;
+    const normalized=normalizeCoreState({...emptyCoreState(),[key]:[value]});
+    return normalized?normalized[key][0]:null;
+  }
+  function mergeCoreEntity(local,remote){
+    if(!local)return remote;if(!remote)return local;
+    if(local.id!==remote.id)throw new Error('Cannot merge distinct core entities');
+    if(local.deletedAt!==null&&remote.deletedAt===null)return local;
+    if(remote.deletedAt!==null&&local.deletedAt===null)return remote;
+    if(remote.updatedAt>local.updatedAt)return remote;
+    if(local.updatedAt>remote.updatedAt)return local;
+    if(remote.deletedAt!==null&&local.deletedAt===null)return remote;
+    if(local.deletedAt!==null&&remote.deletedAt===null)return local;
+    return String(remote.id)>String(local.id)?remote:local;
+  }
+  function coalesceCoreOps(ops){
+    if(!Array.isArray(ops))return [];
+    const latest=new Map();
+    for(const op of ops){
+      if(!op||!CORE_SYNC_TYPES.includes(op.type)||!uuid(op.entityId)||!uuid(op.id)||!['upsert','delete'].includes(op.op)||!timestamp(op.createdAt))continue;
+      const key=`${op.type}:${op.entityId}`,previous=latest.get(key);
+      if(!previous||op.createdAt>previous.createdAt||(op.createdAt===previous.createdAt&&op.op==='delete'&&previous.op!=='delete')||(op.createdAt===previous.createdAt&&op.op===previous.op&&op.id>previous.id))latest.set(key,op);
+    }
+    return [...latest.values()].sort((left,right)=>left.createdAt-right.createdAt||left.id.localeCompare(right.id));
+  }
+  function coreRow(type,entity,userId){
+    if(!CORE_REMOTE_TABLES[type])throw new Error('Invalid core type');
+    return {id:entity.id,user_id:userId,payload:entity,client_updated_at:entity.updatedAt,deleted_at:entity.deletedAt===null?null:new Date(entity.deletedAt).toISOString()};
+  }
+  function entityFromCloudRow(type,row,userId){
+    if(!plain(row))return null;
+    const entity=plain(row.payload)?row.payload:row;
+    if(row.user_id!==undefined&&row.user_id!==userId)return null;
+    if(row.payload!==undefined){
+      if(row.id!==entity.id||!timestamp(row.client_updated_at)||row.client_updated_at!==entity.updatedAt)return null;
+      if(row.deleted_at!==undefined&&row.deleted_at!==null&&entity.deletedAt===null)return null;
+    }
+    return entityForType(type,entity);
+  }
+  function createCoreSyncController(deps={}){
+    const readScope=deps.readScope,writeScope=deps.writeScope,createRecovery=deps.createRecovery,restFactory=deps.restClient,getGeneration=deps.getGeneration,now=typeof deps.now==='function'?deps.now:Date.now;
+    if(typeof readScope!=='function'||typeof writeScope!=='function'||typeof restFactory!=='function'||typeof getGeneration!=='function')throw new Error('Invalid core sync dependencies');
+    let inFlight=null,timer=null,attempt=0,cancelEpoch=0,lastSession=null;
+    const cursors=new Map();
+    const clearTimer=typeof deps.clearTimeout==='function'?deps.clearTimeout:clearTimeout;
+    const owner=(session,generation,epoch)=>Boolean(session?.user?.id)&&getGeneration()===generation&&epoch===cancelEpoch&&(!deps.getSession||deps.getSession()?.user?.id===session.user.id);
+    const clientFor=(session,generation)=>restFactory(session,generation);
+    const notify=(status,session,generation,epoch)=>{if(owner(session,generation,epoch)&&typeof deps.onStatus==='function')deps.onStatus(status);};
+    const callSelect=async(client,table,session,generation,epoch,changedAfter)=>{
+      if(!owner(session,generation,epoch))return {discarded:true};
+      const result=await client.table(table).select('*',changedAfter===undefined?{}:{clientUpdatedAfter:changedAfter});
+      if(!owner(session,generation,epoch)||result?.discarded)return {discarded:true};
+      if(result?.error||!Array.isArray(result?.data))throw new Error('Cloud fetch failed');
+      return result;
+    };
+    const callUpsert=async(client,table,rows,session,generation,epoch)=>{
+      if(!owner(session,generation,epoch))return {discarded:true};
+      const result=await client.table(table).upsert(rows,{onConflict:'id',returning:true});
+      if(!owner(session,generation,epoch)||result?.discarded)return {discarded:true};
+      return result;
+    };
+    const readState=async(session)=>{
+      const state=await readScope(session.user.id);return normalizeCoreState(state);
+    };
+    const writeState=async(session,generation,epoch,state)=>{
+      const normalized=normalizeCoreState(state);if(!normalized)throw new Error('Invalid core state');
+      if(!owner(session,generation,epoch))return false;
+      const saved=await writeScope(session.user.id,normalized);
+      return Boolean(saved)&&owner(session,generation,epoch);
+    };
+    const fetchManifest=async(session,generation,epoch)=>{
+      const result=await callSelect(clientFor(session,generation),CORE_MANIFEST_TABLE,session,generation,epoch);
+      if(result.discarded)return result;
+      if(result.data.length===0)return {initialized:false};
+      const profile=result.data[0];
+      if(result.data.length!==1||!plain(profile)||profile.user_id!==session.user.id||profile.core_version!==CORE_STATE_VERSION
+        ||typeof profile.initialized_at!=='string'||!Number.isFinite(Date.parse(profile.initialized_at))
+        ||typeof profile.updated_at!=='string'||!Number.isFinite(Date.parse(profile.updated_at)))throw new Error('Invalid cloud manifest');
+      return {initialized:true};
+    };
+    const fetchCloudState=async(session,generation,epoch,changedAfter)=>{
+      const client=clientFor(session,generation),state=emptyCoreState();
+      for(const type of CORE_SYNC_TYPES){
+        const result=await callSelect(client,CORE_REMOTE_TABLES[type],session,generation,epoch,changedAfter);
+        if(result.discarded)return result;
+        const rows=result.data;
+        const key=CORE_STATE_KEYS[type];
+        for(const row of rows){const entity=entityFromCloudRow(type,row,session.user.id);if(!entity)throw new Error('Invalid cloud entity');state[key].push(entity);}
+      }
+      if(!normalizeCoreState(state))throw new Error('Invalid cloud entity');
+      return state;
+    };
+    const inspectCloud=async session=>{
+      const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;
+      if(!owner(session,generation,epoch))return {discarded:true};
+      return await fetchManifest(session,generation,epoch);
+    };
+    const initializeEmpty=async session=>{
+      const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;const client=clientFor(session,generation);
+      if(!owner(session,generation,epoch))return {discarded:true};
+      const manifest={user_id:session.user.id,core_version:CORE_STATE_VERSION,initialized_at:new Date(now()).toISOString(),updated_at:new Date(now()).toISOString()};
+      const result=await callUpsert(client,CORE_MANIFEST_TABLE,[manifest],session,generation,epoch);
+      if(result.discarded||result?.error)throw new Error('Cloud initialization failed');
+      const state=emptyCoreState();if(!await writeState(session,generation,epoch,state))return {discarded:true};
+      if(owner(session,generation,epoch)&&typeof deps.onActivate==='function')deps.onActivate(session.user.id,state);
+      return {initialized:true,state};
+    };
+    const initializeFromDevice=async(session,state)=>{
+      const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;const normalized=normalizeCoreState(state),client=clientFor(session,generation);
+      if(!normalized)throw new Error('Invalid core state');
+      for(const type of CORE_SYNC_TYPES){
+        if(!owner(session,generation,epoch))return {discarded:true};
+        const result=await callUpsert(client,CORE_REMOTE_TABLES[type],normalized[CORE_STATE_KEYS[type]].map(entity=>coreRow(type,entity,session.user.id)),session,generation,epoch);
+        if(result.discarded)return result;if(result?.error)throw new Error('Cloud initialization failed');
+      }
+      const manifest={user_id:session.user.id,core_version:CORE_STATE_VERSION,initialized_at:new Date(now()).toISOString(),updated_at:new Date(now()).toISOString()};
+      const result=await callUpsert(client,CORE_MANIFEST_TABLE,[manifest],session,generation,epoch);
+      if(result.discarded)return result;if(result?.error)throw new Error('Cloud initialization failed');
+      if(!await writeState(session,generation,epoch,normalized))return {discarded:true};
+      if(owner(session,generation,epoch)&&typeof deps.onActivate==='function')deps.onActivate(session.user.id,normalized);
+      return {initialized:true,state:normalized};
+    };
+    const activateCloud=async session=>{
+      const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;
+      const manifest=await fetchManifest(session,generation,epoch);if(manifest.discarded||!manifest.initialized)return manifest;
+      const cloud=await fetchCloudState(session,generation,epoch);if(cloud.discarded)return cloud;
+      const local=await readState(session);
+      if(local&&typeof createRecovery==='function'){
+        if(!owner(session,generation,epoch))return {discarded:true};
+        if(await createRecovery(local)===false)throw new Error('Recovery creation failed');
+      }
+      if(!await writeState(session,generation,epoch,cloud))return {discarded:true};
+      if(owner(session,generation,epoch)&&typeof deps.onActivate==='function')deps.onActivate(session.user.id,cloud);
+      return {initialized:true,state:cloud};
+    };
+    const syncNow=async session=>{
+      const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;
+      if(!owner(session,generation,epoch))return {discarded:true};
+      if(typeof deps.isOnline==='function'&&!deps.isOnline()){notify('waiting',session,generation,epoch);return {offline:true};}
+      notify('syncing',session,generation,epoch);
+      const manifest=await fetchManifest(session,generation,epoch);if(manifest.discarded||!manifest.initialized)return manifest;
+      let state=await readState(session);if(!state)throw new Error('Invalid core state');
+      const client=clientFor(session,generation),sent=coalesceCoreOps(state.syncOps),succeeded=new Set();
+      for(const op of sent){
+        if(!owner(session,generation,epoch))return {discarded:true};
+        const entity=state[CORE_STATE_KEYS[op.type]].find(item=>item.id===op.entityId);
+        if(!entity)continue;
+        const result=await callUpsert(client,CORE_REMOTE_TABLES[op.type],[coreRow(op.type,entity,session.user.id)],session,generation,epoch);
+        if(result.discarded)return result;
+        if(!result?.error)succeeded.add(op.id);
+      }
+      const latest=await readState(session);if(!latest)return {discarded:true};
+      state={...latest,syncOps:latest.syncOps.filter(op=>!succeeded.has(op.id))};
+      if(!await writeState(session,generation,epoch,state))return {discarded:true};
+      const cursor=cursors.get(session.user.id),changed=await fetchCloudState(session,generation,epoch,cursor);
+      if(changed.discarded)return changed;
+      for(const type of CORE_SYNC_TYPES){
+        const key=CORE_STATE_KEYS[type],localById=new Map(state[key].map(item=>[item.id,item]));
+        for(const remote of changed[key])localById.set(remote.id,mergeCoreEntity(localById.get(remote.id),remote));
+        state[key]=[...localById.values()];
+      }
+      const remoteTimes=CORE_SYNC_TYPES.flatMap(type=>changed[CORE_STATE_KEYS[type]].map(entity=>entity.updatedAt));
+      if(!await writeState(session,generation,epoch,state))return {discarded:true};
+      cursors.set(session.user.id,Math.max(cursor||0,now(),...remoteTimes));
+      attempt=0;notify('done',session,generation,epoch);return {initialized:true,state};
+    };
+    const sync=session=>{
+      lastSession=session||lastSession||(typeof deps.getSession==='function'?deps.getSession():null);
+      if(!lastSession)return Promise.resolve(null);
+      if(inFlight)return inFlight.then(()=>syncNow(lastSession));
+      inFlight=syncNow(lastSession).catch(error=>{
+        notify('failed',lastSession,getGeneration(),cancelEpoch);
+        if(attempt<4&&typeof deps.setTimeout==='function'){const retrySession=lastSession,retryGeneration=getGeneration(),retryEpoch=cancelEpoch;clearTimer(timer);timer=deps.setTimeout(()=>{if(owner(retrySession,retryGeneration,retryEpoch))sync(retrySession);},Math.min(300000,1000*(2**attempt++)));}
+        return {error:true};
+      }).finally(()=>{inFlight=null;});
+      return inFlight;
+    };
+    return Object.freeze({inspectCloud,initializeFromDevice,initializeEmpty,activateCloud,sync,schedule:reason=>{void reason;return sync(lastSession||(typeof deps.getSession==='function'?deps.getSession():null));},cancel:()=>{cancelEpoch++;clearTimer(timer);timer=null;attempt=0;}});
+  }
+
   root.AccountClient=AccountClient;
   root.CommunityClient=AccountClient;
-  root.LiangliAccountSync=Object.freeze({CORE_STATE_VERSION,CORE_SYNC_TYPES,CORE_REMOTE_TABLES,coreStorageKey,normalizeCoreState,migrateLegacyCoreState,serializeCoreRecovery,parseCoreRecovery,createOwnerRestClient,AccountClient});
+  root.LiangliAccountSync=Object.freeze({CORE_STATE_VERSION,CORE_SYNC_TYPES,CORE_REMOTE_TABLES,CORE_MANIFEST_TABLE,coreStorageKey,normalizeCoreState,migrateLegacyCoreState,serializeCoreRecovery,parseCoreRecovery,mergeCoreEntity,coalesceCoreOps,createCoreSyncController,createOwnerRestClient,AccountClient});
   if(typeof module!=='undefined'&&module.exports)module.exports=root.LiangliAccountSync;
 })(typeof window==='undefined'?globalThis:window);

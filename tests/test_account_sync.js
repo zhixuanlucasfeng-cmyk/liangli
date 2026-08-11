@@ -8,6 +8,8 @@ const uuid3 = '33333333-3333-4333-8333-333333333333';
 const uuid4 = '44444444-4444-4444-8444-444444444444';
 const uuid5 = '55555555-5555-4555-8555-555555555555';
 const uuid6 = '66666666-6666-4666-8666-666666666666';
+const uuid7 = '77777777-7777-4777-8777-777777777777';
+const uuid8 = '88888888-8888-4888-8888-888888888888';
 const now = 1700000005000;
 
 assert.equal(api.CORE_STATE_VERSION, 1);
@@ -225,7 +227,134 @@ async function testAccountClient(){
   assert.equal(AccountClient.session,null);
 }
 
-testAccountClient().then(()=>console.log('account sync schema, migration, and account client: ok')).catch(error=>{
+function clone(value){return JSON.parse(JSON.stringify(value));}
+function coreState(overrides={}){
+  return {
+    version:1,
+    tasks:[{...state.tasks[0]}], growthItems:[{...state.growthItems[0]}], goals:[{...state.goals[0]}],
+    focusSessions:[{...state.focusSessions[0]}], moodEntries:[{...state.moodEntries[0]}], syncOps:[], ...overrides,
+  };
+}
+function remoteRow(entity){
+  return {id:entity.id,user_id:'user-a',payload:clone(entity),client_updated_at:entity.updatedAt,deleted_at:entity.deletedAt};
+}
+function createCoreHarness(){
+  let generation=1,online=true,hold=null,currentSession;
+  const sessions={a:{access_token:'a',user:{id:'user-a'}},b:{access_token:'b',user:{id:'user-b'}}};
+  const scopes=new Map([['user-a',coreState()],['user-b',coreState({tasks:[],growthItems:[],goals:[],focusSessions:[],moodEntries:[]})]]);
+  const remote={
+    liangli_sync_profiles:[{user_id:'user-a',core_version:1,initialized_at:'2026-08-10T00:00:00.000Z',updated_at:'2026-08-10T00:00:00.000Z'}],
+    liangli_tasks:[],liangli_growth_items:[],liangli_goals:[],liangli_focus_sessions:[],liangli_mood_entries:[],
+  };
+  const statuses=[],writes=[],recovery=[];
+  const tableFor={task:'liangli_tasks',growth:'liangli_growth_items',goal:'liangli_goals',focus:'liangli_focus_sessions',mood:'liangli_mood_entries'};
+  currentSession=sessions.a;
+  const harness={activeScope:'user-a',sessions,remote,statuses,writes,recovery,failTables:new Set(),tableFor,
+    state(){return scopes.get(this.activeScope);},
+    switchTo(session){generation++;currentSession=session;this.activeScope=session.user.id;},
+    resolveOld(rows){hold.resolve(rows);hold=null;},
+    deferTable(table){let resolve;const promise=new Promise(done=>{resolve=done;});hold={table,promise,resolve:rows=>resolve({data:rows,error:null})};},
+  };
+  harness.deps={
+    readScope:scope=>clone(scopes.get(scope)||null),
+    writeScope:(scope,next)=>{writes.push({scope,state:clone(next)});if(scope!==harness.activeScope)return false;scopes.set(scope,clone(next));return true;},
+    createRecovery:async next=>{recovery.push(clone(next));return true;},
+    restClient:()=>({table(name){return {
+      select:async()=>{if(hold&&hold.table===name)return await hold.promise;return {data:clone(remote[name]||[]),error:null};},
+      upsert:async rows=>{
+        if(harness.failTables.has(name))return {data:null,error:true,status:503};
+        const existing=remote[name]||[];
+        const echoes=rows.map(row=>{
+          const index=existing.findIndex(item=>(item.id||item.user_id)===(row.id||row.user_id));
+          if(index>=0&&Number(existing[index].client_updated_at||0)>Number(row.client_updated_at||0))return clone(existing[index]);
+          if(index>=0)existing[index]=clone(row);else existing.push(clone(row));
+          return clone(row);
+        });
+        return {data:echoes,error:null};
+      },
+    };}}),
+    getGeneration:()=>generation,getSession:()=>currentSession,now:()=>now,onStatus:status=>statuses.push(status),onActivate:(scope,next)=>{harness.activeScope=scope;scopes.set(scope,clone(next));},
+    isOnline:()=>online,setTimeout:()=>0,clearTimeout:()=>{},
+  };
+  harness.setOnline=value=>{online=value;};
+  return harness;
+}
+
+async function testCoreSyncEngine(){
+  assert.equal(typeof api.createCoreSyncController,'function', 'core controller is available to coordinate manifest, queue, and account boundaries');
+  assert.equal(typeof api.mergeCoreEntity,'function');
+  assert.equal(typeof api.coalesceCoreOps,'function');
+
+  const older={...state.tasks[0],updatedAt:now-1};
+  const deleted={...state.tasks[0],updatedAt:now+1,deletedAt:now+2};
+  assert.deepEqual(api.mergeCoreEntity(older,deleted),deleted, 'newer tombstones win LWW conflicts');
+  assert.deepEqual(api.mergeCoreEntity(deleted,{...older,updatedAt:now+3,deletedAt:null}),deleted, 'a later non-delete cannot resurrect a tombstoned ID');
+  assert.deepEqual(api.mergeCoreEntity({...older,updatedAt:now+2},{...older,updatedAt:now+2,deletedAt:now+2}),{...older,updatedAt:now+2,deletedAt:now+2}, 'equal timestamps deterministically prefer tombstones');
+  const opLater={id:uuid6,type:'task',entityId:uuid,op:'delete',createdAt:now+2};
+  assert.deepEqual(api.coalesceCoreOps([{...state.syncOps[0],createdAt:now},opLater]),[opLater], 'the newest operation for one entity is sent once');
+  const focusOp={id:uuid5,type:'focus',entityId:uuid4,op:'upsert',createdAt:now};
+  assert.equal(api.coalesceCoreOps([opLater,focusOp]).length,2, 'UUID-distinct focus records remain a union');
+
+  const freshFocus={...state.focusSessions[0],id:uuid6,updatedAt:now+3,createdAt:now+3};
+  const freshMood={...state.moodEntries[0],id:uuid7,updatedAt:now+3,createdAt:now+3};
+  const unionHarness=createCoreHarness();
+  unionHarness.remote.liangli_focus_sessions=[remoteRow(freshFocus)];
+  unionHarness.remote.liangli_mood_entries=[remoteRow(freshMood)];
+  const unionController=api.createCoreSyncController(unionHarness.deps);
+  await unionController.sync(unionHarness.sessions.a);
+  assert(unionHarness.state().focusSessions.some(item=>item.id===uuid4)&&unionHarness.state().focusSessions.some(item=>item.id===uuid6), 'focus records merge by UUID union');
+  assert(unionHarness.state().moodEntries.some(item=>item.id===uuid5)&&unionHarness.state().moodEntries.some(item=>item.id===uuid7), 'mood records merge by UUID union');
+
+  const manifestHarness=createCoreHarness();
+  manifestHarness.remote.liangli_sync_profiles=[];
+  const manifestController=api.createCoreSyncController(manifestHarness.deps);
+  assert.deepEqual(await manifestController.inspectCloud(manifestHarness.sessions.a),{initialized:false}, 'Flashcard-era accounts without a core manifest are uninitialized');
+  manifestHarness.remote.liangli_sync_profiles=[{user_id:'user-a',core_version:1,initialized_at:'x',updated_at:'x'}];
+  manifestHarness.remote.liangli_tasks=[{id:'not-a-uuid'}];
+  await assert.rejects(()=>manifestController.activateCloud(manifestHarness.sessions.a),/invalid cloud/i, 'one malformed core row rejects the whole activation');
+
+  const queueHarness=createCoreHarness();
+  const queued=coreState({syncOps:[
+    {...state.syncOps[0],id:uuid7,type:'task',entityId:uuid,op:'upsert',createdAt:now},
+    {id:uuid8,type:'growth',entityId:uuid2,op:'upsert',createdAt:now+1},
+  ]});
+  queueHarness.deps.writeScope('user-a',queued);queueHarness.failTables.add('liangli_growth_items');
+  const queueController=api.createCoreSyncController(queueHarness.deps);
+  await queueController.sync(queueHarness.sessions.a);
+  assert.deepEqual(queueHarness.state().syncOps.map(item=>item.id),[uuid8], 'only failed batches remain queued for retry');
+
+  const echoHarness=createCoreHarness();
+  const clientTask={...state.tasks[0],name:'client',updatedAt:now+5};
+  const serverTask={...state.tasks[0],name:'server',updatedAt:now+10};
+  echoHarness.remote.liangli_tasks=[remoteRow(serverTask)];
+  echoHarness.deps.writeScope('user-a',coreState({tasks:[clientTask],syncOps:[{...state.syncOps[0],id:uuid7,type:'task',entityId:uuid,op:'upsert',createdAt:now+5}]}));
+  await api.createCoreSyncController(echoHarness.deps).sync(echoHarness.sessions.a);
+  assert.equal(echoHarness.state().tasks[0].name,'server', 'a stale upsert echo forces a pull instead of accepting the local value');
+
+  const offlineHarness=createCoreHarness();
+  offlineHarness.setOnline(false);
+  const offlineController=api.createCoreSyncController(offlineHarness.deps);
+  await offlineController.schedule('online-test');
+  assert(offlineHarness.statuses.includes('waiting'), 'offline scheduling retains local work without fetches');
+
+  const staleHarness=createCoreHarness();
+  staleHarness.deferTable('liangli_tasks');
+  const staleController=api.createCoreSyncController(staleHarness.deps);
+  const oldRequest=staleController.sync(staleHarness.sessions.a);
+  staleHarness.switchTo(staleHarness.sessions.b);
+  staleHarness.resolveOld([remoteRow({...state.tasks[0],name:'A'})]);
+  await oldRequest;
+  assert.equal(staleHarness.activeScope,'user-b');
+  assert(!staleHarness.state().tasks.some(item=>item.name==='A'), 'an old account response cannot write the active account scope');
+}
+
+async function run(){
+  await testAccountClient();
+  await testCoreSyncEngine();
+  console.log('account sync schema, migration, account client, and core sync engine: ok');
+}
+
+run().catch(error=>{
   console.error(error.stack||error);
   process.exitCode=1;
 });

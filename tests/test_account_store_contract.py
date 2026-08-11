@@ -26,6 +26,16 @@ class AccountStoreContractTests(unittest.TestCase):
         self.assertNotIn('foodEntries', module)
         self.assertNotIn('budgetCycles', module)
 
+    def test_core_sync_is_scoped_and_wired_to_safe_resume_hooks(self):
+        module = (ROOT / "account-sync.js").read_text(encoding="utf-8")
+        for name in ('createCoreSyncController', 'mergeCoreEntity', 'coalesceCoreOps',
+                     'liangli_sync_profiles', 'CORE_REMOTE_TABLES'):
+            self.assertIn(name, module)
+        for fragment in ('scheduleCoreSync(\'login\')', "scheduleCoreSync('online')",
+                         "scheduleCoreSync('visible')", "scheduleCoreSync('focus')",
+                         "scheduleCoreSync('manual')"):
+            self.assertIn(fragment, HTML)
+
     def test_schema_and_migration_suite(self):
         result = subprocess.run(['node', 'tests/test_account_sync.js'], cwd=ROOT, text=True,
                                 capture_output=True, timeout=5, check=False)

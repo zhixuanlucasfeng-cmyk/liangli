@@ -823,6 +823,7 @@ const T = k => I18N[lang][k];
 function createFlashcardRestClient(session,ownerGeneration=AccountClient.generation){
   return LiangliAccountSync.createOwnerRestClient(session,ownerGeneration,['flashcard_decks','flashcards','flashcard_reviews']);
 }
+let coreSyncController=null;
 /* Legacy CommunityClient refreshPromises:new Map(), this.generation!==expectedGeneration,
    CommunityClient.generation===ownerGeneration, and this.generation!==restoreGeneration checks
    are now enforced by the single AccountClient owner in account-sync.js. */
@@ -831,6 +832,7 @@ AccountClient.configure({
   onSessionChange:session=>{
     const nextScope=session?session.user.id:'local',scopeChanged=ActiveFlashcardStore.scope!==FlashcardStore.normalizeScope(nextScope);
     ActiveFlashcardStore=FlashcardStore.forScope(nextScope);updateFlashcardAccountUI(session);activateCoreScope(nextScope);
+    if(session&&coreSyncController)coreSyncController.schedule('login');
     if(scopeChanged&&typeof resetFlashcardScopeUI==='function')resetFlashcardScopeUI();
   }
 });
@@ -912,7 +914,9 @@ function persistCoreState(){
   if(['invalid','read-error','write-error'].includes(coreStateStorageStatus))return false;
   const state=coreStateFromViewState();
   if(!writeCoreScope(activeCoreScope,state))return false;
-  activeCoreState=state;coreStateStorageStatus='valid';return true;
+  activeCoreState=state;coreStateStorageStatus='valid';
+  if(activeCoreScope!=='local'&&coreSyncController)coreSyncController.schedule('mutation');
+  return true;
 }
 function activateCoreScope(scope,state){
   if(!AccountCore)return null;
@@ -932,6 +936,20 @@ function activateCoreScope(scope,state){
   activeCoreState=null;
   if(typeof S!=='undefined')S=coreStateToViewState(LiangliAccountSync.migrateLegacyCoreState({},Date.now(),localDayKey()),S);
   return null;
+}
+function scheduleCoreSync(reason){
+  if(coreSyncController&&AccountClient.session)coreSyncController.schedule(reason);
+}
+if(AccountCore){
+  coreSyncController=LiangliAccountSync.createCoreSyncController({
+    readScope:scope=>readCoreScope(scope).state,
+    writeScope:(scope,state)=>writeCoreScope(scope,state),
+    createRecovery:async()=>true,
+    restClient:(session,generation)=>LiangliAccountSync.createOwnerRestClient(session,generation,[LiangliAccountSync.CORE_MANIFEST_TABLE,...Object.values(LiangliAccountSync.CORE_REMOTE_TABLES)]),
+    getGeneration:()=>AccountClient.generation,getSession:()=>AccountClient.session,now:()=>Date.now(),
+    isOnline:()=>navigator.onLine!==false,setTimeout:(fn,delay)=>setTimeout(fn,delay),clearTimeout:timer=>clearTimeout(timer),
+    onStatus:()=>{},onActivate:(scope,state)=>{activateCoreScope(scope,state);if(typeof renderAll==='function')renderAll();}
+  });
 }
 function coreId(){
   if(globalThis.crypto?.randomUUID)return globalThis.crypto.randomUUID();
@@ -2674,6 +2692,7 @@ function scheduleFlashcardSyncRetry(){
   flashcardSyncTimer=setTimeout(()=>manualFlashcardSync(),delay);
 }
 async function manualFlashcardSync(){
+  scheduleCoreSync('manual');
   if(flashcardCopyInFlight)await flashcardCopyInFlight.catch(()=>null);
   if(!AccountClient.session){setFlashcardSyncStatus('syncLocal');return null;}
   if(!navigator.onLine){setFlashcardSyncStatus('syncWaiting');return null;}
@@ -3368,19 +3387,19 @@ document.getElementById('goalName').addEventListener('keydown',e=>{if(e.key==='E
 /* ============ init ============ */
 applyLang(); drawRing();
 updateFlashcardAccountUI(null);
-if(AccountClient.isConfigured())AccountClient.restoreSession().then(session=>{if(session)manualFlashcardSync();}).catch(()=>updateFlashcardAccountUI(null));
+if(AccountClient.isConfigured())AccountClient.restoreSession().then(session=>{if(session){scheduleCoreSync('login');manualFlashcardSync();}}).catch(()=>updateFlashcardAccountUI(null));
 if(rolledOverAtStartup)toast(T('newDayReset'));
 scheduleNextRollover();
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible'){rolloverIfNeeded(true);scheduleNextRollover();}
+  if(document.visibilityState==='visible'){rolloverIfNeeded(true);scheduleNextRollover();scheduleCoreSync('visible');}
 });
-window.addEventListener('focus',()=>{rolloverIfNeeded(true);scheduleNextRollover();});
-window.addEventListener('online',()=>{if(AccountClient.session)manualFlashcardSync();});
+window.addEventListener('focus',()=>{rolloverIfNeeded(true);scheduleNextRollover();scheduleCoreSync('focus');});
+window.addEventListener('online',()=>{scheduleCoreSync('online');if(AccountClient.session)manualFlashcardSync();});
 window.addEventListener('storage',async event=>{
   if(event.key!=='ll_supabaseSession')return;
   let session=null;try{session=event.newValue?JSON.parse(event.newValue):null;}catch(error){}
   if((session?.access_token||null)===(AccountClient.session?.access_token||null))return;
-  await AccountClient.activate(session,false);if(session)manualFlashcardSync();
+  await AccountClient.activate(session,false);if(session){scheduleCoreSync('login');manualFlashcardSync();}
 });
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
