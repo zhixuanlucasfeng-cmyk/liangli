@@ -150,8 +150,9 @@ assert.notEqual(end, -1, 'account modal controller must expose global auth actio
 const focused=[];
 const app={inert:false,attrs:{},setAttribute(key,value){this.attrs[key]=value;},removeAttribute(key){delete this.attrs[key];}};
 const opener={focus(){focused.push('opener');}};
-const close={focus(){focused.push('close');}};
-const modal={hidden:true,attrs:{},contains(node){return node===close;},setAttribute(key,value){this.attrs[key]=value;},removeAttribute(key){delete this.attrs[key];}};
+const first={hidden:false,offsetParent:{},focus(){focused.push('first');}};
+const close={hidden:false,offsetParent:{},focus(){focused.push('close');}};
+const modal={hidden:true,attrs:{},contains(node){return node===close;},querySelectorAll(){return [first,close];},setAttribute(key,value){this.attrs[key]=value;},removeAttribute(key){delete this.attrs[key];}};
 const elements=new Map([['accountModal',modal],['accountClose',close]]);
 const document={activeElement:opener,body:{style:{}},querySelector(selector){return selector==='.app'?app:null;},getElementById(id){return elements.get(id);}};
 const context={document,renderAccountPanel(){},abortAccountReconciliation(){},cancelStartEmpty(){},LiangliAccountSync:{createAccountReconciliationGate(){return {acquire(){return {};},owns(){return true;},release(){return true;}};}},setTimeout(fn){fn();}};
@@ -171,6 +172,16 @@ assert.equal(modal.hidden,true, 'Escape closes the dialog');
 assert.equal(app.inert,false, 'closing restores background interaction');
 assert.equal(app.attrs['aria-hidden'],undefined);
 assert.equal(focused.at(-1),'opener', 'closing restores focus to the opener');
+
+context.accountModal.openAccountPanel();
+document.activeElement=first;let shiftTrapped=false;
+context.accountModal.accountModalKeydown({key:'Tab',shiftKey:true,preventDefault(){shiftTrapped=true;}});
+assert.equal(shiftTrapped,true, 'Shift+Tab from the first ordinary-dialog control is trapped');
+assert.equal(focused.at(-1),'close', 'Shift+Tab moves focus to the last ordinary-dialog control');
+document.activeElement=close;let forwardTrapped=false;
+context.accountModal.accountModalKeydown({key:'Tab',shiftKey:false,preventDefault(){forwardTrapped=true;}});
+assert.equal(forwardTrapped,true, 'Tab from the last ordinary-dialog control is trapped');
+assert.equal(focused.at(-1),'first', 'Tab moves focus to the first ordinary-dialog control');
 """
 
 WELCOME_MODAL_HARNESS = r"""
@@ -195,11 +206,34 @@ vm.createContext(context);
 vm.runInContext(`${script.slice(start,end)}\n;globalThis.welcome={showAccountWelcome,continueOnThisDevice,welcomeModalKeydown,openAccountPanel};`,context);
 context.welcome.showAccountWelcome();
 assert.equal(welcome.hidden,false);assert.equal(app.inert,true);assert.equal(focused.at(-1),'first');
+document.activeElement=first;let reverseTrapped=false;context.welcome.welcomeModalKeydown({key:'Tab',shiftKey:true,preventDefault(){reverseTrapped=true;}});
+assert.equal(reverseTrapped,true);assert.equal(focused.at(-1),'last');
 document.activeElement=last;let trapped=false;context.welcome.welcomeModalKeydown({key:'Tab',shiftKey:false,preventDefault(){trapped=true;}});
 assert.equal(trapped,true);assert.equal(focused.at(-1),'first');
 let escaped=false;context.welcome.welcomeModalKeydown({key:'Escape',preventDefault(){escaped=true;}});
 assert.equal(escaped,true);assert.equal(storage.get('ll_accountWelcomeSeen'),'1');assert.equal(welcome.hidden,true);assert.equal(app.inert,false);assert.equal(focused.at(-1),'opener');
 storage.delete('ll_accountWelcomeSeen');context.welcome.showAccountWelcome();context.welcome.openAccountPanel();assert.equal(account.hidden,true,'account modal cannot open behind welcome');
+"""
+
+ACCOUNT_STATUS_HARNESS = r"""
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const html = fs.readFileSync('index.html', 'utf8');
+const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+const start = script.indexOf('let accountReturnFocus=');
+const end = script.indexOf('async function beginAccountFirstLogin(', start);
+const status={textContent:''};
+const ids=['accountEmail','accountPassword','accountSignIn','accountSignUp','accountRecover','accountSignOut','accountSyncNow','copyLocalFlashcards','accountFirstLoginChoices','coreRecoveryItems'];
+const elements=new Map(ids.map(id=>[id,{disabled:false,hidden:false,textContent:'',innerHTML:'',setAttribute(){}}]));
+elements.set('accountSyncStatus',status);
+const document={body:{style:{}},activeElement:null,querySelector(){return {inert:false,setAttribute(){},removeAttribute(){}};},getElementById:id=>elements.get(id)};
+const context={document,navigator:{onLine:true},AccountClient:{generation:1,session:{user:{id:'u1',email:'owner@example.test'}},isConfigured(){return true;}},LiangliAccountSync:{createAccountReconciliationGate(){return {acquire(){return {};},owns(){return true;},release(){return true;}};},createCoreRecoveryStore(){return {list(){return [];},restore(){},save(){}};}},T:key=>key,esc:value=>String(value),setTimeout(){}};
+vm.createContext(context);
+vm.runInContext(`${script.slice(start,end)}\n;globalThis.accountStatus={setAccountPanelError,renderAccountPanel};`,context);
+context.accountStatus.setAccountPanelError('cloud validation failed');
+context.accountStatus.renderAccountPanel();
+assert.equal(status.textContent,'cloud validation failed','rendering the signed-in panel preserves an explicit initialized-login error in its live region');
 """
 
 
@@ -336,6 +370,11 @@ class MangaUIContractTests(unittest.TestCase):
 
     def test_welcome_modal_keyboard_behavior(self):
         result = subprocess.run(['node', '-e', WELCOME_MODAL_HARNESS], cwd=ROOT, text=True,
+                                capture_output=True, timeout=5, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_initialized_login_error_survives_account_panel_render(self):
+        result = subprocess.run(['node', '-e', ACCOUNT_STATUS_HARNESS], cwd=ROOT, text=True,
                                 capture_output=True, timeout=5, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 

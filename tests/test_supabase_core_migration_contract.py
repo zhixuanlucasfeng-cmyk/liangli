@@ -8,6 +8,10 @@ MIGRATION_PATH = ROOT / "supabase/migrations/003_core_sync.sql"
 SQL = MIGRATION_PATH.read_text() if MIGRATION_PATH.exists() else ""
 RLS_TEST_PATH = ROOT / "supabase/tests/core_sync_rls.sql"
 RLS_TEST = RLS_TEST_PATH.read_text() if RLS_TEST_PATH.exists() else ""
+INITIALIZATION_MIGRATION_PATH = ROOT / "supabase/migrations/004_initialize_core_sync.sql"
+INITIALIZATION_SQL = INITIALIZATION_MIGRATION_PATH.read_text() if INITIALIZATION_MIGRATION_PATH.exists() else ""
+INITIALIZATION_TEST_PATH = ROOT / "supabase/tests/core_sync_initialization.sql"
+INITIALIZATION_TEST = INITIALIZATION_TEST_PATH.read_text() if INITIALIZATION_TEST_PATH.exists() else ""
 
 CORE_TABLES = (
     "liangli_sync_profiles",
@@ -41,6 +45,39 @@ def policy_for(table, operation):
 
 
 class SupabaseCoreMigrationContractTests(unittest.TestCase):
+    def test_atomic_initializer_is_authenticated_fixed_and_serialized(self):
+        self.assertTrue(INITIALIZATION_MIGRATION_PATH.exists(), "atomic core initializer migration must exist")
+        self.assertIn("create or replace function public.initialize_liangli_core_sync(", INITIALIZATION_SQL)
+        self.assertIn("security definer set search_path = ''", INITIALIZATION_SQL)
+        self.assertIn("auth.uid()", INITIALIZATION_SQL)
+        self.assertIn("coalesce(auth.role(), '') <> 'authenticated'", INITIALIZATION_SQL)
+        self.assertIn("pg_advisory_xact_lock(hashtextextended(v_owner::text, 0))", INITIALIZATION_SQL)
+        self.assertRegex(INITIALIZATION_SQL, r"if exists \(select 1 from public\.liangli_sync_profiles where user_id = v_owner\) then\s+raise exception 'liangli_core_already_initialized'", re.DOTALL)
+        self.assertNotIn("execute format", INITIALIZATION_SQL.lower())
+        self.assertNotIn("table_name", INITIALIZATION_SQL.lower())
+        self.assertNotRegex(INITIALIZATION_SQL, r"\buser_id\b[^\n]*jsonb_to_recordset", "payload rows must never supply user_id")
+        for table in ENTITY_TABLES:
+            self.assertIn(f"delete from public.{table} where user_id = v_owner;", INITIALIZATION_SQL)
+            self.assertIn(f"insert into public.{table} (id, user_id, payload, client_updated_at, deleted_at)", INITIALIZATION_SQL)
+        self.assertGreater(
+            INITIALIZATION_SQL.index("insert into public.liangli_sync_profiles"),
+            max(INITIALIZATION_SQL.index(f"insert into public.{table}") for table in ENTITY_TABLES),
+            "manifest insertion is the final data mutation",
+        )
+
+    def test_atomic_initializer_execution_is_authenticated_only(self):
+        self.assertIn("revoke all on function public.initialize_liangli_core_sync(jsonb, jsonb, jsonb, jsonb, jsonb) from public;", INITIALIZATION_SQL)
+        self.assertIn("revoke all on function public.initialize_liangli_core_sync(jsonb, jsonb, jsonb, jsonb, jsonb) from anon;", INITIALIZATION_SQL)
+        self.assertIn("revoke all on function public.initialize_liangli_core_sync(jsonb, jsonb, jsonb, jsonb, jsonb) from service_role;", INITIALIZATION_SQL)
+        self.assertIn("grant execute on function public.initialize_liangli_core_sync(jsonb, jsonb, jsonb, jsonb, jsonb) to authenticated;", INITIALIZATION_SQL)
+
+    def test_atomic_initializer_acceptance_covers_rollback_and_competing_sessions(self):
+        self.assertTrue(INITIALIZATION_TEST_PATH.exists(), "initializer acceptance SQL must be authored")
+        self.assertIn("rollback", INITIALIZATION_TEST.lower())
+        self.assertIn("liangli_core_already_initialized", INITIALIZATION_TEST)
+        self.assertIn("two-session", INITIALIZATION_TEST.lower())
+        self.assertIn("duplicate key", INITIALIZATION_TEST.lower())
+
     def test_creates_exactly_the_six_core_sync_tables(self):
         self.assertTrue(MIGRATION_PATH.exists(), "core sync migration must exist")
         self.assertEqual(SQL.count("create table if not exists public."), len(CORE_TABLES))

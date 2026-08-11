@@ -856,7 +856,7 @@ let coreSyncController=null;
 AccountClient.configure({
   url:SUPABASE_URL,anonKey:SUPABASE_ANON_KEY,getStoredSession:()=>DB.get('supabaseSession',null),setStoredSession:session=>DB.set('supabaseSession',session),
   onSessionChange:async session=>{
-    abortAccountReconciliation();cancelStartEmpty();
+    abortAccountReconciliation();cancelStartEmpty();accountPanelMessageOverride=null;
     const nextScope=session?session.user.id:'local',scopeChanged=ActiveFlashcardStore.scope!==FlashcardStore.normalizeScope(nextScope);
     ActiveFlashcardStore=FlashcardStore.forScope(nextScope);updateFlashcardAccountUI(session);
     if(session)await beginAccountFirstLogin(session);
@@ -1034,13 +1034,13 @@ if(AccountCore){
     readScope:scope=>readCoreScope(scope).state,
     writeScope:(scope,state)=>writeCoreScope(scope,state),
     createRecovery:async state=>createCoreRecoverySnapshot(state),
-    restClient:(session,generation)=>LiangliAccountSync.createOwnerRestClient(session,generation,[LiangliAccountSync.CORE_MANIFEST_TABLE,...Object.values(LiangliAccountSync.CORE_REMOTE_TABLES)]),
+    restClient:(session,generation)=>LiangliAccountSync.createOwnerRestClient(session,generation,[LiangliAccountSync.CORE_MANIFEST_TABLE,...Object.values(LiangliAccountSync.CORE_REMOTE_TABLES)],['initialize_liangli_core_sync']),
     getGeneration:()=>AccountClient.generation,getSession:()=>AccountClient.session,now:()=>Date.now(),
     isOnline:()=>navigator.onLine!==false,setTimeout:(fn,delay)=>setTimeout(fn,delay),clearTimeout:timer=>clearTimeout(timer),
     onStatus:status=>{setAccountSyncStatus(status);},onActivate:(scope,state)=>{activateCoreScope(scope,state);if(typeof renderAll==='function')renderAll();}
   });
 }
-let accountReturnFocus=null,pendingAccountDeviceState=null,pendingFirstLoginSession=null,accountReconciliation=null;
+let accountReturnFocus=null,pendingAccountDeviceState=null,pendingFirstLoginSession=null,accountReconciliation=null,accountPanelMessageOverride=null;
 const accountReconciliationGate=LiangliAccountSync.createAccountReconciliationGate();
 let welcomeReturnFocus=null;
 function openAccountPanel(){
@@ -1091,7 +1091,9 @@ function recoverAccount(){
 }
 function signOutAccount(){return AccountClient.signOut().catch(()=>setAccountMessage(T('authError')));}
 function setAccountMessage(message){const status=document.getElementById('accountSyncStatus');if(status)status.textContent=message;}
+function setAccountPanelError(message){accountPanelMessageOverride=message;setAccountMessage(message);}
 function setAccountSyncStatus(status){
+  accountPanelMessageOverride=null;
   const key={local:'accountLocal',waiting:'syncWaiting',syncing:'syncing',done:'syncDone',failed:'syncFailed'}[status]||status;
   setAccountMessage(T(key)||T('accountLocal'));
   const badge=document.getElementById('flashcardSyncBadge');if(badge)badge.textContent=T(key)||T('accountLocal');
@@ -1146,12 +1148,14 @@ function renderAccountPanel(){
   document.getElementById('accountSyncNow').disabled=!signedIn||navigator.onLine===false;
   document.getElementById('copyLocalFlashcards').hidden=!signedIn;
   document.getElementById('accountFirstLoginChoices').hidden=!pendingFirstLoginSession;
-  if(!signedIn)setAccountMessage(T(configured?'syncSignIn':'accountUnavailable'));
+  if(accountPanelMessageOverride)setAccountMessage(accountPanelMessageOverride);
+  else if(!signedIn)setAccountMessage(T(configured?'syncSignIn':'accountUnavailable'));
   else if(!pendingFirstLoginSession)setAccountMessage(`${T('signedInAs')} ${session.user.email||''}`);
   renderCoreRecoveries();
 }
 async function beginAccountFirstLogin(session){
   const generation=AccountClient.generation,visible=visibleCoreSnapshot();
+  accountPanelMessageOverride=null;
   pendingAccountDeviceState=visible;pendingFirstLoginSession=session;
   if(!coreSyncController||!currentAccountOwns(session,generation))return;
   try{
@@ -1163,7 +1167,7 @@ async function beginAccountFirstLogin(session){
       if(!currentAccountOwns(session,generation))return;
       pendingAccountDeviceState=null;setAccountSyncStatus('done');renderAccountPanel();
     }else{setAccountMessage(T('firstLoginBody'));renderAccountPanel();}
-  }catch(error){if(currentAccountOwns(session,generation)){pendingFirstLoginSession=null;setAccountMessage(T('accountFirstLoginFailed'));renderAccountPanel();}}
+  }catch(error){if(currentAccountOwns(session,generation)){pendingFirstLoginSession=null;setAccountPanelError(T('accountFirstLoginFailed'));renderAccountPanel();}}
 }
 async function chooseUploadDevice(){
   const session=pendingFirstLoginSession,generation=AccountClient.generation,local=LiangliAccountSync.readAnonymousCoreState(scope=>readCoreScope(scope));
@@ -1173,9 +1177,10 @@ async function chooseUploadDevice(){
   try{
     const prepared=LiangliAccountSync.prepareDeviceUploadState(local,Date.now());
     const result=await coreSyncController.initializeFromDevice(session,prepared);
+    if(result?.alreadyInitialized){if(ownsAccountReconciliation(token))setAccountPanelError(T('accountChoiceFailed'));return false;}
     if(!ownsAccountReconciliation(token)||result?.discarded)return false;
     pendingFirstLoginSession=null;pendingAccountDeviceState=null;cancelStartEmpty();setAccountSyncStatus('done');renderAccountPanel();return true;
-  }catch(error){if(ownsAccountReconciliation(token))setAccountMessage(T('accountChoiceFailed'));return false;}
+  }catch(error){if(ownsAccountReconciliation(token))setAccountPanelError(T('accountChoiceFailed'));return false;}
   finally{if(accountReconciliation===token)invalidateAccountReconciliation();}
 }
 function chooseStartEmpty(){
@@ -1190,9 +1195,10 @@ async function confirmStartEmpty(){
   if(!createCoreRecoverySnapshot(visible)){if(ownsAccountReconciliation(token))setAccountMessage(T('accountRecoveryFailed'));invalidateAccountReconciliation();return false;}
   try{
     const result=await coreSyncController.initializeEmpty(session);
+    if(result?.alreadyInitialized){if(ownsAccountReconciliation(token))setAccountPanelError(T('accountChoiceFailed'));return false;}
     if(!ownsAccountReconciliation(token)||result?.discarded)return false;
     pendingFirstLoginSession=null;pendingAccountDeviceState=null;cancelStartEmpty();setAccountSyncStatus('done');renderAccountPanel();return true;
-  }catch(error){if(ownsAccountReconciliation(token))setAccountMessage(T('accountChoiceFailed'));return false;}
+  }catch(error){if(ownsAccountReconciliation(token))setAccountPanelError(T('accountChoiceFailed'));return false;}
   finally{if(accountReconciliation===token)invalidateAccountReconciliation();}
 }
 function closeAccountWelcome({markSeen=false}={}){

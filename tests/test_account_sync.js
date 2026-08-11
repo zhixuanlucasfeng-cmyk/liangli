@@ -110,6 +110,8 @@ async function testAccountClient(){
   await AccountClient.activate(session);
   const client=api.createOwnerRestClient(session,AccountClient.generation,['liangli_tasks']);
   assert.throws(()=>client.table('liangli_expenses'),/not allowed/i, 'the client rejects tables outside its exact allowlist');
+  assert.throws(()=>client.rpc('initialize_liangli_core_sync',{}),/not allowed/i, 'the client rejects RPC names outside its exact allowlist');
+  const initializerClient=api.createOwnerRestClient(session,AccountClient.generation,['liangli_tasks'],['initialize_liangli_core_sync']);
   const mutableAllowlist=['liangli_tasks'];
   const snapshottedClient=api.createOwnerRestClient(session,AccountClient.generation,mutableAllowlist);
   mutableAllowlist[0]='liangli_expenses';mutableAllowlist.push('liangli_mood_entries');
@@ -126,6 +128,12 @@ async function testAccountClient(){
   nextResponses=[{ok:true,status:200,json:async()=>[]}];
   await client.table('liangli_tasks').select('*',{clientUpdatedAtOrAfter:now});
   assert.equal(requests[4].url,`https://project.supabase.co/rest/v1/liangli_tasks?select=*&client_updated_at=gte.${now}`, 'the explicit inclusive core cursor option produces a gte REST filter');
+
+  nextResponses=[{ok:true,status:200,json:async()=>({initialized:true})}];
+  const initialized=await initializerClient.rpc('initialize_liangli_core_sync',{p_tasks:[],p_growth_items:[],p_goals:[],p_focus_sessions:[],p_mood_entries:[]});
+  assert.deepEqual(initialized,{data:{initialized:true},error:null}, 'the exact initializer RPC returns its server commit result');
+  assert.equal(requests[5].url,'https://project.supabase.co/rest/v1/rpc/initialize_liangli_core_sync');
+  assert.deepEqual(JSON.parse(requests[5].options.body),{p_tasks:[],p_growth_items:[],p_goals:[],p_focus_sessions:[],p_mood_entries:[]});
 
   let refreshRequests=0;
   AccountClient.session={access_token:'expired',refresh_token:'refresh-two',expires_at:4102444800,user:{id:'u1'}};
@@ -270,10 +278,10 @@ function createCoreHarness(){
     liangli_sync_profiles:[{user_id:'user-a',core_version:1,initialized_at:'2026-08-10T00:00:00.000Z',updated_at:'2026-08-10T00:00:00.000Z'}],
     liangli_tasks:[],liangli_growth_items:[],liangli_goals:[],liangli_focus_sessions:[],liangli_mood_entries:[],
   };
-  const statuses=[],writes=[],recovery=[],selects=[],upserts=[],events=[],timers=[];
+  const statuses=[],writes=[],recovery=[],selects=[],upserts=[],rpcCalls=[],events=[],timers=[];
   const tableFor={task:'liangli_tasks',growth:'liangli_growth_items',goal:'liangli_goals',focus:'liangli_focus_sessions',mood:'liangli_mood_entries'};
   currentSession=sessions.a;
-  const harness={activeScope:'user-a',sessions,remote,statuses,writes,recovery,selects,upserts,events,timers,failTables:new Set(),failWrites:false,tableFor,
+  const harness={activeScope:'user-a',sessions,remote,statuses,writes,recovery,selects,upserts,rpcCalls,events,timers,failTables:new Set(),failRpc:false,failWrites:false,tableFor,
     state(){return scopes.get(this.activeScope);},
     switchTo(session){generation++;currentSession=session;this.activeScope=session.user.id;},
     resolveOld(rows){hold.resolve(rows);hold=null;},
@@ -285,7 +293,7 @@ function createCoreHarness(){
     readScope:scope=>clone(scopes.get(scope)||null),
     writeScope:(scope,next)=>{events.push(`write:${scope}`);writes.push({scope,state:clone(next)});if(harness.failWrites||scope!==harness.activeScope)return false;scopes.set(scope,clone(next));return true;},
     createRecovery:async next=>{recovery.push(clone(next));return true;},
-    restClient:()=>({table(name){return {
+    restClient:session=>({table(name){return {
       select:async(_columns,options={})=>{selects.push({name,options:clone(options)});if(hold&&hold.table===name)return await hold.promise;const after=options.clientUpdatedAfter,inclusive=options.clientUpdatedAtOrAfter;const rows=inclusive!==undefined?(remote[name]||[]).filter(row=>Number(row.client_updated_at??row.updatedAt)>=inclusive):after===undefined?remote[name]||[]:(remote[name]||[]).filter(row=>Number(row.client_updated_at??row.updatedAt)>after);return {data:clone(rows),error:null};},
       upsert:async(rows,options={})=>{
         events.push(`upsert:${name}`);
@@ -301,7 +309,15 @@ function createCoreHarness(){
         return {data:echoes,error:null};
       },
       delete:()=>({eq:async(column,value)=>{events.push(`delete:${name}`);if(harness.failTables.has(`${name}:delete`))return {data:null,error:true,status:503};remote[name]=(remote[name]||[]).filter(row=>row[column]!==value);return {data:null,error:null};}}),
-    };}}),
+    };},rpc:async(name,args)=>{
+      events.push(`rpc:${name}`);rpcCalls.push({name,args:clone(args)});
+      if(name!=='initialize_liangli_core_sync'||harness.failRpc)return {data:null,error:true,status:503};
+      if((remote.liangli_sync_profiles||[]).some(row=>row.user_id===session.user.id))return {data:null,error:true,status:409,message:'liangli_core_already_initialized'};
+      const payloadTables={p_tasks:'liangli_tasks',p_growth_items:'liangli_growth_items',p_goals:'liangli_goals',p_focus_sessions:'liangli_focus_sessions',p_mood_entries:'liangli_mood_entries'};
+      for(const [argument,table] of Object.entries(payloadTables))remote[table]=(args[argument]||[]).map(row=>({...clone(row),user_id:session.user.id}));
+      remote.liangli_sync_profiles.push({user_id:session.user.id,core_version:1,initialized_at:'2026-08-10T00:00:00.000Z',updated_at:'2026-08-10T00:00:00.000Z'});
+      return {data:{initialized:true},error:null};
+    }}),
     getGeneration:()=>generation,getSession:()=>currentSession,now:()=>clockNow,onStatus:status=>statuses.push(status),onActivate:(scope,next)=>{harness.activeScope=scope;scopes.set(scope,clone(next));},
     isOnline:()=>online,setTimeout:(fn,delay)=>{const timer={fn,delay,cancelled:false};timers.push(timer);return timer;},clearTimeout:timer=>{if(timer)timer.cancelled=true;},
   };
@@ -346,14 +362,15 @@ async function testCoreSyncEngine(){
   initHarness.remote.liangli_sync_profiles=[];
   const initController=api.createCoreSyncController(initHarness.deps);
   await initController.initializeEmpty(initHarness.sessions.a);
-  const emptyManifest=initHarness.upserts.find(call=>call.name==='liangli_sync_profiles');
-  assert.deepEqual(emptyManifest.options,{onConflict:'user_id',returning:true}, 'manifest writes use its user_id primary key, never an entity id conflict key');
-  assert.equal(emptyManifest.rows[0].user_id,'user-a');
-  initHarness.upserts.length=0;
+  assert.equal(initHarness.rpcCalls.length,1, 'empty initialization commits through one server-side RPC');
+  assert.equal(initHarness.rpcCalls[0].name,'initialize_liangli_core_sync');
+  assert.deepEqual(initHarness.rpcCalls[0].args,{p_tasks:[],p_growth_items:[],p_goals:[],p_focus_sessions:[],p_mood_entries:[]}, 'empty initialization supplies only fixed empty arrays');
+  assert.equal(initHarness.events.some(event=>event.startsWith('delete:')||event.startsWith('upsert:')),false, 'initialization never exposes client-side destructive table REST calls');
   await initController.initializeFromDevice(initHarness.sessions.a,coreState());
-  const deviceManifest=initHarness.upserts.at(-1);
-  assert.equal(deviceManifest.name,'liangli_sync_profiles');
-  assert.deepEqual(deviceManifest.options,{onConflict:'user_id',returning:true}, 'device initialization uses the schema-correct manifest conflict key');
+  const deviceRpc=initHarness.rpcCalls.at(-1);
+  assert.equal(deviceRpc.name,'initialize_liangli_core_sync');
+  assert.equal(deviceRpc.args.p_tasks[0].user_id,undefined, 'device initialization never sends user_id in RPC payload rows');
+  assert.deepEqual(Object.keys(deviceRpc.args).sort(),['p_focus_sessions','p_goals','p_growth_items','p_mood_entries','p_tasks'], 'device initialization has no dynamic table argument');
 
   const queueHarness=createCoreHarness();
   const queued=coreState({syncOps:[
@@ -541,29 +558,41 @@ async function testFirstLoginAndRecoveryBoundaries(){
   initOrderHarness.remote.liangli_tasks=[remoteRow({...state.tasks[0],name:'orphan'})];
   await api.createCoreSyncController(initOrderHarness.deps).initializeEmpty(initOrderHarness.sessions.a);
   assert.equal(initOrderHarness.remote.liangli_tasks.length,0, 'empty initialization clears orphan rows before committing its manifest');
-  assert(initOrderHarness.events.indexOf('write:user-a')<initOrderHarness.events.indexOf('upsert:liangli_sync_profiles'), 'the account-scoped local write succeeds before manifest becomes visible');
+  assert(initOrderHarness.events.indexOf('rpc:initialize_liangli_core_sync')<initOrderHarness.events.indexOf('write:user-a'), 'the RPC cloud commit succeeds before any account-local write');
 
   const failedInitHarness=createCoreHarness();
   failedInitHarness.remote.liangli_sync_profiles=[];
-  failedInitHarness.failWrites=true;
+  failedInitHarness.deps.writeScope('user-a',accountPrior);
+  failedInitHarness.failRpc=true;
   await assert.rejects(()=>api.createCoreSyncController(failedInitHarness.deps).initializeFromDevice(failedInitHarness.sessions.a,capturedDevice),/initialization/i);
-  assert.equal(failedInitHarness.remote.liangli_sync_profiles.length,0, 'a local write failure leaves a missing-manifest account uninitialized');
+  assert.equal(failedInitHarness.remote.liangli_sync_profiles.length,0, 'an RPC failure leaves a missing-manifest account uninitialized');
+  assert.equal(failedInitHarness.state().tasks[0].name,'prior account bytes', 'an RPC failure leaves current visible account bytes unchanged');
 
-  const clearFailureHarness=createCoreHarness();
-  clearFailureHarness.remote.liangli_sync_profiles=[];clearFailureHarness.failTables.add('liangli_tasks:delete');
-  await assert.rejects(()=>api.createCoreSyncController(clearFailureHarness.deps).initializeEmpty(clearFailureHarness.sessions.a),/initialization/i);
-  assert.equal(clearFailureHarness.remote.liangli_sync_profiles.length,0, 'a failed orphan cleanup never creates a manifest');
-  assert.equal(clearFailureHarness.writes.length,0, 'a failed orphan cleanup does not alter account-local state');
+  const localWriteFailureHarness=createCoreHarness();
+  localWriteFailureHarness.remote.liangli_sync_profiles=[];
+  localWriteFailureHarness.deps.writeScope('user-a',accountPrior);
+  localWriteFailureHarness.failWrites=true;
+  await assert.rejects(()=>api.createCoreSyncController(localWriteFailureHarness.deps).initializeFromDevice(localWriteFailureHarness.sessions.a,capturedDevice),/initialization/i);
+  assert.equal(localWriteFailureHarness.remote.liangli_sync_profiles.length,1, 'a local write failure after RPC leaves a valid initialized cloud winner');
+  assert.equal(localWriteFailureHarness.state().tasks[0].name,'prior account bytes', 'a local write failure does not overwrite current visible account bytes');
 
-  const tableFailureHarness=createCoreHarness();
-  tableFailureHarness.remote.liangli_sync_profiles=[];tableFailureHarness.failTables.add('liangli_growth_items');
-  await assert.rejects(()=>api.createCoreSyncController(tableFailureHarness.deps).initializeFromDevice(tableFailureHarness.sessions.a,capturedDevice),/initialization/i);
-  assert.equal(tableFailureHarness.remote.liangli_sync_profiles.length,0, 'a mid-table upload failure leaves the account uninitialized');
+  const staleInitializerHarness=createCoreHarness();
+  const winnerTask={...state.tasks[0],name:'winner data'};
+  staleInitializerHarness.remote.liangli_tasks=[remoteRow(winnerTask)];
+  const staleResult=await api.createCoreSyncController(staleInitializerHarness.deps).initializeEmpty(staleInitializerHarness.sessions.a);
+  assert.equal(staleResult.alreadyInitialized,true, 'an already-initialized RPC result is surfaced without a destructive retry');
+  assert.equal(staleInitializerHarness.remote.liangli_tasks[0].payload.name,'winner data', 'a losing initializer cannot delete the winner data');
 
-  const manifestFailureHarness=createCoreHarness();
-  manifestFailureHarness.remote.liangli_sync_profiles=[];manifestFailureHarness.failTables.add('liangli_sync_profiles');
-  await assert.rejects(()=>api.createCoreSyncController(manifestFailureHarness.deps).initializeEmpty(manifestFailureHarness.sessions.a),/initialization/i);
-  assert.equal(manifestFailureHarness.remote.liangli_sync_profiles.length,0, 'a manifest write failure leaves no initialized marker');
+  const obsoleteClearHarness=createCoreHarness();
+  obsoleteClearHarness.remote.liangli_sync_profiles=[];obsoleteClearHarness.failRpc=true;
+  await assert.rejects(()=>api.createCoreSyncController(obsoleteClearHarness.deps).initializeEmpty(obsoleteClearHarness.sessions.a),/initialization/i);
+  assert.equal(obsoleteClearHarness.events.some(event=>event.startsWith('delete:')),false, 'an RPC error never starts a client-side clear');
+
+  const retainedManifestFailureHarness=createCoreHarness();
+  retainedManifestFailureHarness.remote.liangli_sync_profiles=[];retainedManifestFailureHarness.failRpc=true;
+  await assert.rejects(()=>api.createCoreSyncController(retainedManifestFailureHarness.deps).initializeEmpty(retainedManifestFailureHarness.sessions.a),/initialization/i);
+  assert.equal(retainedManifestFailureHarness.remote.liangli_sync_profiles.length,0, 'an RPC transaction failure writes no manifest');
+
 }
 
 async function run(){

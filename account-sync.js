@@ -187,6 +187,11 @@
     if(!values.length||values.some(value=>typeof value!=='string'||!value))throw new Error('Invalid cloud table allowlist');
     return new Set(Object.freeze([...values]));
   }
+  function allowedRpcNames(allowedRpcs){
+    const values=Array.isArray(allowedRpcs)?allowedRpcs:[];
+    if(values.some(value=>typeof value!=='string'||!/^initialize_liangli_core_sync$/.test(value)))throw new Error('Invalid cloud RPC allowlist');
+    return new Set(Object.freeze([...values]));
+  }
   function safeEmail(email){const value=typeof email==='string'?email.trim():'';if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)||value.length>320)throw new Error('Invalid email');return value;}
   function safeRedirect(){
     const location=accountRuntime.location||root.location;
@@ -268,14 +273,13 @@
     async signOut(){try{if(this.session)await this.authRequest('logout',null,this.session.access_token);}finally{await this.activate(null);}}
   };
 
-  function createOwnerRestClient(session,generation,allowedTables){
-    const allowed=allowedTableNames(allowedTables);
-    const request=async(table,method='GET',body=null,query='',prefer='',extraHeaders={})=>{
-      if(!allowed.has(table))throw new Error('Cloud table not allowed');
+  function createOwnerRestClient(session,generation,allowedTables,allowedRpcs=[]){
+    const allowed=allowedTableNames(allowedTables),rpcs=allowedRpcNames(allowedRpcs);
+    const request=async(path,method='GET',body=null,query='',prefer='',extraHeaders={})=>{
       const perform=async()=>{
         if(!activeOwner(session,generation))return null;
         const token=AccountClient.session.access_token;
-        return await accountFetch()(`${accountRuntime.url}/rest/v1/${table}${query}`,{method,headers:{apikey:accountRuntime.anonKey,Authorization:`Bearer ${token}`,'Content-Type':'application/json',...(prefer?{Prefer:prefer}:{}),...extraHeaders},body:body==null?undefined:JSON.stringify(body)});
+        return await accountFetch()(`${accountRuntime.url}/rest/v1/${path}${query}`,{method,headers:{apikey:accountRuntime.anonKey,Authorization:`Bearer ${token}`,'Content-Type':'application/json',...(prefer?{Prefer:prefer}:{}),...extraHeaders},body:body==null?undefined:JSON.stringify(body)});
       };
       let response=await perform();
       if(!response)return discarded();
@@ -287,8 +291,11 @@
       if(!activeOwner(session,generation))return discarded();
       if(response.status===401)AccountClient.authInvalid=true;
       if(response.status===403)AccountClient.authorizationBlocked=true;
-      if(!response.ok)return {data:null,error:true,status:response.status};
-      const data=method==='GET'?await response.json():null;
+      if(!response.ok){
+        let message='';try{const errorBody=await response.json();message=typeof errorBody?.message==='string'?errorBody.message:'';}catch(error){}
+        return message?{data:null,error:true,status:response.status,message}:{data:null,error:true,status:response.status};
+      }
+      const data=method==='GET'||path.startsWith('rpc/')?await response.json():null;
       return activeOwner(session,generation)?{data,error:null}:discarded();
     };
     const table=name=>{
@@ -309,7 +316,11 @@
         update(values){let filters='';return {eq(column,value){filters+=`&${encodeURIComponent(column)}=eq.${encodeURIComponent(value)}`;return this;},lte(column,value){filters+=`&${encodeURIComponent(column)}=lte.${encodeURIComponent(value)}`;return request(name,'PATCH',values,`?${filters.slice(1)}`,'return=minimal');}};}
       };
     };
-    return Object.freeze({table,from:table});
+    const rpc=(name,args)=>{
+      if(!rpcs.has(name))throw new Error('Cloud RPC not allowed');
+      return request(`rpc/${name}`,'POST',args,'','return=representation');
+    };
+    return Object.freeze({table,from:table,rpc});
   }
 
   const CORE_STATE_KEYS=Object.freeze({task:'tasks',growth:'growthItems',goal:'goals',focus:'focusSessions',mood:'moodEntries'});
@@ -345,6 +356,7 @@
     if(!CORE_REMOTE_TABLES[type])throw new Error('Invalid core type');
     return {id:entity.id,user_id:userId,payload:entity,client_updated_at:entity.updatedAt,deleted_at:entity.deletedAt===null?null:new Date(entity.deletedAt).toISOString()};
   }
+  function coreInitializationRow(entity){return {id:entity.id,payload:entity,client_updated_at:entity.updatedAt,deleted_at:entity.deletedAt===null?null:new Date(entity.deletedAt).toISOString()};}
   function entityFromCloudRow(type,row,userId){
     if(!plain(row)||!plain(row.payload)||row.user_id!==userId)return null;
     const entity=row.payload;
@@ -377,15 +389,16 @@
       if(!owner(session,generation,epoch)||result?.discarded)return {discarded:true};
       return result;
     };
-    const clearEntities=async(session,generation,epoch)=>{
-      const client=clientFor(session,generation);
-      for(const type of CORE_SYNC_TYPES){
-        if(!owner(session,generation,epoch))return {discarded:true};
-        const result=await client.table(CORE_REMOTE_TABLES[type]).delete().eq('user_id',session.user.id);
-        if(!owner(session,generation,epoch)||result?.discarded)return {discarded:true};
-        if(result?.error)throw new Error('Cloud initialization failed');
-      }
-      return {discarded:false};
+    const initializeCloud=async(client,state,session,generation,epoch)=>{
+      if(!owner(session,generation,epoch))return {discarded:true};
+      const result=await client.rpc('initialize_liangli_core_sync',{
+        p_tasks:state.tasks.map(coreInitializationRow),p_growth_items:state.growthItems.map(coreInitializationRow),p_goals:state.goals.map(coreInitializationRow),
+        p_focus_sessions:state.focusSessions.map(coreInitializationRow),p_mood_entries:state.moodEntries.map(coreInitializationRow)
+      });
+      if(!owner(session,generation,epoch)||result?.discarded)return {discarded:true};
+      if(result?.error){if(result.message==='liangli_core_already_initialized')return {alreadyInitialized:true};throw new Error('Cloud initialization failed');}
+      if(!plain(result?.data)||result.data.initialized!==true)throw new Error('Cloud initialization failed');
+      return {initialized:true};
     };
     const readState=async(session)=>{
       const state=await readScope(session.user.id);return normalizeCoreState(state);
@@ -426,27 +439,18 @@
     const initializeEmpty=async session=>{
       const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;const client=clientFor(session,generation);
       if(!owner(session,generation,epoch))return {discarded:true};
-      const cleared=await clearEntities(session,generation,epoch);if(cleared.discarded)return cleared;
-      const state=emptyCoreState();if(!await writeState(session,generation,epoch,state))throw new Error('Cloud initialization failed');
-      const manifest={user_id:session.user.id,core_version:CORE_STATE_VERSION,initialized_at:new Date(now()).toISOString(),updated_at:new Date(now()).toISOString()};
-      const result=await callUpsert(client,CORE_MANIFEST_TABLE,[manifest],session,generation,epoch);
-      if(result.discarded||result?.error)throw new Error('Cloud initialization failed');
+      const state=emptyCoreState(),committed=await initializeCloud(client,state,session,generation,epoch);
+      if(committed.discarded||committed.alreadyInitialized)return committed;
+      if(!await writeState(session,generation,epoch,state)){if(!owner(session,generation,epoch))return {discarded:true};throw new Error('Cloud initialization committed but local activation failed');}
       if(owner(session,generation,epoch)&&typeof deps.onActivate==='function')deps.onActivate(session.user.id,state);
       return {initialized:true,state};
     };
     const initializeFromDevice=async(session,state)=>{
       const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;const normalized=normalizeCoreState(state),client=clientFor(session,generation);
       if(!normalized)throw new Error('Invalid core state');
-      const cleared=await clearEntities(session,generation,epoch);if(cleared.discarded)return cleared;
-      for(const type of CORE_SYNC_TYPES){
-        if(!owner(session,generation,epoch))return {discarded:true};
-        const result=await callUpsert(client,CORE_REMOTE_TABLES[type],normalized[CORE_STATE_KEYS[type]].map(entity=>coreRow(type,entity,session.user.id)),session,generation,epoch);
-        if(result.discarded)return result;if(result?.error)throw new Error('Cloud initialization failed');
-      }
-      if(!await writeState(session,generation,epoch,normalized))throw new Error('Cloud initialization failed');
-      const manifest={user_id:session.user.id,core_version:CORE_STATE_VERSION,initialized_at:new Date(now()).toISOString(),updated_at:new Date(now()).toISOString()};
-      const result=await callUpsert(client,CORE_MANIFEST_TABLE,[manifest],session,generation,epoch);
-      if(result.discarded)return result;if(result?.error)throw new Error('Cloud initialization failed');
+      const committed=await initializeCloud(client,normalized,session,generation,epoch);
+      if(committed.discarded||committed.alreadyInitialized)return committed;
+      if(!await writeState(session,generation,epoch,normalized)){if(!owner(session,generation,epoch))return {discarded:true};throw new Error('Cloud initialization committed but local activation failed');}
       if(owner(session,generation,epoch)&&typeof deps.onActivate==='function')deps.onActivate(session.user.id,normalized);
       return {initialized:true,state:normalized};
     };
