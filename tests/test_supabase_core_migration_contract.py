@@ -25,6 +25,14 @@ CORE_TABLES = (
 )
 ENTITY_TABLES = CORE_TABLES[1:]
 JS_SAFE_INTEGER = "9007199254740991"
+MAX_CORE_TIMESTAMP = "253402300799999"
+INITIALIZATION_ARGUMENTS = (
+    "p_tasks",
+    "p_growth_items",
+    "p_goals",
+    "p_focus_sessions",
+    "p_mood_entries",
+)
 
 
 def table_definition(table):
@@ -82,6 +90,26 @@ class SupabaseCoreMigrationContractTests(unittest.TestCase):
             self.assertIn(marker, INITIALIZATION_TEST.lower())
         self.assertNotIn("select pass(", INITIALIZATION_TEST.lower(), "a comment/pass placeholder is not a two-session acceptance")
 
+    def test_atomic_initializer_rejects_sql_null_at_both_validation_boundaries(self):
+        validator = re.search(
+            r"create or replace function public\.validate_liangli_core_initialization\(.*?\n\$\$;",
+            INITIALIZATION_SQL,
+            flags=re.DOTALL,
+        ).group(0)
+        initializer = re.search(
+            r"create or replace function public\.initialize_liangli_core_sync\(.*?\n\$\$;",
+            INITIALIZATION_SQL,
+            flags=re.DOTALL,
+        ).group(0)
+        for argument in INITIALIZATION_ARGUMENTS:
+            guard = rf"{argument}\s+is null\s+or\s+jsonb_typeof\({argument}\)\s+is distinct from\s+'array'"
+            self.assertRegex(validator.lower(), guard, f"validator must reject SQL NULL for {argument}")
+            self.assertRegex(initializer.lower(), guard, f"initializer must reject SQL NULL for {argument}")
+            self.assertIn(f"SQL NULL {argument}", INITIALIZATION_TEST)
+        self.assertGreaterEqual(INITIALIZATION_TEST.count("null::jsonb"), len(INITIALIZATION_ARGUMENTS))
+        self.assertIn("SQL NULL calls preserve preexisting owner data", INITIALIZATION_TEST)
+        self.assertIn("SQL NULL calls leave the manifest absent", INITIALIZATION_TEST)
+
     def test_atomic_initializer_validates_every_payload_before_deleting(self):
         validation = re.search(
             r"create or replace function public\.validate_liangli_core_initialization\(.*?\n\$\$;",
@@ -91,11 +119,17 @@ class SupabaseCoreMigrationContractTests(unittest.TestCase):
         self.assertIsNotNone(validation, "initializer needs a server-side semantic validator")
         validator = validation.group(0)
         self.assertIn("jsonb_object_keys", validator)
-        self.assertIn("9007199254740991", validator)
+        self.assertIn(MAX_CORE_TIMESTAMP, validator)
         self.assertIn("octet_length", validator)
         self.assertIn("jsonb_array_length", validator)
         self.assertIn("duplicate", validator.lower())
         self.assertIn("deletedAt", validator)
+        self.assertIn(MAX_CORE_TIMESTAMP, validator)
+        self.assertNotIn("8640000000000000", validator)
+        for fixture in ("2024-02-29", "2026-02-29", "2026-04-31", "0000-01-01", "+010000-01-01"):
+            self.assertIn(fixture, INITIALIZATION_TEST)
+        self.assertIn(MAX_CORE_TIMESTAMP, INITIALIZATION_TEST)
+        self.assertIn("253402300800000", INITIALIZATION_TEST)
         self.assertLess(
             INITIALIZATION_SQL.index("perform public.validate_liangli_core_initialization"),
             INITIALIZATION_SQL.index("delete from public.liangli_tasks"),
@@ -105,9 +139,25 @@ class SupabaseCoreMigrationContractTests(unittest.TestCase):
     def test_two_connection_acceptance_is_an_executable_disposable_harness(self):
         self.assertTrue(CONCURRENCY_TEST_PATH.exists(), "two-connection acceptance harness must exist")
         self.assertIn("CORE_SYNC_TEST_DATABASE_URL", CONCURRENCY_TEST)
-        self.assertGreaterEqual(CONCURRENCY_TEST.count("psql"), 2)
+        self.assertGreaterEqual(CONCURRENCY_TEST.count("psql"), 3)
         self.assertIn("liangli_core_already_initialized", CONCURRENCY_TEST)
-        self.assertIn("pg_sleep", CONCURRENCY_TEST)
+        self.assertIn("CORE_SYNC_TEST_DISPOSABLE", CONCURRENCY_TEST)
+        self.assertIn("\\! touch", CONCURRENCY_TEST)
+        self.assertIn("application_name", CONCURRENCY_TEST)
+        self.assertIn("pg_stat_activity", CONCURRENCY_TEST)
+        self.assertIn("pg_locks", CONCURRENCY_TEST)
+        self.assertIn("wait_event_type", CONCURRENCY_TEST)
+        self.assertIn("wait_event", CONCURRENCY_TEST)
+        self.assertIn("advisory", CONCURRENCY_TEST.lower())
+        self.assertNotIn("sleep 0.2", CONCURRENCY_TEST)
+        self.assertNotIn("sleep 0.5", CONCURRENCY_TEST)
+        self.assertNotIn('wait "$pid_b" || true', CONCURRENCY_TEST)
+        self.assertRegex(
+            CONCURRENCY_TEST,
+            r"begin;\s+\$\{owner_setup\}\s+\$\{winner_call\}\s+\\! touch .*?\s+\\! while .*?\s+commit;",
+            "A must mark readiness only after its RPC returns and before its outer transaction commits",
+        )
+        self.assertLess(CONCURRENCY_TEST.index("pg_stat_activity"), CONCURRENCY_TEST.rindex('touch "$release_marker"'))
         self.assertIn("winner", CONCURRENCY_TEST.lower())
 
     def test_creates_exactly_the_six_core_sync_tables(self):

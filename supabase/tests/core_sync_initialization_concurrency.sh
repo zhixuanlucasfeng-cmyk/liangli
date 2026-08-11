@@ -3,10 +3,27 @@
 set -euo pipefail
 
 : "${CORE_SYNC_TEST_DATABASE_URL:?Set CORE_SYNC_TEST_DATABASE_URL to a disposable Postgres/Supabase test database.}"
+: "${CORE_SYNC_TEST_DISPOSABLE:?Set CORE_SYNC_TEST_DISPOSABLE=1 to confirm this database may be destructively tested.}"
+if [[ "$CORE_SYNC_TEST_DISPOSABLE" != "1" ]]; then
+  echo "CORE_SYNC_TEST_DISPOSABLE must equal 1" >&2
+  exit 64
+fi
 OWNER_ID="${CORE_SYNC_TEST_OWNER_ID:-55555555-5555-4555-8555-555555555555}"
 TASK_ID="${CORE_SYNC_TEST_TASK_ID:-66666666-6666-4666-8666-666666666666}"
 work_dir="$(mktemp -d)"
-trap 'rm -rf "$work_dir"' EXIT
+initialized_marker="$work_dir/a-initialized"
+release_marker="$work_dir/release-a"
+pid_a=""
+pid_b=""
+cleanup() {
+  touch "$release_marker" 2>/dev/null || true
+  for pid in "$pid_a" "$pid_b"; do
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then kill "$pid" 2>/dev/null || true; fi
+    if [[ -n "$pid" ]]; then wait "$pid" 2>/dev/null || true; fi
+  done
+  rm -rf "$work_dir"
+}
+trap cleanup EXIT
 
 owner_setup="set local role authenticated;
 select set_config('request.jwt.claim.sub', '${OWNER_ID}', true);
@@ -23,21 +40,36 @@ delete from public.liangli_sync_profiles where user_id='${OWNER_ID}';
 delete from public.liangli_tasks where user_id='${OWNER_ID}';
 SQL
 
-# Connection A holds the same owner advisory lock, then commits the one valid winner initialization.
+# Connection A initializes inside an outer transaction. The RPC returns while its advisory
+# transaction lock is still held, then the client-side marker exposes that exact condition.
 (psql "$CORE_SYNC_TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 <<SQL
 begin;
 ${owner_setup}
-select pg_advisory_xact_lock(hashtextextended('${OWNER_ID}', 0));
-select pg_sleep(2);
 ${winner_call}
+\! touch "$initialized_marker"
+\! while [ ! -f "$release_marker" ]; do sleep 0.05; done
 commit;
 SQL
 ) >"$work_dir/a.out" 2>"$work_dir/a.err" &
 pid_a=$!
-sleep 0.2
+for ((attempt=0; attempt<200; attempt++)); do
+  [[ -f "$initialized_marker" ]] && break
+  if ! kill -0 "$pid_a" 2>/dev/null; then
+    echo "connection A exited before returning from initialization" >&2
+    cat "$work_dir/a.err" >&2
+    exit 1
+  fi
+  sleep 0.05
+done
+if [[ ! -f "$initialized_marker" ]]; then
+  echo "timed out waiting for connection A to initialize and hold its advisory lock" >&2
+  exit 1
+fi
 
 # Connection B must remain blocked until A commits, then fail cleanly rather than deleting winner rows.
+b_application_name="liangli_core_initializer_b_${OWNER_ID//-/}"
 (psql "$CORE_SYNC_TEST_DATABASE_URL" -X -v ON_ERROR_STOP=0 <<SQL
+set application_name = '${b_application_name}';
 begin;
 ${owner_setup}
 ${winner_call}
@@ -45,13 +77,40 @@ rollback;
 SQL
 ) >"$work_dir/b.out" 2>"$work_dir/b.err" &
 pid_b=$!
-sleep 0.5
-if ! kill -0 "$pid_b" 2>/dev/null; then
-  echo "connection B did not block on the owner advisory lock" >&2
+
+# A third connection observes both the activity wait event and the ungranted advisory pg_locks row.
+blocked="f"
+for ((attempt=0; attempt<200; attempt++)); do
+  blocked="$(psql "$CORE_SYNC_TEST_DATABASE_URL" -X -At -v ON_ERROR_STOP=1 -c "
+    select exists(
+      select 1
+      from pg_stat_activity activity
+      join pg_locks locks on locks.pid = activity.pid
+      where activity.application_name = '${b_application_name}'
+        and activity.wait_event_type = 'Lock'
+        and activity.wait_event = 'advisory'
+        and locks.locktype = 'advisory'
+        and not locks.granted
+    );
+  ")"
+  [[ "$blocked" == "t" ]] && break
+  if ! kill -0 "$pid_b" 2>/dev/null; then
+    echo "connection B exited before waiting on the owner advisory lock" >&2
+    cat "$work_dir/b.err" >&2
+    exit 1
+  fi
+  sleep 0.05
+done
+if [[ "$blocked" != "t" ]]; then
+  echo "timed out waiting for connection B's AdvisoryLock wait evidence" >&2
   exit 1
 fi
+
+touch "$release_marker"
 wait "$pid_a"
-wait "$pid_b" || true
+wait "$pid_b"
+pid_a=""
+pid_b=""
 if ! grep -q 'liangli_core_already_initialized' "$work_dir/b.err"; then
   echo "connection B did not receive liangli_core_already_initialized" >&2
   cat "$work_dir/b.err" >&2

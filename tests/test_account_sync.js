@@ -11,6 +11,11 @@ const uuid6 = '66666666-6666-4666-8666-666666666666';
 const uuid7 = '77777777-7777-4777-8777-777777777777';
 const uuid8 = '88888888-8888-4888-8888-888888888888';
 const now = 1700000005000;
+const validLeapDay = '2024-02-29';
+const invalidCalendarDays = Object.freeze(['2026-02-29','2026-04-31','0000-01-01','+010000-01-01']);
+const maxTimestamp = 253402300799999;
+const maxTimestampIso = '9999-12-31T23:59:59.999Z';
+const extendedYearTimestampIso = '+010000-01-01T00:00:00.000Z';
 
 assert.equal(api.CORE_STATE_VERSION, 1);
 assert.deepEqual(Array.from(api.CORE_SYNC_TYPES), ['task', 'growth', 'goal', 'focus', 'mood']);
@@ -35,6 +40,45 @@ assert.equal(api.normalizeCoreState({...state, moodEntries:[{...state.moodEntrie
 assert.equal(api.normalizeCoreState({...state, growthItems:[{...state.growthItems[0],id:uuid}]}), null, 'IDs are globally unique across entity collections');
 assert.equal(api.normalizeCoreState({...state, syncOps:[{...state.syncOps[0],type:'food'}]}), null, 'recovery queue cannot contain Life entity types');
 
+const leapDayState={
+  ...state,
+  tasks:[{...state.tasks[0],dayKey:validLeapDay}],
+  focusSessions:[{...state.focusSessions[0],dayKey:validLeapDay}],
+  moodEntries:[{...state.moodEntries[0],date:validLeapDay}],
+};
+assert.deepEqual(api.normalizeCoreState(leapDayState),leapDayState, 'all calendar entities accept a real leap day');
+for(const boundaryDay of ['0001-01-01','9999-12-31']){
+  assert.notEqual(api.normalizeCoreState({...state,tasks:[{...state.tasks[0],dayKey:boundaryDay}]}),null, `calendar days include the four-digit boundary ${boundaryDay}`);
+}
+for(const invalidDay of invalidCalendarDays){
+  for(const [collection,field] of [['tasks','dayKey'],['focusSessions','dayKey'],['moodEntries','date']]){
+    const invalidState={...state,[collection]:[{...state[collection][0],[field]:invalidDay}]};
+    assert.equal(api.normalizeCoreState(invalidState),null, `${collection} reject non-canonical calendar day ${invalidDay}`);
+  }
+}
+
+const maximumTimestampState={
+  ...state,
+  tasks:[{...state.tasks[0],createdAt:maxTimestamp,updatedAt:maxTimestamp,deletedAt:maxTimestamp}],
+  growthItems:[{...state.growthItems[0],createdAt:maxTimestamp,updatedAt:maxTimestamp,deletedAt:maxTimestamp}],
+  goals:[{...state.goals[0],createdAt:maxTimestamp,updatedAt:maxTimestamp,deletedAt:maxTimestamp}],
+  focusSessions:[{...state.focusSessions[0],createdAt:maxTimestamp,updatedAt:maxTimestamp,deletedAt:maxTimestamp}],
+  moodEntries:[{...state.moodEntries[0],createdAt:maxTimestamp,updatedAt:maxTimestamp,deletedAt:maxTimestamp}],
+  syncOps:[{...state.syncOps[0],createdAt:maxTimestamp,op:'delete'}],
+};
+assert.deepEqual(api.normalizeCoreState(maximumTimestampState),maximumTimestampState, 'the final four-digit UTC millisecond is valid for every entity boundary');
+assert.notEqual(api.normalizeCoreState({
+  ...state,
+  tasks:[{...state.tasks[0],createdAt:0,updatedAt:0}],
+  syncOps:[{...state.syncOps[0],createdAt:0}],
+}),null,'the timestamp contract includes epoch millisecond zero');
+for(const collection of ['tasks','growthItems','goals','focusSessions','moodEntries']){
+  const invalidState={...maximumTimestampState,[collection]:[{...maximumTimestampState[collection][0],createdAt:maxTimestamp+1,updatedAt:maxTimestamp+1,deletedAt:maxTimestamp+1}]};
+  assert.equal(api.normalizeCoreState(invalidState),null, `${collection} reject an extended-year timestamp`);
+}
+assert.equal(api.normalizeCoreState({...maximumTimestampState,syncOps:[{...maximumTimestampState.syncOps[0],createdAt:maxTimestamp+1}]}),null,
+  'sync operations reject an extended-year timestamp');
+
 const earlierV1 = {...state, growthItems:[(({rolloverSourceId,...growth})=>growth)(state.growthItems[0])]};
 assert.deepEqual(api.normalizeCoreState(earlierV1), state, 'earlier v1 growth entries upgrade only the missing rollover transition');
 assert.equal(api.normalizeCoreState({...earlierV1, growthItems:[(({name,...growth})=>growth)(earlierV1.growthItems[0])]}), null,
@@ -54,11 +98,20 @@ assert.equal(migrated.focusSessions[0].kind, 'legacy-summary');
 assert.deepEqual(migrated.focusSessions[0].weekMinutes,[0,0,0,0,0,0,50]);
 assert(!JSON.stringify(migrated).includes('calorieTarget'));
 assert.deepEqual(api.normalizeCoreState(migrated), migrated, 'legacy migration produces strict core state');
+const calendarMigrated=api.migrateLegacyCoreState({
+  tasks:[{name:'Leap',dayKey:validLeapDay},{name:'Overflow',dayKey:'2026-04-31'}],
+  logs:[{date:validLeapDay,mood:'Good',text:'valid'},{date:'2026-02-29',mood:'Okay',text:'fallback'}],
+},now,'2026-08-10');
+assert.deepEqual(calendarMigrated.tasks.map(item=>item.dayKey),[validLeapDay,'2026-08-10'], 'legacy migration retains real dates and safely falls back for overflow dates');
+assert.deepEqual(calendarMigrated.moodEntries.map(item=>item.date),[validLeapDay,'2026-08-10'], 'legacy mood dates use the same strict calendar contract');
 
 const recovery=api.serializeCoreRecovery({...state,syncOps:[...state.syncOps]});
 assert(!recovery.includes('syncOps'), 'recovery serialization excludes the mutable operation queue');
 assert.deepEqual(api.parseCoreRecovery(recovery), {...state,syncOps:[]}, 'recovery parsing starts with an empty operation queue');
 assert.throws(()=>api.parseCoreRecovery('{"bad":true}'), /invalid/i, 'recovery parser fails closed');
+assert.deepEqual(api.parseCoreRecovery(api.serializeCoreRecovery(maximumTimestampState)),{...maximumTimestampState,syncOps:[]}, 'recovery accepts the maximum canonical entity timestamp');
+assert.throws(()=>api.parseCoreRecovery(JSON.stringify((({syncOps,...core})=>({...core,tasks:[{...core.tasks[0],dayKey:'2026-02-29'}]}))(state))),/invalid/i,
+  'recovery rejects overflow calendar dates before changing visible state');
 
 
 async function testAccountClient(){
@@ -358,6 +411,12 @@ async function testCoreSyncEngine(){
   manifestHarness.remote.liangli_tasks=[{...remoteRow(state.tasks[0]),deleted_at:'not-a-timestamp'}];
   await assert.rejects(()=>manifestController.activateCloud(manifestHarness.sessions.a),/invalid cloud/i, 'one malformed core row rejects the whole activation');
 
+  const noncanonicalDeletionHarness=createCoreHarness();
+  const deletedCloudTask={...state.tasks[0],deletedAt:now};
+  noncanonicalDeletionHarness.remote.liangli_tasks=[{...remoteRow(deletedCloudTask),deleted_at:'2023-11-14T22:13:25.000+00:00'}];
+  await assert.rejects(()=>api.createCoreSyncController(noncanonicalDeletionHarness.deps).activateCloud(noncanonicalDeletionHarness.sessions.a),/invalid cloud/i,
+    'a parse-equivalent offset timestamp cannot bypass the canonical four-digit UTC deleted_at contract');
+
   const initHarness=createCoreHarness();
   initHarness.remote.liangli_sync_profiles=[];
   const initController=api.createCoreSyncController(initHarness.deps);
@@ -543,6 +602,12 @@ async function testFirstLoginAndRecoveryBoundaries(){
   records.set('coreRecovery_2026-08-14T00:00:00.000Z',JSON.stringify({version:1,createdAt:'2026-08-13T00:00:00.000Z',core:recovery}));
   assert.equal(strictStore.list().some(entry=>entry.key==='coreRecovery_2026-08-14T00:00:00.000Z'),false, 'a key/payload timestamp mismatch is never listed as restorable');
 
+  const maximumRecoveryRecords=new Map(),maximumRecoveryStorage={get length(){return maximumRecoveryRecords.size;},key:index=>[...maximumRecoveryRecords.keys()][index]??null,getItem:key=>maximumRecoveryRecords.get(key)??null,setItem:(key,value)=>maximumRecoveryRecords.set(key,value),removeItem:key=>maximumRecoveryRecords.delete(key)};
+  const maximumRecoveryStore=api.createCoreRecoveryStore(maximumRecoveryStorage);
+  assert.equal(maximumRecoveryStore.save(maximumTimestampState,maxTimestampIso),`coreRecovery_${maxTimestampIso}`, 'recovery keys accept the last canonical four-digit UTC timestamp');
+  assert.throws(()=>maximumRecoveryStore.save(capturedDevice,extendedYearTimestampIso),/timestamp/i, 'recovery keys reject an extended-year timestamp');
+  assert.throws(()=>maximumRecoveryStore.save(capturedDevice,'0001-01-01T00:00:00.000Z'),/timestamp/i, 'recovery keys reject timestamps before epoch millisecond zero');
+
   const collisionRecords=new Map(),collisionStorage={get length(){return collisionRecords.size;},key:index=>[...collisionRecords.keys()][index]??null,getItem:key=>collisionRecords.get(key)??null,setItem:(key,value)=>collisionRecords.set(key,value),removeItem:key=>collisionRecords.delete(key)};
   const collisionStore=api.createCoreRecoveryStore(collisionStorage),collisionTime='2026-08-15T00:00:00.000Z';
   const firstKey=collisionStore.save(capturedDevice,collisionTime),secondKey=collisionStore.save(coreState({tasks:[]}),collisionTime);
@@ -559,6 +624,11 @@ async function testFirstLoginAndRecoveryBoundaries(){
   await api.createCoreSyncController(initOrderHarness.deps).initializeEmpty(initOrderHarness.sessions.a);
   assert.equal(initOrderHarness.remote.liangli_tasks.length,0, 'empty initialization clears orphan rows before committing its manifest');
   assert(initOrderHarness.events.indexOf('rpc:initialize_liangli_core_sync')<initOrderHarness.events.indexOf('write:user-a'), 'the RPC cloud commit succeeds before any account-local write');
+
+  const maximumTimestampHarness=createCoreHarness();
+  maximumTimestampHarness.remote.liangli_sync_profiles=[];
+  await api.createCoreSyncController(maximumTimestampHarness.deps).initializeFromDevice(maximumTimestampHarness.sessions.a,maximumTimestampState);
+  assert.equal(maximumTimestampHarness.rpcCalls[0].args.p_tasks[0].deleted_at,maxTimestampIso, 'initializer RPC emits a canonical four-digit UTC deleted_at at the maximum timestamp');
 
   const failedInitHarness=createCoreHarness();
   failedInitHarness.remote.liangli_sync_profiles=[];

@@ -3,7 +3,7 @@
 
   const CORE_STATE_VERSION=1;
   const CORE_SYNC_TYPES=Object.freeze(['task','growth','goal','focus','mood']);
-  const MAX_ITEMS=10000,MAX_TEXT=1000,MAX_NOTE_TEXT=2000,MAX_TIMESTAMP=8640000000000000;
+  const MAX_ITEMS=10000,MAX_TEXT=1000,MAX_NOTE_TEXT=2000,MAX_TIMESTAMP=253402300799999;
   const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const DAY=/^\d{4}-\d{2}-\d{2}$/,TIME=/^([01]\d|2[0-3]):[0-5]\d$/;
   const STATE_KEYS=['version','tasks','growthItems','goals','focusSessions','moodEntries','syncOps'];
@@ -18,7 +18,15 @@
   function deletion(value){return value===null||timestamp(value);}
   function entityTimes(value){return timestamp(value.createdAt)&&timestamp(value.updatedAt)&&value.updatedAt>=value.createdAt&&deletion(value.deletedAt)&&(value.deletedAt===null||value.deletedAt>=value.updatedAt);}
   function uuid(value){return typeof value==='string'&&UUID.test(value);}
-  function day(value){return typeof value==='string'&&DAY.test(value)&&Number.isFinite(Date.parse(`${value}T00:00:00Z`));}
+  function day(value){
+    if(typeof value!=='string'||!DAY.test(value)||value.startsWith('0000-'))return false;
+    const canonical=`${value}T00:00:00.000Z`,parsed=Date.parse(canonical);
+    return Number.isFinite(parsed)&&new Date(parsed).toISOString()===canonical;
+  }
+  function canonicalTimestamp(value){
+    if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value))return false;
+    const parsed=Date.parse(value);return timestamp(parsed)&&new Date(parsed).toISOString()===value;
+  }
   function collection(value){return Array.isArray(value)&&value.length<=MAX_ITEMS;}
   function helperRefs(value){return plain(value)&&Object.keys(value).length<=32&&Object.entries(value).every(([key,item])=>text(key,120)&&text(item,MAX_TEXT));}
 
@@ -106,7 +114,6 @@
   function createCoreRecoveryStore(storage){
     if(!storage||typeof storage.getItem!=='function'||typeof storage.setItem!=='function'||typeof storage.removeItem!=='function'||typeof storage.key!=='function')throw new Error('Invalid recovery storage');
     const prefix='coreRecovery_';
-    const canonicalTimestamp=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString()===value;
     const counts=state=>({tasks:state.tasks.length,growth:state.growthItems.length,goals:state.goals.length,focus:state.focusSessions.length,mood:state.moodEntries.length});
     const list=()=>{
       const entries=[];
@@ -363,7 +370,7 @@
     if(row.id!==entity.id||!timestamp(row.client_updated_at)||row.client_updated_at!==entity.updatedAt)return null;
     if(row.deleted_at===undefined)return null;
     if(row.deleted_at===null){if(entity.deletedAt!==null)return null;}
-    else if(typeof row.deleted_at!=='string'||!Number.isFinite(Date.parse(row.deleted_at))||entity.deletedAt===null||Date.parse(row.deleted_at)!==entity.deletedAt)return null;
+    else if(!canonicalTimestamp(row.deleted_at)||entity.deletedAt===null||Date.parse(row.deleted_at)!==entity.deletedAt)return null;
     return entityForType(type,entity);
   }
   function createCoreSyncController(deps={}){
