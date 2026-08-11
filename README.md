@@ -1,12 +1,13 @@
 # 量力 Liangli · 荒诞电影漫画 PWA
 
-反假性自律的个人成长工具。默认本地优先：任务、精力、目标、专注、心情，以及生活页中的营养和钱包数据都只存在用户设备；只有 Flashcards 可在用户主动登录后通过 Supabase 跨设备同步。
+反假性自律的个人成长工具。默认本地优先：任务、精力、目标、专注、心情，以及生活页中的营养和钱包数据都只存在用户设备；账号云同步是可选功能，启用后同步 Flashcards 和核心任务数据，生活页的营养、钱包和记录仍只留在本机。
 
 ## 文件
 
 ```
 liangli/
 ├── index.html              # 整个应用（样式、页面与业务逻辑仍保持单文件）
+├── account-sync.js         # 可选账号/核心数据同步逻辑（应用壳预缓存）
 ├── manifest.json           # PWA 配置：应用名、图标、主题色
 ├── sw.js                   # Service Worker：应用壳/poster 预缓存、MP4 按需缓存
 ├── assets/power-cat/       # Power 猫四态：同名 MP4 循环 + WebP poster
@@ -16,8 +17,8 @@ liangli/
 │   └── verify_companion_media.py    # 检查格式、体积、黑帧、循环和局部动作
 ├── tests/                  # UI、播放控制器和 Service Worker 合同/行为测试
 ├── supabase/
-│   ├── migrations/002_flashcards.sql # Flashcards 表结构与严格 RLS
-│   └── tests/flashcards_rls.sql       # 两用户隔离测试（需 Supabase 环境）
+│   ├── migrations/002_flashcards.sql ... 005_bound_core_client_timestamps.sql
+│   └── tests/              # 两用户 RLS、初始化与双连接并发验收（需 disposable Supabase 环境）
 ├── icon-192.png            # 图标
 ├── icon-512.png
 └── icon-maskable-512.png   # 安卓自适应图标
@@ -58,7 +59,7 @@ liangli/
 assets/power-{cat|human}/{idle|content|tired|exhausted}.{mp4|webp}
 ```
 
-Service Worker 的应用壳缓存当前为 `liangli-v8`。安装时只预缓存 HTML、manifest、图标和 8 张 WebP poster；MP4 第一次播放后写入 `liangli-video-v1`，并正确响应浏览器的 Range 请求。跨域的 Supabase/Auth/CDN 请求不会进入 Service Worker 缓存。
+Service Worker 的应用壳缓存当前为 `liangli-v9`。安装时预缓存 HTML、`account-sync.js`、manifest、图标和 8 张 WebP poster；MP4 第一次播放后写入 `liangli-video-v1`，并正确响应浏览器的 Range 请求。Supabase Auth、PostgREST/REST、令牌和所有跨域响应保持 network-only：它们不会进入 Service Worker 缓存。
 
 ### 素材生成与验收
 
@@ -94,7 +95,7 @@ cd liangli
 python3 -m http.server 8000
 ```
 
-然后浏览器打开 `http://localhost:8000`
+然后浏览器打开 `http://127.0.0.1:8000`。`127.0.0.1`/`localhost` 仅用于这台 Mac 的本地开发；不要把局域网 `http://` 地址当作生产 PWA 路径。
 
 ### 部署上线（发给同学用）
 
@@ -120,7 +121,7 @@ gh repo create liangli --public --source=. --push
 
 ### 让同学装到手机主屏
 
-- **iPhone**：Safari 打开链接 → 底部分享按钮 → 「添加到主屏幕」
+- **iPhone**：用 Safari 打开正式的 **HTTPS GitHub Pages** 地址 → 点「分享」→ 「添加到主屏幕」。不要从 `127.0.0.1` 或局域网 HTTP 地址安装生产 PWA。
 - **安卓 Chrome**：会自动弹「安装应用」横幅，或右上角菜单 → 「安装应用」
 
 装完就是全屏运行，和原生 App 几乎没区别，还能离线用。
@@ -149,20 +150,31 @@ gh repo create liangli --public --source=. --push
 
 营养、钱包和记录数据保存在这台设备浏览器的本地存储；它们不会上传到 Supabase，也不会随着 Flashcards 登录而同步。生活页的「导出生活数据」会下载一份 JSON（仅含热量目标、饮食记录/收藏食物、预算周期和消费记录）；导入前会先验证文件并显示数量摘要，确认后才会替换这四类生活数据。JSON 备份不包含任务、账号或卡片，导入也不会改变它们。若已保存的生活数据无法验证，应用会保留原始内容、不自动覆盖，并提示导入一份有效备份来修复。清理浏览器数据或更换设备前，请先导出备份。
 
-### Flashcards 本地存储与账号同步
+### Flashcards 本地存储与账号云同步
 
 卡片数据保存在 IndexedDB：匿名本机库名为 `liangli-flashcards-v1`，每个已登录账号使用独立的账号库；库内有 `decks`、`cards`、`reviews` 和 `syncOps` 四个 store。切换账号不会混用卡片。匿名卡片只有在用户明确点击「把本机卡片复制到此账号」后才会复制并换成新的 UUID。每次评分会在同一个事务里保存新排期、不可变复习记录、卡片同步操作和复习同步操作，所以断网或刷新不会丢进度。
 
-同步默认关闭。启用前必须：
+同步默认关闭。以下清单是生产启用的阻断条件；本仓库没有执行其中任何 live SQL 验收。
 
-1. 在 Supabase 项目执行 `supabase/migrations/002_flashcards.sql`。
-2. 在一次性测试项目运行 `supabase/tests/flashcards_rls.sql`，确认两个账号互相看不到数据。
-3. 只把项目 URL 和 **anon public key** 填到 `index.html` 顶部的 `SUPABASE_URL` / `SUPABASE_ANON_KEY`；客户端绝不能放管理密钥。认证和数据请求由原生 `fetch` 完成，不加载第三方 JavaScript，CSP 只允许连接 Supabase 域名。
-4. 再做两台设备、断网编辑、重新上线合并的实机验收，最后才部署。
+1. 创建一个 Supabase 项目。对于**全新项目**，本仓库当前没有 `001` 迁移；按提交顺序完整执行 `002_flashcards.sql` → `003_core_sync.sql` → `004_initialize_core_sync.sql` → `005_bound_core_client_timestamps.sql`，不要跳过、重排或只执行其中一部分。
+2. 在**一次性/可销毁**的 Supabase/Postgres 测试项目（不是生产项目）运行所有 SQL 验收：`supabase/tests/flashcards_rls.sql`、`supabase/tests/core_sync_rls.sql` 和 `supabase/tests/core_sync_initialization.sql`。它们验证两个账号的 RLS 隔离与首次初始化边界。
+3. 在同一个 disposable 环境运行双 `psql` 并发验收。先把该环境的数据库连接仅保存在终端环境变量中，然后执行：
 
-只有 `flashcard_decks`、`flashcards`、`flashcard_reviews` 会同步。任务、精力、目标、番茄统计、心情、营养、预算和消费永远不会进入云端同步路径。冲突分别按内容更新时间与最后复习时间合并；删除使用软删除，复习记录按 UUID 做不可变并集。退出账号只停止同步，不会删除本机副本；如需清空设备，应另做带二次确认的显式操作。
+   ```bash
+   : "${CORE_SYNC_TEST_DATABASE_URL:?Set this only to a disposable database URL}"
+   CORE_SYNC_TEST_DISPOSABLE=1 \
+     bash supabase/tests/core_sync_initialization_concurrency.sh
+   ```
 
-若怀疑 anon key 暴露或项目被滥用，应先在 Supabase 轮换 public key，再更新客户端配置并升级 `sw.js` 缓存版本。把两个配置重新设为空字符串即可立刻禁用账号入口而不影响本地卡片。
+   脚本会拒绝没有 `CORE_SYNC_TEST_DISPOSABLE=1` 的运行，并会创建/删除测试行；不要在生产库设置这个变量，也不要把连接字符串或任何密钥提交到仓库。
+4. 只在 `index.html` 顶部填写公开的 `SUPABASE_URL` 与 `SUPABASE_ANON_KEY`；两个默认值应保持空白，直到上述迁移和验收全部完成。浏览器客户端**绝不能**填写 service-role、管理密钥或数据库密码。认证和数据请求由原生 `fetch` 完成，不加载第三方 JavaScript。
+5. 部署 GitHub Pages 后，记下最终的 HTTPS 地址及路径。若按上面的仓库名部署，它是 `https://<你的用户名>.github.io/liangli/`。在 Supabase Auth → URL Configuration 中，把 **Site URL** 设为这个完整 HTTPS origin/path，并把**同一个完整字符串**加入 Allowed Redirect URLs；不要用 `http://`、`127.0.0.1`、局域网地址或缺少仓库路径的根域名替代它。
+6. 在生产前用真实浏览器逐项确认：注册、邮箱验证、密码恢复、两个不同账号互相不可见（RLS）、一台设备离线写入后恢复联网、退出账号后不继续上传，以及恢复会话/重新登录后只恢复该账号的数据。还要在两台设备上做一次离线编辑与重新上线合并。
+7. 只有本地发布套件、以上 disposable SQL 验收和实机清单都通过后，才推送并启用生产同步。
+
+同步范围包括 `flashcard_decks`、`flashcards`、`flashcard_reviews` 及核心的任务、成长池、目标、专注和心情实体。营养、钱包、消费和 Life JSON 备份永远不会进入云端请求。卡片冲突分别按内容更新时间与最后复习时间合并；删除使用软删除，复习记录按 UUID 做不可变并集。退出账号只停止同步，不会删除本机副本；如需清空设备，应另做带二次确认的显式操作。
+
+若怀疑 anon key 暴露或项目被滥用，应先在 Supabase 轮换 public anon key，再更新客户端配置并升级 `sw.js` 缓存版本。把两个公开配置重新设为空字符串即可立刻禁用账号入口而不影响本地数据。
 
 ### 常见改动
 

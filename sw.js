@@ -1,10 +1,11 @@
 /* 量力 Liangli — service worker
    改了 index.html 之后，把下面的版本号 +1，用户下次打开就会拿到新版本。 */
-const VERSION = 'liangli-v8';
+const VERSION = 'liangli-v9';
 const VIDEO_CACHE = 'liangli-video-v1';
 const ASSETS = [
   './',
   './index.html',
+  './account-sync.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',

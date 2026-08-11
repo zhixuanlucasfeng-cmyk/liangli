@@ -36,7 +36,7 @@
 
 ## 技术现状
 
-纯前端 PWA。任务、精力、目标、专注、心情和 Life（营养/钱包）数据在 `localStorage`；Flashcards 在 IndexedDB，本地优先，并预留可选 Supabase Auth/Postgres 同步（默认配置为空）。
+纯前端 PWA。任务、精力、目标、专注、心情和 Life（营养/钱包）数据在 `localStorage`；Flashcards 在 IndexedDB，本地优先，并预留可选 Supabase Auth/Postgres 账号云同步（默认配置为空）。Life 数据永不进入云端路径。
 
 ```
 liangli/
@@ -81,7 +81,7 @@ liangli/
 
 ### 离线缓存约定
 
-- `sw.js` 当前应用壳缓存为 `liangli-v8`，安装阶段预缓存页面、manifest、图标和 8 张 WebP poster，不预缓存 MP4。
+- `sw.js` 当前应用壳缓存为 `liangli-v9`，安装阶段预缓存页面、`account-sync.js`、manifest、图标和 8 张 WebP poster，不预缓存 MP4。
 - MP4 首次请求后写入独立的 `liangli-video-v1`；`serveVideo()` 将 Range 请求归一化为整段缓存，再返回正确的 206/416 响应。不要直接把带 Range 的 206 响应作为完整视频缓存。
 - 跨域 Supabase/Auth/CDN 请求必须 network-only，Service Worker 不能缓存。
 - 激活时只清理本项目旧的 `liangli-vN` / `liangli-video-vN`，不能删除同源的其他缓存。
@@ -121,20 +121,24 @@ git diff --check
 
 **替代方向**：如果要做求助功能，方向必须是「学生主动发起」——一个「我需要帮助」按钮，分享什么内容、什么时候、发给谁，全部由学生决定。
 
-### Flashcards 同步边界
+### 账号云同步边界与发布门槛
 
-- `SUPABASE_URL` 与 `SUPABASE_ANON_KEY` 默认为空；迁移与两用户 RLS 测试通过前不得填写生产配置。
+- `SUPABASE_URL` 与 `SUPABASE_ANON_KEY` 默认为空；只允许填写公开项目 URL 和 anon public key，绝不能填写 service-role、管理密钥或数据库密码。
 - 匿名牌库与每个账号的 IndexedDB 必须分区；不得在登录时自动认领匿名卡片，复制必须由用户明确点击。
-- 只允许同步 `flashcard_decks`、`flashcards`、`flashcard_reviews`。任务、营养、钱包、消费和其他本地数据不能进入请求 payload。
+- 允许同步 `flashcard_decks`、`flashcards`、`flashcard_reviews` 与核心任务/成长池/目标/专注/心情实体；营养、钱包、消费和 Life JSON 备份不能进入请求 payload。
 - 本地写入必须先成功，再排入 `syncOps`；断网不能阻塞学习。
-- 浏览器客户端只允许 public anon key，绝不能加入任何管理凭据。
 - 不加载 Supabase CDN SDK；继续使用受 CSP 限制的原生 Auth/PostgREST `fetch` 封装。
+- Service Worker 对 Supabase Auth、REST/PostgREST、令牌和所有跨域响应必须保持 network-only，绝不写入应用壳或视频缓存。
+- 新的全新 Supabase 项目没有本仓库的 `001` 迁移；生产前必须顺序运行完整链：`002_flashcards.sql` → `003_core_sync.sql` → `004_initialize_core_sync.sql` → `005_bound_core_client_timestamps.sql`。
+- 在生产之外的 disposable 项目完成并记录 `flashcards_rls.sql`、`core_sync_rls.sql`、`core_sync_initialization.sql` 和 `core_sync_initialization_concurrency.sh`；最后一个脚本需要已在终端设置的 disposable `CORE_SYNC_TEST_DATABASE_URL`，并且必须以 `CORE_SYNC_TEST_DISPOSABLE=1 bash supabase/tests/core_sync_initialization_concurrency.sh` 启动。不得把凭据写入代码、文档或提交。
+- 在 GitHub Pages 发布后，把完整 HTTPS 地址及仓库路径（例如 `https://<你的用户名>.github.io/liangli/`）原样同时填写到 Supabase Auth 的 Site URL 和 Allowed Redirect URLs；不能以 `http://`、`127.0.0.1`、局域网 HTTP 或缺少路径的 URL 代替。
+- 生产放行前，手工确认注册、邮箱验证、密码恢复、两账号 RLS 隔离、离线写入后恢复联网、退出账号停止上传及恢复会话/重新登录后的账号隔离。没有 disposable 数据库凭据时，不得声称 live SQL 已通过。
 
 ## 工作方式
 
 - 改动前先说明你打算改什么、为什么，等确认后再动手
 - 一次只做一件事，做完让他在浏览器里验证，再做下一件
-- 本地预览用 `python3 -m http.server 8000`（Service Worker 在 `file://` 下不注册）
+- 本地预览用 `python3 -m http.server 8000`（Service Worker 在 `file://` 下不注册）；`127.0.0.1` 只用于这台 Mac，局域网 HTTP 不是生产 PWA 路径。iPhone 验收要在 Safari 打开 HTTPS GitHub Pages 地址，再点「分享」→「添加到主屏幕」。
 - commit message 写清楚改了什么，不要写 "update"。这个仓库以后要给大学招生官看
 - 涉及数据结构变更时，要考虑老用户 `localStorage` 里的旧数据怎么兼容
 

@@ -9,6 +9,7 @@ class FakeCache {
   constructor({addAllError} = {}) {
     this.entries = new Map();
     this.addAllError = addAllError;
+    this.installAssets = undefined;
   }
   async match(request) {
     const response = this.entries.get(request.url || request);
@@ -17,8 +18,9 @@ class FakeCache {
   async put(request, response) {
     this.entries.set(request.url || request, response.clone());
   }
-  async addAll() {
+  async addAll(assets) {
     if (this.addAllError) throw this.addAllError;
+    this.installAssets = assets;
   }
 }
 
@@ -114,10 +116,31 @@ async function testInstallFailureKeepsPreviousWorkerActive() {
   assert.equal(harness.skipWaitingCalls(), 0);
 }
 
-async function testInstallUsesV8ShellCache() {
+async function testInstallUsesV9ShellCacheWithAccountSyncModule() {
   const harness = createHarness();
   await dispatch(harness, 'install');
-  assert.deepEqual(harness.opened, ['liangli-v8']);
+  assert.deepEqual(harness.opened, ['liangli-v9']);
+  assert.ok(
+    harness.shellCache.installAssets.includes('./account-sync.js'),
+    'the account sync module must be available to an offline shell',
+  );
+}
+
+async function testCrossOriginSupabaseRequestIsLeftNetworkOnly() {
+  let fetchCalls = 0;
+  const harness = createHarness({
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      return new Response('unexpected worker response');
+    },
+  });
+  const request = new Request('https://example.supabase.co/rest/v1/flashcards');
+
+  const response = await dispatch(harness, 'fetch', request);
+
+  assert.equal(response, undefined);
+  assert.equal(fetchCalls, 0);
+  assert.equal(harness.shellCache.entries.size, 0);
 }
 
 async function testActivationDeletesOnlyOwnedStaleCaches() {
@@ -136,7 +159,8 @@ async function testActivationDeletesOnlyOwnedStaleCaches() {
   await testCachedRangeReturnsValidPartialResponse();
   await testRangeMissFetchesAndCachesFullResponse();
   await testInstallFailureKeepsPreviousWorkerActive();
-  await testInstallUsesV8ShellCache();
+  await testInstallUsesV9ShellCacheWithAccountSyncModule();
+  await testCrossOriginSupabaseRequestIsLeftNetworkOnly();
   await testActivationDeletesOnlyOwnedStaleCaches();
   console.log('service worker behavior: ok');
 })().catch(error => {
