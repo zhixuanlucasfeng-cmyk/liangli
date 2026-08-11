@@ -411,11 +411,24 @@ async function testCoreSyncEngine(){
   manifestHarness.remote.liangli_tasks=[{...remoteRow(state.tasks[0]),deleted_at:'not-a-timestamp'}];
   await assert.rejects(()=>manifestController.activateCloud(manifestHarness.sessions.a),/invalid cloud/i, 'one malformed core row rejects the whole activation');
 
-  const noncanonicalDeletionHarness=createCoreHarness();
-  const deletedCloudTask={...state.tasks[0],deletedAt:now};
-  noncanonicalDeletionHarness.remote.liangli_tasks=[{...remoteRow(deletedCloudTask),deleted_at:'2023-11-14T22:13:25.000+00:00'}];
-  await assert.rejects(()=>api.createCoreSyncController(noncanonicalDeletionHarness.deps).activateCloud(noncanonicalDeletionHarness.sessions.a),/invalid cloud/i,
-    'a parse-equivalent offset timestamp cannot bypass the canonical four-digit UTC deleted_at contract');
+  const postgrestDeletionHarness=createCoreHarness();
+  const deletedCloudTask={...state.tasks[0],updatedAt:now+123,deletedAt:now+123};
+  postgrestDeletionHarness.remote.liangli_tasks=[{...remoteRow(deletedCloudTask),deleted_at:'2023-11-14T22:13:25.123000+00:00'}];
+  await api.createCoreSyncController(postgrestDeletionHarness.deps).activateCloud(postgrestDeletionHarness.sessions.a);
+  assert.equal(postgrestDeletionHarness.state().tasks[0].deletedAt,now+123,
+    'PostgREST zero-offset tombstones with microsecond precision normalize to their exact epoch millisecond');
+
+  for(const invalidDeletedAt of [
+    '2023-11-14T23:13:25.123+01:00',
+    '2023-11-14T22:13:25.123456+00:00',
+    '+010000-01-01T00:00:00.000000+00:00',
+    '9999-12-31T23:59:59.999999+00:00',
+  ]){
+    const invalidDeletionHarness=createCoreHarness();
+    invalidDeletionHarness.remote.liangli_tasks=[{...remoteRow(deletedCloudTask),deleted_at:invalidDeletedAt}];
+    await assert.rejects(()=>api.createCoreSyncController(invalidDeletionHarness.deps).activateCloud(invalidDeletionHarness.sessions.a),/invalid cloud/i,
+      `cloud tombstones reject invalid PostgREST wire value ${invalidDeletedAt}`);
+  }
 
   const initHarness=createCoreHarness();
   initHarness.remote.liangli_sync_profiles=[];
@@ -605,6 +618,11 @@ async function testFirstLoginAndRecoveryBoundaries(){
   const maximumRecoveryRecords=new Map(),maximumRecoveryStorage={get length(){return maximumRecoveryRecords.size;},key:index=>[...maximumRecoveryRecords.keys()][index]??null,getItem:key=>maximumRecoveryRecords.get(key)??null,setItem:(key,value)=>maximumRecoveryRecords.set(key,value),removeItem:key=>maximumRecoveryRecords.delete(key)};
   const maximumRecoveryStore=api.createCoreRecoveryStore(maximumRecoveryStorage);
   assert.equal(maximumRecoveryStore.save(maximumTimestampState,maxTimestampIso),`coreRecovery_${maxTimestampIso}`, 'recovery keys accept the last canonical four-digit UTC timestamp');
+  const maximumRecoveryBeforeCollision=new Map(maximumRecoveryRecords);
+  assert.throws(()=>maximumRecoveryStore.save(capturedDevice,maxTimestampIso),/collision/i,
+    'an exact maximum recovery-key collision fails instead of incrementing into an extended year');
+  assert.deepEqual(maximumRecoveryRecords,maximumRecoveryBeforeCollision,
+    'a maximum recovery-key collision performs no storage write');
   assert.throws(()=>maximumRecoveryStore.save(capturedDevice,extendedYearTimestampIso),/timestamp/i, 'recovery keys reject an extended-year timestamp');
   assert.throws(()=>maximumRecoveryStore.save(capturedDevice,'0001-01-01T00:00:00.000Z'),/timestamp/i, 'recovery keys reject timestamps before epoch millisecond zero');
 

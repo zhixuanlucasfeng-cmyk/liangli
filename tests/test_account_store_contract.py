@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import subprocess
 import unittest
 
@@ -56,6 +57,23 @@ class AccountStoreContractTests(unittest.TestCase):
         result = subprocess.run(['node', 'tests/test_account_store_integration.js'], cwd=ROOT, text=True,
                                 capture_output=True, timeout=5, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_core_timestamp_bound_migration_is_safe_and_canonical(self):
+        migration_path = ROOT / 'supabase/migrations/005_bound_core_client_timestamps.sql'
+        self.assertTrue(migration_path.exists(), 'migration 005 must tighten deployed core timestamp constraints')
+        migration = migration_path.read_text(encoding='utf-8')
+        tables = ('liangli_tasks', 'liangli_growth_items', 'liangli_goals',
+                  'liangli_focus_sessions', 'liangli_mood_entries')
+        remediation = migration.lower().index('manual remediation')
+        first_drop = migration.lower().index('drop constraint')
+        safety_check = migration[:first_drop]
+        self.assertLess(remediation, first_drop, 'out-of-range rows abort before any constraint is replaced')
+        self.assertRegex(safety_check, r'(?is)client_updated_at\s*<\s*0\s+or\s+client_updated_at\s*>\s*253402300799999')
+        for table in tables:
+            constraint = f'{table}_client_updated_at_canonical_check'
+            self.assertIn(f"'{table}'", safety_check)
+            self.assertRegex(migration, rf'(?is)drop\s+constraint\s+if\s+exists\s+{re.escape(table)}_client_updated_at_check')
+            self.assertRegex(migration, rf'(?is)add\s+constraint\s+{re.escape(constraint)}\s+check\s*\(\s*client_updated_at\s+between\s+0\s+and\s+253402300799999\s*\)')
 
 
 if __name__ == '__main__':

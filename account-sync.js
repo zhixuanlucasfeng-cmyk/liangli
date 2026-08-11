@@ -27,6 +27,16 @@
     if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value))return false;
     const parsed=Date.parse(value);return timestamp(parsed)&&new Date(parsed).toISOString()===value;
   }
+  function cloudTimestamp(value){
+    if(typeof value!=='string')return null;
+    const match=/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?(Z|\+00:00)$/.exec(value);
+    if(!match)return null;
+    const fraction=match[2]||'';
+    if(fraction.length>3&&/[1-9]/.test(fraction.slice(3)))return null;
+    const canonical=`${match[1]}.${fraction.padEnd(3,'0').slice(0,3)}Z`,epoch=Date.parse(canonical);
+    if(!timestamp(epoch)||new Date(epoch).toISOString()!==canonical)return null;
+    return {epoch,canonical};
+  }
   function collection(value){return Array.isArray(value)&&value.length<=MAX_ITEMS;}
   function helperRefs(value){return plain(value)&&Object.keys(value).length<=32&&Object.entries(value).every(([key,item])=>text(key,120)&&text(item,MAX_TEXT));}
 
@@ -127,7 +137,13 @@
       save(state,createdAt=new Date().toISOString()){
         if(!canonicalTimestamp(createdAt))throw new Error('Invalid recovery timestamp');
         let timestampValue=createdAt,key=`${prefix}${timestampValue}`;
-        for(let attempt=0;storage.getItem(key)!==null&&attempt<1000;attempt++){timestampValue=new Date(Date.parse(timestampValue)+1).toISOString();key=`${prefix}${timestampValue}`;}
+        for(let attempt=0;storage.getItem(key)!==null&&attempt<1000;attempt++){
+          const next=Date.parse(timestampValue)+1;
+          if(!timestamp(next))throw new Error('Recovery timestamp collision');
+          timestampValue=new Date(next).toISOString();
+          if(!canonicalTimestamp(timestampValue))throw new Error('Recovery timestamp collision');
+          key=`${prefix}${timestampValue}`;
+        }
         if(storage.getItem(key)!==null)throw new Error('Recovery timestamp collision');
         const record={version:1,createdAt:timestampValue,core:serializeCoreRecovery(state)};
         storage.setItem(key,JSON.stringify(record));
@@ -370,7 +386,7 @@
     if(row.id!==entity.id||!timestamp(row.client_updated_at)||row.client_updated_at!==entity.updatedAt)return null;
     if(row.deleted_at===undefined)return null;
     if(row.deleted_at===null){if(entity.deletedAt!==null)return null;}
-    else if(!canonicalTimestamp(row.deleted_at)||entity.deletedAt===null||Date.parse(row.deleted_at)!==entity.deletedAt)return null;
+    else{const deletedAt=cloudTimestamp(row.deleted_at);if(!deletedAt||entity.deletedAt===null||deletedAt.epoch!==entity.deletedAt)return null;}
     return entityForType(type,entity);
   }
   function createCoreSyncController(deps={}){
