@@ -12,6 +12,8 @@ INITIALIZATION_MIGRATION_PATH = ROOT / "supabase/migrations/004_initialize_core_
 INITIALIZATION_SQL = INITIALIZATION_MIGRATION_PATH.read_text() if INITIALIZATION_MIGRATION_PATH.exists() else ""
 INITIALIZATION_TEST_PATH = ROOT / "supabase/tests/core_sync_initialization.sql"
 INITIALIZATION_TEST = INITIALIZATION_TEST_PATH.read_text() if INITIALIZATION_TEST_PATH.exists() else ""
+CONCURRENCY_TEST_PATH = ROOT / "supabase/tests/core_sync_initialization_concurrency.sh"
+CONCURRENCY_TEST = CONCURRENCY_TEST_PATH.read_text() if CONCURRENCY_TEST_PATH.exists() else ""
 
 CORE_TABLES = (
     "liangli_sync_profiles",
@@ -76,7 +78,37 @@ class SupabaseCoreMigrationContractTests(unittest.TestCase):
         self.assertIn("rollback", INITIALIZATION_TEST.lower())
         self.assertIn("liangli_core_already_initialized", INITIALIZATION_TEST)
         self.assertIn("two-session", INITIALIZATION_TEST.lower())
-        self.assertIn("duplicate key", INITIALIZATION_TEST.lower())
+        for marker in ("id mismatch", "extra key", "tombstone", "cross-table duplicate", "oversize"):
+            self.assertIn(marker, INITIALIZATION_TEST.lower())
+        self.assertNotIn("select pass(", INITIALIZATION_TEST.lower(), "a comment/pass placeholder is not a two-session acceptance")
+
+    def test_atomic_initializer_validates_every_payload_before_deleting(self):
+        validation = re.search(
+            r"create or replace function public\.validate_liangli_core_initialization\(.*?\n\$\$;",
+            INITIALIZATION_SQL,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(validation, "initializer needs a server-side semantic validator")
+        validator = validation.group(0)
+        self.assertIn("jsonb_object_keys", validator)
+        self.assertIn("9007199254740991", validator)
+        self.assertIn("octet_length", validator)
+        self.assertIn("jsonb_array_length", validator)
+        self.assertIn("duplicate", validator.lower())
+        self.assertIn("deletedAt", validator)
+        self.assertLess(
+            INITIALIZATION_SQL.index("perform public.validate_liangli_core_initialization"),
+            INITIALIZATION_SQL.index("delete from public.liangli_tasks"),
+            "semantic rejection must happen before destructive mutations",
+        )
+
+    def test_two_connection_acceptance_is_an_executable_disposable_harness(self):
+        self.assertTrue(CONCURRENCY_TEST_PATH.exists(), "two-connection acceptance harness must exist")
+        self.assertIn("CORE_SYNC_TEST_DATABASE_URL", CONCURRENCY_TEST)
+        self.assertGreaterEqual(CONCURRENCY_TEST.count("psql"), 2)
+        self.assertIn("liangli_core_already_initialized", CONCURRENCY_TEST)
+        self.assertIn("pg_sleep", CONCURRENCY_TEST)
+        self.assertIn("winner", CONCURRENCY_TEST.lower())
 
     def test_creates_exactly_the_six_core_sync_tables(self):
         self.assertTrue(MIGRATION_PATH.exists(), "core sync migration must exist")

@@ -856,7 +856,7 @@ let coreSyncController=null;
 AccountClient.configure({
   url:SUPABASE_URL,anonKey:SUPABASE_ANON_KEY,getStoredSession:()=>DB.get('supabaseSession',null),setStoredSession:session=>DB.set('supabaseSession',session),
   onSessionChange:async session=>{
-    abortAccountReconciliation();cancelStartEmpty();accountPanelMessageOverride=null;
+    abortAccountReconciliation();if(coreSyncController)coreSyncController.cancel();cancelStartEmpty();accountPanelMessageOverride=null;
     const nextScope=session?session.user.id:'local',scopeChanged=ActiveFlashcardStore.scope!==FlashcardStore.normalizeScope(nextScope);
     ActiveFlashcardStore=FlashcardStore.forScope(nextScope);updateFlashcardAccountUI(session);
     if(session)await beginAccountFirstLogin(session);

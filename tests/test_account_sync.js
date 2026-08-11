@@ -291,7 +291,7 @@ function createCoreHarness(){
   };
   harness.deps={
     readScope:scope=>clone(scopes.get(scope)||null),
-    writeScope:(scope,next)=>{events.push(`write:${scope}`);writes.push({scope,state:clone(next)});if(harness.failWrites||scope!==harness.activeScope)return false;scopes.set(scope,clone(next));return true;},
+    writeScope:(scope,next)=>{events.push(`write:${scope}`);writes.push({scope,state:clone(next)});if(harness.failWrites){if(typeof harness.failWrites==='number')harness.failWrites--;return false;}if(scope!==harness.activeScope)return false;scopes.set(scope,clone(next));return true;},
     createRecovery:async next=>{recovery.push(clone(next));return true;},
     restClient:session=>({table(name){return {
       select:async(_columns,options={})=>{selects.push({name,options:clone(options)});if(hold&&hold.table===name)return await hold.promise;const after=options.clientUpdatedAfter,inclusive=options.clientUpdatedAtOrAfter;const rows=inclusive!==undefined?(remote[name]||[]).filter(row=>Number(row.client_updated_at??row.updatedAt)>=inclusive):after===undefined?remote[name]||[]:(remote[name]||[]).filter(row=>Number(row.client_updated_at??row.updatedAt)>after);return {data:clone(rows),error:null};},
@@ -318,7 +318,7 @@ function createCoreHarness(){
       remote.liangli_sync_profiles.push({user_id:session.user.id,core_version:1,initialized_at:'2026-08-10T00:00:00.000Z',updated_at:'2026-08-10T00:00:00.000Z'});
       return {data:{initialized:true},error:null};
     }}),
-    getGeneration:()=>generation,getSession:()=>currentSession,now:()=>clockNow,onStatus:status=>statuses.push(status),onActivate:(scope,next)=>{harness.activeScope=scope;scopes.set(scope,clone(next));},
+    getGeneration:()=>generation,getSession:()=>currentSession,initialCoreReady:true,now:()=>clockNow,onStatus:status=>statuses.push(status),onActivate:(scope,next)=>{harness.activeScope=scope;scopes.set(scope,clone(next));},
     isOnline:()=>online,setTimeout:(fn,delay)=>{const timer={fn,delay,cancelled:false};timers.push(timer);return timer;},clearTimeout:timer=>{if(timer)timer.cancelled=true;},
   };
   harness.setOnline=value=>{online=value;};
@@ -571,17 +571,27 @@ async function testFirstLoginAndRecoveryBoundaries(){
   const localWriteFailureHarness=createCoreHarness();
   localWriteFailureHarness.remote.liangli_sync_profiles=[];
   localWriteFailureHarness.deps.writeScope('user-a',accountPrior);
-  localWriteFailureHarness.failWrites=true;
-  await assert.rejects(()=>api.createCoreSyncController(localWriteFailureHarness.deps).initializeFromDevice(localWriteFailureHarness.sessions.a,capturedDevice),/initialization/i);
+  localWriteFailureHarness.failWrites=1;
+  const recoveredWinner=await api.createCoreSyncController(localWriteFailureHarness.deps).initializeFromDevice(localWriteFailureHarness.sessions.a,capturedDevice);
+  assert.equal(recoveredWinner.initialized,true, 'a transient local write failure after RPC immediately retries through strict winner activation');
   assert.equal(localWriteFailureHarness.remote.liangli_sync_profiles.length,1, 'a local write failure after RPC leaves a valid initialized cloud winner');
-  assert.equal(localWriteFailureHarness.state().tasks[0].name,'prior account bytes', 'a local write failure does not overwrite current visible account bytes');
+  assert.equal(localWriteFailureHarness.state().tasks[0].name,'visible device data', 'strict winner activation replaces stale account bytes only after validating the committed cloud state');
 
   const staleInitializerHarness=createCoreHarness();
   const winnerTask={...state.tasks[0],name:'winner data'};
   staleInitializerHarness.remote.liangli_tasks=[remoteRow(winnerTask)];
   const staleResult=await api.createCoreSyncController(staleInitializerHarness.deps).initializeEmpty(staleInitializerHarness.sessions.a);
-  assert.equal(staleResult.alreadyInitialized,true, 'an already-initialized RPC result is surfaced without a destructive retry');
-  assert.equal(staleInitializerHarness.remote.liangli_tasks[0].payload.name,'winner data', 'a losing initializer cannot delete the winner data');
+  assert.equal(staleResult.initialized,true, 'an already-initialized RPC result immediately activates the strict winner');
+  assert.equal(staleInitializerHarness.state().tasks[0].name,'winner data', 'a losing initializer activates, rather than deleting, winner data');
+
+  const invalidWinnerHarness=createCoreHarness();
+  invalidWinnerHarness.remote.liangli_tasks=[{...remoteRow(winnerTask),payload:{...winnerTask,id:'not-a-uuid'}}];
+  invalidWinnerHarness.deps.writeScope('user-a',accountPrior);
+  const invalidWinnerController=api.createCoreSyncController(invalidWinnerHarness.deps);
+  await assert.rejects(()=>invalidWinnerController.initializeEmpty(invalidWinnerHarness.sessions.a),/invalid cloud/i);
+  assert.equal(invalidWinnerHarness.state().tasks[0].name,'prior account bytes', 'an invalid winner keeps current visible bytes unchanged');
+  await invalidWinnerController.schedule('mutation');
+  assert.equal(invalidWinnerHarness.upserts.length,0, 'an invalid winner remains quarantined and cannot push stale account bytes');
 
   const obsoleteClearHarness=createCoreHarness();
   obsoleteClearHarness.remote.liangli_sync_profiles=[];obsoleteClearHarness.failRpc=true;

@@ -369,10 +369,13 @@
   function createCoreSyncController(deps={}){
     const readScope=deps.readScope,writeScope=deps.writeScope,createRecovery=deps.createRecovery,restFactory=deps.restClient,getGeneration=deps.getGeneration,now=typeof deps.now==='function'?deps.now:Date.now;
     if(typeof readScope!=='function'||typeof writeScope!=='function'||typeof restFactory!=='function'||typeof getGeneration!=='function')throw new Error('Invalid core sync dependencies');
-    let inFlight=null,timer=null,attempt=0,cancelEpoch=0,lastSession=null,rerunRequested=false,runningUserId=null,runningGeneration=null;
+    let inFlight=null,timer=null,attempt=0,cancelEpoch=0,lastSession=null,rerunRequested=false,runningUserId=null,runningGeneration=null,readyOwner=deps.initialCoreReady===true?'test-ready':null;
     const cursors=new Map();
     const clearTimer=typeof deps.clearTimeout==='function'?deps.clearTimeout:clearTimeout;
     const owner=(session,generation,epoch)=>Boolean(session?.user?.id)&&getGeneration()===generation&&epoch===cancelEpoch&&(!deps.getSession||deps.getSession()?.user?.id===session.user.id);
+    const markNotReady=()=>{readyOwner=null;};
+    const markReady=(session,generation,epoch)=>{if(owner(session,generation,epoch))readyOwner={userId:session.user.id,generation,epoch};};
+    const coreReady=(session,generation,epoch)=>readyOwner==='test-ready'||Boolean(readyOwner&&readyOwner.userId===session?.user?.id&&readyOwner.generation===generation&&readyOwner.epoch===epoch&&owner(session,generation,epoch));
     const clientFor=(session,generation)=>restFactory(session,generation);
     const notify=(status,session,generation,epoch)=>{if(owner(session,generation,epoch)&&typeof deps.onStatus==='function')deps.onStatus(status);};
     const callSelect=async(client,table,session,generation,epoch,changedAfter)=>{
@@ -439,23 +442,30 @@
     const initializeEmpty=async session=>{
       const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;const client=clientFor(session,generation);
       if(!owner(session,generation,epoch))return {discarded:true};
+      markNotReady();
       const state=emptyCoreState(),committed=await initializeCloud(client,state,session,generation,epoch);
-      if(committed.discarded||committed.alreadyInitialized)return committed;
-      if(!await writeState(session,generation,epoch,state)){if(!owner(session,generation,epoch))return {discarded:true};throw new Error('Cloud initialization committed but local activation failed');}
+      if(committed.discarded)return committed;
+      if(committed.alreadyInitialized)return await recoverCommittedWinner(session,state);
+      if(!await writeState(session,generation,epoch,state)){if(!owner(session,generation,epoch))return {discarded:true};return await recoverCommittedWinner(session,state);}
       if(owner(session,generation,epoch)&&typeof deps.onActivate==='function')deps.onActivate(session.user.id,state);
+      markReady(session,generation,epoch);
       return {initialized:true,state};
     };
     const initializeFromDevice=async(session,state)=>{
       const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;const normalized=normalizeCoreState(state),client=clientFor(session,generation);
       if(!normalized)throw new Error('Invalid core state');
+      markNotReady();
       const committed=await initializeCloud(client,normalized,session,generation,epoch);
-      if(committed.discarded||committed.alreadyInitialized)return committed;
-      if(!await writeState(session,generation,epoch,normalized)){if(!owner(session,generation,epoch))return {discarded:true};throw new Error('Cloud initialization committed but local activation failed');}
+      if(committed.discarded)return committed;
+      if(committed.alreadyInitialized)return await recoverCommittedWinner(session,normalized);
+      if(!await writeState(session,generation,epoch,normalized)){if(!owner(session,generation,epoch))return {discarded:true};return await recoverCommittedWinner(session,normalized);}
       if(owner(session,generation,epoch)&&typeof deps.onActivate==='function')deps.onActivate(session.user.id,normalized);
+      markReady(session,generation,epoch);
       return {initialized:true,state:normalized};
     };
     const activateCloud=async(session,options={})=>{
       const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;
+      markNotReady();
       const manifest=await fetchManifest(session,generation,epoch);if(manifest.discarded||!manifest.initialized)return manifest;
       const cloud=await fetchCloudState(session,generation,epoch);if(cloud.discarded)return cloud;
       const suppliedRecovery=Object.hasOwn(options,'recoveryState')?normalizeCoreState(options.recoveryState):null;
@@ -465,13 +475,16 @@
         if(!owner(session,generation,epoch))return {discarded:true};
         if(await createRecovery(local)===false)throw new Error('Recovery creation failed');
       }
-      if(!await writeState(session,generation,epoch,cloud))return {discarded:true};
+      if(!await writeState(session,generation,epoch,cloud)){if(!owner(session,generation,epoch))return {discarded:true};throw new Error('Cloud winner activation failed');}
       if(owner(session,generation,epoch)&&typeof deps.onActivate==='function')deps.onActivate(session.user.id,cloud);
+      markReady(session,generation,epoch);
       return {initialized:true,state:cloud};
     };
+    const recoverCommittedWinner=async(session,recoveryState)=>await activateCloud(session,{recoveryState});
     const syncNow=async session=>{
       const generation=getGeneration(),epoch=cancelEpoch;lastSession=session;
       if(!owner(session,generation,epoch))return {discarded:true};
+      if(!coreReady(session,generation,epoch))return {quarantined:true};
       if(typeof deps.isOnline==='function'&&!deps.isOnline()){const error=new Error('Offline');error.offline=true;throw error;}
       notify('syncing',session,generation,epoch);
       const manifest=await fetchManifest(session,generation,epoch);if(manifest.discarded||!manifest.initialized)return manifest;
@@ -521,6 +534,7 @@
     const sync=(session,reason='')=>{
       lastSession=session||lastSession||(typeof deps.getSession==='function'?deps.getSession():null);
       if(!lastSession)return Promise.resolve(null);
+      if(!coreReady(lastSession,getGeneration(),cancelEpoch))return Promise.resolve({quarantined:true});
       if(inFlight){
         if(reason==='mutation'||runningUserId!==lastSession.user.id||runningGeneration!==getGeneration())rerunRequested=true;
         return inFlight;
@@ -538,7 +552,7 @@
       })().finally(()=>{inFlight=null;runningUserId=null;runningGeneration=null;});
       return inFlight;
     };
-    return Object.freeze({inspectCloud,initializeFromDevice,initializeEmpty,activateCloud,sync,schedule:reason=>sync(lastSession||(typeof deps.getSession==='function'?deps.getSession():null),reason),cancel:()=>{cancelEpoch++;clearTimer(timer);timer=null;attempt=0;rerunRequested=false;}});
+    return Object.freeze({inspectCloud,initializeFromDevice,initializeEmpty,activateCloud,sync,schedule:reason=>sync(lastSession||(typeof deps.getSession==='function'?deps.getSession():null),reason),cancel:()=>{cancelEpoch++;markNotReady();clearTimer(timer);timer=null;attempt=0;rerunRequested=false;}});
   }
 
   root.AccountClient=AccountClient;
