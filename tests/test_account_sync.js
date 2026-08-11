@@ -57,4 +57,110 @@ assert(!recovery.includes('syncOps'), 'recovery serialization excludes the mutab
 assert.deepEqual(api.parseCoreRecovery(recovery), {...state,syncOps:[]}, 'recovery parsing starts with an empty operation queue');
 assert.throws(()=>api.parseCoreRecovery('{"bad":true}'), /invalid/i, 'recovery parser fails closed');
 
-console.log('account sync schema and migration: ok');
+async function testAccountClient(){
+  assert.deepEqual(Object.values(api.CORE_REMOTE_TABLES).sort(),[
+    'liangli_focus_sessions','liangli_goals','liangli_growth_items','liangli_mood_entries','liangli_tasks'
+  ], 'only the five core entity tables are mapped for account sync');
+  assert(Object.isFrozen(api.CORE_REMOTE_TABLES), 'the core table mapping cannot be extended at runtime');
+  assert.equal(api.CORE_REMOTE_TABLES.life, undefined, 'Life data is never part of the account-sync mapping');
+
+  const AccountClient=api.AccountClient;
+  AccountClient.configure({url:'http://project.supabase.co',anonKey:'short'});
+  assert.equal(AccountClient.isConfigured(),false, 'only a canonical HTTPS Supabase URL and anon key enable network auth');
+
+  const stored={};
+  const requests=[];
+  let nextResponses=[];
+  const validConfig={
+    url:'https://project.supabase.co',
+    anonKey:'a'.repeat(41),
+    getStoredSession:()=>stored.session||null,
+    setStoredSession:value=>{stored.session=value;},
+    fetch:async(url,options)=>{
+      requests.push({url,options});
+      const next=nextResponses.shift();
+      if(next instanceof Error)throw next;
+      return next||{ok:true,status:200,json:async()=>({})};
+    },
+    location:{origin:'https://app.example',pathname:'/planner'},
+  };
+  AccountClient.configure(validConfig);
+  AccountClient.session=null;AccountClient.generation=0;AccountClient.authInvalid=false;AccountClient.authorizationBlocked=false;
+
+  const session={access_token:'token-one',refresh_token:'refresh-one',expires_at:4102444800,user:{id:'u1'}};
+  nextResponses=[{ok:true,status:200,json:async()=>({access_token:'token-one',refresh_token:'refresh-one',expires_in:3600,user:{id:'u1'}})}];
+  await AccountClient.signIn('owner@example.com','password-value');
+  assert.equal(requests[0].url,'https://project.supabase.co/auth/v1/token?grant_type=password');
+  assert.deepEqual(JSON.parse(requests[0].options.body),{email:'owner@example.com',password:'password-value'});
+  assert.equal(requests[0].options.headers.apikey,'a'.repeat(41));
+
+  nextResponses=[{ok:true,status:200,json:async()=>({user:{id:'u2'}})}];
+  await AccountClient.signUp('new@example.com','another-password');
+  assert.equal(requests[1].url,'https://project.supabase.co/auth/v1/signup');
+
+  nextResponses=[{ok:true,status:200,json:async()=>({})}];
+  await AccountClient.recover('  owner@example.com  ','https://attacker.example/reset');
+  assert.equal(requests[2].url,'https://project.supabase.co/auth/v1/recover');
+  assert.deepEqual(JSON.parse(requests[2].options.body),{email:'owner@example.com',redirect_to:'https://app.example/planner'});
+
+  await AccountClient.activate(session);
+  const client=api.createOwnerRestClient(session,AccountClient.generation,['liangli_tasks']);
+  assert.throws(()=>client.table('liangli_expenses'),/not allowed/i, 'the client rejects tables outside its exact allowlist');
+  nextResponses=[{ok:true,status:200,json:async()=>[{id:'task-1'}]}];
+  const listed=await client.table('liangli_tasks').select('*');
+  assert.deepEqual(listed,{data:[{id:'task-1'}],error:null});
+  assert.equal(requests[3].url,'https://project.supabase.co/rest/v1/liangli_tasks?select=*');
+  assert.equal(requests[3].options.headers.Authorization,'Bearer token-one');
+  assert.equal(requests[3].options.headers['Content-Type'],'application/json');
+  assert.equal(requests[3].options.headers.apikey,'a'.repeat(41));
+
+  let refreshRequests=0;
+  AccountClient.session={access_token:'expired',refresh_token:'refresh-two',expires_at:4102444800,user:{id:'u1'}};
+  stored.session=AccountClient.session;
+  AccountClient.generation=20;AccountClient.authInvalid=false;
+  const refreshSession=AccountClient.session;
+  const refreshClient=api.createOwnerRestClient(refreshSession,20,['liangli_tasks']);
+  let protectedRequests=0;
+  validConfig.fetch=async(url,options)=>{
+    requests.push({url,options});
+    if(url.includes('/auth/v1/token?grant_type=refresh_token')){refreshRequests++;return {ok:true,status:200,json:async()=>({access_token:'fresh',refresh_token:'refresh-three',expires_in:3600,user:{id:'u1'}})};}
+    protectedRequests++;
+    return protectedRequests<=2?{ok:false,status:401,json:async()=>({})}:{ok:true,status:200,json:async()=>[{id:'after-refresh'}]};
+  };
+  AccountClient.configure(validConfig);
+  const refreshed=await Promise.all([refreshClient.table('liangli_tasks').select('*'),refreshClient.table('liangli_tasks').select('*')]);
+  assert.equal(refreshRequests,1, 'concurrent 401 responses share one refresh request');
+  assert.deepEqual(refreshed[0],{data:[{id:'after-refresh'}],error:null});
+  assert.deepEqual(refreshed[1],{data:[{id:'after-refresh'}],error:null});
+  assert.equal(AccountClient.session.access_token,'fresh');
+
+  AccountClient.session={access_token:'old',user:{id:'u1'}};AccountClient.generation=30;AccountClient.authInvalid=false;
+  const staleClient=api.createOwnerRestClient(AccountClient.session,30,['liangli_tasks']);
+  let release;
+  nextResponses=[new Promise(resolve=>{release=resolve;})];
+  validConfig.fetch=async(url,options)=>{requests.push({url,options});return await nextResponses.shift();};
+  AccountClient.configure(validConfig);
+  const staleRequest=staleClient.table('liangli_tasks').select('*');
+  await AccountClient.activate({access_token:'new',user:{id:'u2'}});
+  release({ok:false,status:401,json:async()=>({})});
+  const stale=await staleRequest;
+  assert.equal(stale.discarded,true, 'responses from an old account generation are discarded');
+  assert.equal(AccountClient.authInvalid,false, 'stale responses cannot mutate active auth state');
+
+  AccountClient.session={access_token:'bad',user:{id:'u2'}};AccountClient.generation=40;AccountClient.authInvalid=false;
+  const unauthorized=api.createOwnerRestClient(AccountClient.session,40,['liangli_tasks']);
+  nextResponses=[{ok:false,status:401,json:async()=>({})}];
+  const unauthorizedResult=await unauthorized.table('liangli_tasks').select('*');
+  assert.equal(unauthorizedResult.status,401);
+  assert.equal(AccountClient.authInvalid,true, 'an active 401 without a refresh token invalidates only its owner');
+
+  nextResponses=[{ok:true,status:204,json:async()=>({})}];
+  await AccountClient.signOut();
+  assert.equal(requests.at(-1).url,'https://project.supabase.co/auth/v1/logout');
+  assert.equal(AccountClient.session,null);
+}
+
+testAccountClient().then(()=>console.log('account sync schema, migration, and account client: ok')).catch(error=>{
+  console.error(error.stack||error);
+  process.exitCode=1;
+});

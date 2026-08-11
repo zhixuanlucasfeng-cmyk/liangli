@@ -104,6 +104,141 @@
     const normalized=normalizeCoreState({...raw,syncOps:[]});if(!normalized)throw new Error('Invalid core recovery data');return normalized;
   }
 
-  root.LiangliAccountSync=Object.freeze({CORE_STATE_VERSION,CORE_SYNC_TYPES,coreStorageKey,normalizeCoreState,migrateLegacyCoreState,serializeCoreRecovery,parseCoreRecovery});
+  const CORE_REMOTE_TABLES=Object.freeze({
+    task:'liangli_tasks',growth:'liangli_growth_items',goal:'liangli_goals',focus:'liangli_focus_sessions',mood:'liangli_mood_entries'
+  });
+  const accountRuntime={url:'',anonKey:'',fetch:null,location:null,getStoredSession:()=>null,setStoredSession:()=>{},onSessionChange:null};
+  function accountFetch(){const fetcher=accountRuntime.fetch||root.fetch;if(typeof fetcher!=='function')throw new Error('Account sync unavailable');return fetcher;}
+  function configured(){return /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(accountRuntime.url)&&typeof accountRuntime.anonKey==='string'&&accountRuntime.anonKey.length>40;}
+  function activeOwner(session,generation){return AccountClient.generation===generation&&AccountClient.session?.user?.id===session?.user?.id;}
+  function discarded(){return {data:null,error:true,status:0,discarded:true};}
+  function allowedTableNames(allowedTables){
+    const values=Array.isArray(allowedTables)?allowedTables:allowedTables instanceof Set?[...allowedTables]:plain(allowedTables)?Object.values(allowedTables):[];
+    if(!values.length||values.some(value=>typeof value!=='string'||!value))throw new Error('Invalid cloud table allowlist');
+    return new Set(Object.freeze([...values]));
+  }
+  function safeEmail(email){const value=typeof email==='string'?email.trim():'';if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)||value.length>320)throw new Error('Invalid email');return value;}
+  function safeRedirect(){
+    const location=accountRuntime.location||root.location;
+    if(!location||typeof location.origin!=='string'||typeof location.pathname!=='string'||!location.pathname.startsWith('/'))throw new Error('Invalid recovery redirect');
+    return `${location.origin}${location.pathname}`;
+  }
+
+  const AccountClient={
+    client:null,session:null,refreshPromise:null,authInvalid:false,authorizationBlocked:false,generation:0,
+    configure(options={}){
+      for(const key of ['url','anonKey','fetch','location','getStoredSession','setStoredSession','onSessionChange'])if(Object.hasOwn(options,key))accountRuntime[key]=options[key];
+      return this;
+    },
+    isConfigured(){return configured();},
+    async authRequest(path,body,token=''){
+      if(!this.isConfigured())throw new Error('Account sync unavailable');
+      const response=await accountFetch()(`${accountRuntime.url}/auth/v1/${path}`,{method:'POST',headers:{apikey:accountRuntime.anonKey,'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:body==null?undefined:JSON.stringify(body)});
+      if(!response.ok)throw new Error('Authentication failed');
+      return response.status===204?{}:await response.json();
+    },
+    sessionFromPayload(data){
+      if(!plain(data)||typeof data.access_token!=='string'||!data.access_token||!plain(data.user)||typeof data.user.id!=='string'||!data.user.id)return null;
+      return {access_token:data.access_token,refresh_token:typeof data.refresh_token==='string'?data.refresh_token:null,expires_at:Math.floor(Date.now()/1000)+(Number.isFinite(data.expires_in)?data.expires_in:3600),user:data.user};
+    },
+    async activate(session,persist=true,preserveGeneration=false){
+      if(session!==null&&(!plain(session)||!plain(session.user)||typeof session.user.id!=='string'||!session.user.id))throw new Error('Invalid session');
+      if(!preserveGeneration)this.generation++;
+      this.session=session;this.client=session?createOwnerRestClient(session,this.generation,Object.values(CORE_REMOTE_TABLES)):null;this.authInvalid=false;this.authorizationBlocked=false;
+      if(persist)accountRuntime.setStoredSession(session);
+      if(typeof accountRuntime.onSessionChange==='function')await accountRuntime.onSessionChange(session,persist);
+      return session;
+    },
+    async refreshSession(expectedUserId=this.session?.user?.id){
+      if(!expectedUserId||this.session?.user?.id!==expectedUserId)throw new Error('Session changed');
+      if(this.refreshPromise)return this.refreshPromise;
+      const expectedGeneration=this.generation,expectedToken=this.session.access_token,expectedRefreshToken=this.session.refresh_token;
+      const refresh=async()=>{
+        const latest=accountRuntime.getStoredSession();
+        if(this.generation!==expectedGeneration||this.session?.user?.id!==expectedUserId||this.session.access_token!==expectedToken)throw new Error('Session changed');
+        if(latest&&latest.user?.id!==expectedUserId)throw new Error('Session changed');
+        if(latest&&latest.access_token!==expectedToken&&(latest.expires_at||0)>Math.floor(Date.now()/1000)+60)return await this.activate(latest,false,true);
+        if(!expectedRefreshToken)throw new Error('Session expired');
+        const session=this.sessionFromPayload(await this.authRequest('token?grant_type=refresh_token',{refresh_token:expectedRefreshToken}));
+        if(!session||this.generation!==expectedGeneration||this.session?.user?.id!==expectedUserId||this.session.access_token!==expectedToken)throw new Error('Session changed');
+        return await this.activate(session,true,true);
+      };
+      const locks=root.navigator?.locks;
+      const promise=(locks?locks.request('liangli-auth-refresh',refresh):refresh()).finally(()=>{if(this.refreshPromise===promise)this.refreshPromise=null;});
+      this.refreshPromise=promise;return promise;
+    },
+    async restoreSession(){
+      if(!this.isConfigured())return await this.activate(null,false);
+      const restoreGeneration=this.generation;let expectedUserId=null;
+      try{
+        const session=accountRuntime.getStoredSession();
+        if(!session||!session.refresh_token||!session.user)return await this.activate(null);
+        expectedUserId=session.user.id;
+        if((session.expires_at||0)<=Math.floor(Date.now()/1000)+60){this.session=session;return await this.refreshSession(expectedUserId);}
+        return await this.activate(session);
+      }catch(error){
+        if(this.generation!==restoreGeneration||this.session?.user?.id!==expectedUserId)return this.session;
+        await this.activate(null);throw error;
+      }
+    },
+    async signIn(email,password){
+      const session=this.sessionFromPayload(await this.authRequest('token?grant_type=password',{email:safeEmail(email),password}));
+      if(!session)throw new Error('Authentication failed');return await this.activate(session);
+    },
+    async signUp(email,password){
+      const data=await this.authRequest('signup',{email:safeEmail(email),password}),session=this.sessionFromPayload(data);
+      if(session)await this.activate(session);return {session,user:plain(data)&&data.user?data.user:null};
+    },
+    async recover(email,redirectTo){
+      void redirectTo;
+      return await this.authRequest('recover',{email:safeEmail(email),redirect_to:safeRedirect()});
+    },
+    async signOut(){try{if(this.session)await this.authRequest('logout',null,this.session.access_token);}finally{await this.activate(null);}}
+  };
+
+  function createOwnerRestClient(session,generation,allowedTables){
+    const allowed=allowedTableNames(allowedTables);
+    const request=async(table,method='GET',body=null,query='',prefer='',extraHeaders={})=>{
+      if(!allowed.has(table))throw new Error('Cloud table not allowed');
+      const perform=async()=>{
+        if(!activeOwner(session,generation))return null;
+        const token=AccountClient.session.access_token;
+        return await accountFetch()(`${accountRuntime.url}/rest/v1/${table}${query}`,{method,headers:{apikey:accountRuntime.anonKey,Authorization:`Bearer ${token}`,'Content-Type':'application/json',...(prefer?{Prefer:prefer}:{}),...extraHeaders},body:body==null?undefined:JSON.stringify(body)});
+      };
+      let response=await perform();
+      if(!response)return discarded();
+      if(!activeOwner(session,generation))return discarded();
+      if(response.status===401&&AccountClient.session?.refresh_token){
+        try{await AccountClient.refreshSession(session.user.id);if(!activeOwner(session,generation))return discarded();response=await perform();if(!response)return discarded();}
+        catch(error){if(activeOwner(session,generation))AccountClient.authInvalid=true;}
+      }
+      if(!activeOwner(session,generation))return discarded();
+      if(response.status===401)AccountClient.authInvalid=true;
+      if(response.status===403)AccountClient.authorizationBlocked=true;
+      if(!response.ok)return {data:null,error:true,status:response.status};
+      const data=method==='GET'?await response.json():null;
+      return activeOwner(session,generation)?{data,error:null}:discarded();
+    };
+    const table=name=>{
+      if(!allowed.has(name))throw new Error('Cloud table not allowed');
+      return {
+        async select(columns='*'){
+          const rows=[];let offset=0;
+          while(true){
+            const result=await request(name,'GET',null,`?select=${encodeURIComponent(columns)}`,'',{'Range-Unit':'items',Range:`${offset}-${offset+999}`});
+            if(result.error)return result;
+            rows.push(...result.data);if(result.data.length<1000)return {data:rows,error:null};offset+=1000;
+          }
+        },
+        upsert(rows,options={}){return request(name,'POST',rows,`?on_conflict=${encodeURIComponent(options.onConflict||'id')}`,options.ignoreDuplicates?'resolution=ignore-duplicates,return=minimal':'resolution=merge-duplicates,return=minimal');},
+        update(values){let filters='';return {eq(column,value){filters+=`&${encodeURIComponent(column)}=eq.${encodeURIComponent(value)}`;return this;},lte(column,value){filters+=`&${encodeURIComponent(column)}=lte.${encodeURIComponent(value)}`;return request(name,'PATCH',values,`?${filters.slice(1)}`,'return=minimal');}};}
+      };
+    };
+    return Object.freeze({table,from:table});
+  }
+
+  root.AccountClient=AccountClient;
+  root.CommunityClient=AccountClient;
+  root.LiangliAccountSync=Object.freeze({CORE_STATE_VERSION,CORE_SYNC_TYPES,CORE_REMOTE_TABLES,coreStorageKey,normalizeCoreState,migrateLegacyCoreState,serializeCoreRecovery,parseCoreRecovery,createOwnerRestClient,AccountClient});
   if(typeof module!=='undefined'&&module.exports)module.exports=root.LiangliAccountSync;
 })(typeof window==='undefined'?globalThis:window);

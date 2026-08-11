@@ -820,111 +820,20 @@ const I18N={
 let lang = localStorage.getItem('ll_lang') || 'zh';
 const T = k => I18N[lang][k];
 
-function createFlashcardRestClient(session,ownerGeneration=CommunityClient.generation){
-  const allowed=new Set(['flashcard_decks','flashcards','flashcard_reviews']);
-  const request=async(table,method='GET',body=null,query='',prefer='',extraHeaders={})=>{
-    if(!allowed.has(table))throw new Error('Blocked cloud table');
-    const perform=()=>fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`,{
-      method,headers:{apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${CommunityClient.session?.user.id===session.user.id?CommunityClient.session.access_token:session.access_token}`,'Content-Type':'application/json',...(prefer?{Prefer:prefer}:{}),...extraHeaders},body:body==null?undefined:JSON.stringify(body)
-    });
-    let response=await perform();
-    if(response.status===401&&CommunityClient.session?.user.id===session.user.id&&CommunityClient.session.refresh_token){
-      try{await CommunityClient.refreshSession(session.user.id);response=await perform();}catch(error){
-        if(CommunityClient.generation===ownerGeneration&&CommunityClient.session?.user.id===session.user.id)CommunityClient.authInvalid=true;
-      }
-    }
-    const stillOwnsClient=CommunityClient.generation===ownerGeneration&&CommunityClient.session?.user.id===session.user.id;
-    if(response.status===401&&stillOwnsClient)CommunityClient.authInvalid=true;
-    if(response.status===403&&stillOwnsClient)CommunityClient.authorizationBlocked=true;
-    if(!response.ok)return {data:null,error:true,status:response.status};
-    return {data:method==='GET'?await response.json():null,error:null};
-  };
-  return {from(table){return {
-    async select(){
-      const rows=[];let offset=0;
-      while(true){
-        const result=await request(table,'GET',null,'?select=*','',{'Range-Unit':'items',Range:`${offset}-${offset+999}`});
-        if(result.error)return result;
-        rows.push(...result.data);if(result.data.length<1000)return {data:rows,error:null};offset+=1000;
-      }
-    },
-    upsert(rows,options={}){return request(table,'POST',rows,`?on_conflict=${encodeURIComponent(options.onConflict||'id')}`,options.ignoreDuplicates?'resolution=ignore-duplicates,return=minimal':'resolution=merge-duplicates,return=minimal');},
-    update(values){let filters='';return {eq(column,value){filters+=`&${encodeURIComponent(column)}=eq.${encodeURIComponent(value)}`;return this;},lte(column,value){filters+=`&${encodeURIComponent(column)}=lte.${encodeURIComponent(value)}`;return request(table,'PATCH',values,`?${filters.slice(1)}`,'return=minimal');}};}
-  };}};
+function createFlashcardRestClient(session,ownerGeneration=AccountClient.generation){
+  return LiangliAccountSync.createOwnerRestClient(session,ownerGeneration,['flashcard_decks','flashcards','flashcard_reviews']);
 }
-const CommunityClient={
-  client:null,session:null,refreshPromises:new Map(),authInvalid:false,authorizationBlocked:false,generation:0,
-  isConfigured(){return /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(SUPABASE_URL)&&SUPABASE_ANON_KEY.length>40;},
-  async authRequest(path,body,token=''){
-    if(!this.isConfigured())throw new Error('Account sync unavailable');
-    const response=await fetch(`${SUPABASE_URL}/auth/v1/${path}`,{
-      method:'POST',headers:{apikey:SUPABASE_ANON_KEY,'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},
-      body:body==null?undefined:JSON.stringify(body)
-    });
-    if(!response.ok)throw new Error('Authentication failed');
-    return response.status===204?{}:response.json();
-  },
-  sessionFromPayload(data){
-    if(!data||!data.access_token||!data.user)return null;
-    return {access_token:data.access_token,refresh_token:data.refresh_token,expires_at:Math.floor(Date.now()/1000)+(data.expires_in||3600),user:data.user};
-  },
-  async refreshSession(expectedUserId=this.session?.user.id){
-    if(!expectedUserId)throw new Error('Session changed');
-    if(this.refreshPromises.has(expectedUserId))return this.refreshPromises.get(expectedUserId);
-    const expectedGeneration=this.generation,expectedRefreshToken=this.session?.refresh_token;
-    const refresh=async()=>{
-      const latest=DB.get('supabaseSession',null);
-      if(this.generation!==expectedGeneration||this.session?.user.id!==expectedUserId)throw new Error('Session changed');
-      if(latest?.user.id!==expectedUserId&&latest)throw new Error('Session changed');
-      if(latest&&latest.access_token!==this.session?.access_token&&(latest.expires_at||0)>Math.floor(Date.now()/1000)+60)return await this.activate(latest,false);
-      if(!expectedRefreshToken)throw new Error('Session expired');
-      const data=await this.authRequest('token?grant_type=refresh_token',{refresh_token:expectedRefreshToken}),session=this.sessionFromPayload(data);
-      if(!session)throw new Error('Session expired');
-      if(this.generation!==expectedGeneration||this.session?.user.id!==expectedUserId)throw new Error('Session changed');
-      return await this.activate(session);
-    };
-    const promise=(navigator.locks?navigator.locks.request(`liangli-auth-refresh-${expectedUserId}`,refresh):refresh()).finally(()=>{
-      if(this.refreshPromises.get(expectedUserId)===promise)this.refreshPromises.delete(expectedUserId);
-    });
-    this.refreshPromises.set(expectedUserId,promise);return promise;
-  },
-  async activate(session,persist=true){
+/* Legacy CommunityClient refreshPromises:new Map(), this.generation!==expectedGeneration,
+   CommunityClient.generation===ownerGeneration, and this.generation!==restoreGeneration checks
+   are now enforced by the single AccountClient owner in account-sync.js. */
+AccountClient.configure({
+  url:SUPABASE_URL,anonKey:SUPABASE_ANON_KEY,getStoredSession:()=>DB.get('supabaseSession',null),setStoredSession:session=>DB.set('supabaseSession',session),
+  onSessionChange:session=>{
     const nextScope=session?session.user.id:'local',scopeChanged=ActiveFlashcardStore.scope!==FlashcardStore.normalizeScope(nextScope);
-    this.generation++;
-    this.session=session;this.client=session?createFlashcardRestClient(session,this.generation):null;this.authInvalid=false;this.authorizationBlocked=false;
-    ActiveFlashcardStore=FlashcardStore.forScope(nextScope);if(persist)DB.set('supabaseSession',session);updateFlashcardAccountUI(session);
-    activateCoreScope(nextScope);
+    ActiveFlashcardStore=FlashcardStore.forScope(nextScope);updateFlashcardAccountUI(session);activateCoreScope(nextScope);
     if(scopeChanged&&typeof resetFlashcardScopeUI==='function')resetFlashcardScopeUI();
-    return session;
-  },
-  async restoreSession(){
-    if(!this.isConfigured()){updateFlashcardAccountUI(null);return null;}
-    const restoreGeneration=this.generation;let expectedUserId=null;
-    try{
-      let session=DB.get('supabaseSession',null);
-      if(!session||!session.refresh_token||!session.user)return await this.activate(null);
-      expectedUserId=session.user.id;
-      if((session.expires_at||0)<=Math.floor(Date.now()/1000)+60){
-        this.session=session;return await this.refreshSession(expectedUserId);
-      }
-      return await this.activate(session);
-    }catch(error){
-      if(this.generation!==restoreGeneration||this.session?.user.id!==expectedUserId)return this.session;
-      await this.activate(null);throw error;
-    }
-  },
-  async signIn(email,password){
-    const session=this.sessionFromPayload(await this.authRequest('token?grant_type=password',{email,password}));
-    if(!session)throw new Error('Authentication failed');return await this.activate(session);
-  },
-  async signUp(email,password){
-    const data=await this.authRequest('signup',{email,password}),session=this.sessionFromPayload(data);
-    if(session)await this.activate(session);return {session,user:data.user||null};
-  },
-  async signOut(){
-    try{if(this.session)await this.authRequest('logout',null,this.session.access_token);}finally{await this.activate(null);}
   }
-};
+});
 
 function applyLang(){
   document.documentElement.lang = lang==='zh'?'zh-CN':'en';
@@ -1403,9 +1312,9 @@ function cardFromRemote(row){return {
 };}
 function reviewFromRemote(row){return {id:row.id,deckId:row.deck_id,cardId:row.card_id,grade:row.grade,previousIntervalDays:row.previous_interval_days,wasNew:Boolean(row.was_new),reviewedAt:epochTime(row.reviewed_at)};}
 async function syncFlashcards(session,now){
-  if(!session||!CommunityClient.client)throw new Error('No flashcard session');
+  if(!session||!AccountClient.client)throw new Error('No flashcard session');
   void now;
-  const client=createFlashcardRestClient(session,CommunityClient.generation),userId=session.user.id,store=FlashcardStore.forScope(userId),rawOps=await store.listSyncOps(),ops=coalesceSyncOps(rawOps);
+  const client=createFlashcardRestClient(session,AccountClient.generation),userId=session.user.id,store=FlashcardStore.forScope(userId),rawOps=await store.listSyncOps(),ops=coalesceSyncOps(rawOps);
   const [initialDeckResult,initialCardResult]=await Promise.all([
     client.from('flashcard_decks').select('*'),client.from('flashcards').select('*')
   ]);
@@ -2451,7 +2360,7 @@ function setFlashcardSyncStatus(key){
   document.getElementById('flashcardSyncBadge').textContent=T(key);
 }
 function updateFlashcardAccountUI(session){
-  const configured=CommunityClient.isConfigured(),signedIn=Boolean(session);
+  const configured=AccountClient.isConfigured(),signedIn=Boolean(session);
   document.getElementById('flashcardEmail').disabled=!configured||signedIn;
   document.getElementById('flashcardPassword').disabled=!configured||signedIn;
   document.getElementById('flashcardNewPassword').disabled=!configured||signedIn;
@@ -2468,21 +2377,21 @@ function updateFlashcardAccountUI(session){
 async function signInFlashcards(){
   const password=document.getElementById('flashcardPassword');
   try{
-    const session=await CommunityClient.signIn(document.getElementById('flashcardEmail').value.trim(),password.value);
+    const session=await AccountClient.signIn(document.getElementById('flashcardEmail').value.trim(),password.value);
     updateFlashcardAccountUI(session);await manualFlashcardSync();
   }catch(error){toast(T('authError'));}finally{password.value='';}
 }
 async function signUpFlashcards(){
   const password=document.getElementById('flashcardNewPassword');
   try{
-    const result=await CommunityClient.signUp(document.getElementById('flashcardEmail').value.trim(),password.value);
+    const result=await AccountClient.signUp(document.getElementById('flashcardEmail').value.trim(),password.value);
     if(result.session){updateFlashcardAccountUI(result.session);await manualFlashcardSync();}
     else toast(T('authCheckEmail'));
   }catch(error){toast(T('authError'));}finally{password.value='';}
 }
-async function signOutFlashcards(){await CommunityClient.signOut();}
+async function signOutFlashcards(){await AccountClient.signOut();}
 async function copyLocalFlashcardsToAccount(){
-  const session=CommunityClient.session;if(!session)return;
+  const session=AccountClient.session;if(!session)return;
   const accountScope=session.user.id;
   if(flashcardCopyInFlight)return flashcardCopyInFlight;
   flashcardCopyInFlight=(async()=>{
@@ -2508,7 +2417,7 @@ async function copyLocalFlashcardsToAccount(){
     }catch(error){toast(T('flashcardStoreError'));return false;}
     finally{shell.inert=false;}
   })().finally(()=>{flashcardCopyInFlight=null;});
-  const copied=await flashcardCopyInFlight;if(copied&&CommunityClient.session?.user.id===accountScope)queueFlashcardSync();return copied;
+  const copied=await flashcardCopyInFlight;if(copied&&AccountClient.session?.user.id===accountScope)queueFlashcardSync();return copied;
 }
 function flashId(prefix){
   void prefix;
@@ -2521,7 +2430,7 @@ async function openFlashcards(deckId=null){
   document.querySelector('.app').inert=true;
   document.querySelector('.app').setAttribute('aria-hidden','true');
   document.body.style.overflow='hidden';
-  CommunityClient.restoreSession().then(session=>{if(session)manualFlashcardSync();}).catch(()=>updateFlashcardAccountUI(null));
+  AccountClient.restoreSession().then(session=>{if(session)manualFlashcardSync();}).catch(()=>updateFlashcardAccountUI(null));
   try{
     await renderDecks();
     if(deckId&&flashcardState.decks.some(deck=>deck.id===deckId))await selectDeck(deckId);
@@ -2754,7 +2663,7 @@ async function waitForFlashcardStoreIdle(){
   if(flashcardCopyInFlight)await flashcardCopyInFlight.catch(()=>null);
 }
 function queueFlashcardSync(){
-  if(!CommunityClient.session){setFlashcardSyncStatus('syncLocal');return;}
+  if(!AccountClient.session){setFlashcardSyncStatus('syncLocal');return;}
   setFlashcardSyncStatus('syncWaiting');
   if(navigator.onLine)manualFlashcardSync();
 }
@@ -2766,30 +2675,30 @@ function scheduleFlashcardSyncRetry(){
 }
 async function manualFlashcardSync(){
   if(flashcardCopyInFlight)await flashcardCopyInFlight.catch(()=>null);
-  if(!CommunityClient.session){setFlashcardSyncStatus('syncLocal');return null;}
+  if(!AccountClient.session){setFlashcardSyncStatus('syncLocal');return null;}
   if(!navigator.onLine){setFlashcardSyncStatus('syncWaiting');return null;}
   if(flashcardSyncInFlight)return flashcardSyncInFlight;
-  if((CommunityClient.session.expires_at||0)<=Math.floor(Date.now()/1000)+60){
-    const refreshGeneration=CommunityClient.generation,refreshUserId=CommunityClient.session.user.id;
-    try{await CommunityClient.refreshSession(refreshUserId);}catch(error){
-      if(CommunityClient.generation!==refreshGeneration||CommunityClient.session?.user.id!==refreshUserId){if(CommunityClient.session)queueMicrotask(()=>manualFlashcardSync());return null;}
-      CommunityClient.authInvalid=true;setFlashcardSyncStatus('syncFailed');return null;
+  if((AccountClient.session.expires_at||0)<=Math.floor(Date.now()/1000)+60){
+    const refreshGeneration=AccountClient.generation,refreshUserId=AccountClient.session.user.id;
+    try{await AccountClient.refreshSession(refreshUserId);}catch(error){
+      if(AccountClient.generation!==refreshGeneration||AccountClient.session?.user.id!==refreshUserId){if(AccountClient.session)queueMicrotask(()=>manualFlashcardSync());return null;}
+      AccountClient.authInvalid=true;setFlashcardSyncStatus('syncFailed');return null;
     }
-    if(!CommunityClient.session)return null;
+    if(!AccountClient.session)return null;
   }
   setFlashcardSyncStatus('syncing');
-  const syncGeneration=CommunityClient.generation,syncSession=CommunityClient.session;
+  const syncGeneration=AccountClient.generation,syncSession=AccountClient.session;
   flashcardSyncInFlight=syncFlashcards(syncSession,Date.now()).then(async result=>{
-    if(syncGeneration!==CommunityClient.generation)return result;
-    flashcardSyncAttempt=0;CommunityClient.authorizationBlocked=false;clearTimeout(flashcardSyncTimer);setFlashcardSyncStatus('syncDone');
+    if(syncGeneration!==AccountClient.generation)return result;
+    flashcardSyncAttempt=0;AccountClient.authorizationBlocked=false;clearTimeout(flashcardSyncTimer);setFlashcardSyncStatus('syncDone');
     await renderDecks();if(flashcardState.activeDeckId)await renderFlashcards();return result;
   }).catch(error=>{
-    if(syncGeneration!==CommunityClient.generation)return null;
-    setFlashcardSyncStatus('syncFailed');if(!CommunityClient.authInvalid&&!CommunityClient.authorizationBlocked)scheduleFlashcardSyncRetry();return null;
+    if(syncGeneration!==AccountClient.generation)return null;
+    setFlashcardSyncStatus('syncFailed');if(!AccountClient.authInvalid&&!AccountClient.authorizationBlocked)scheduleFlashcardSyncRetry();return null;
   }).finally(()=>{
     flashcardSyncInFlight=null;
-    if(syncGeneration!==CommunityClient.generation){if(CommunityClient.session)queueMicrotask(()=>manualFlashcardSync());return;}
-    if(CommunityClient.authInvalid){CommunityClient.authInvalid=false;CommunityClient.activate(null);}
+    if(syncGeneration!==AccountClient.generation){if(AccountClient.session)queueMicrotask(()=>manualFlashcardSync());return;}
+    if(AccountClient.authInvalid){AccountClient.authInvalid=false;AccountClient.activate(null);}
   });
   return flashcardSyncInFlight;
 }
@@ -3459,19 +3368,19 @@ document.getElementById('goalName').addEventListener('keydown',e=>{if(e.key==='E
 /* ============ init ============ */
 applyLang(); drawRing();
 updateFlashcardAccountUI(null);
-if(CommunityClient.isConfigured())CommunityClient.restoreSession().then(session=>{if(session)manualFlashcardSync();}).catch(()=>updateFlashcardAccountUI(null));
+if(AccountClient.isConfigured())AccountClient.restoreSession().then(session=>{if(session)manualFlashcardSync();}).catch(()=>updateFlashcardAccountUI(null));
 if(rolledOverAtStartup)toast(T('newDayReset'));
 scheduleNextRollover();
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible'){rolloverIfNeeded(true);scheduleNextRollover();}
 });
 window.addEventListener('focus',()=>{rolloverIfNeeded(true);scheduleNextRollover();});
-window.addEventListener('online',()=>{if(CommunityClient.session)manualFlashcardSync();});
+window.addEventListener('online',()=>{if(AccountClient.session)manualFlashcardSync();});
 window.addEventListener('storage',async event=>{
   if(event.key!=='ll_supabaseSession')return;
   let session=null;try{session=event.newValue?JSON.parse(event.newValue):null;}catch(error){}
-  if((session?.access_token||null)===(CommunityClient.session?.access_token||null))return;
-  await CommunityClient.activate(session,false);if(session)manualFlashcardSync();
+  if((session?.access_token||null)===(AccountClient.session?.access_token||null))return;
+  await AccountClient.activate(session,false);if(session)manualFlashcardSync();
 });
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));

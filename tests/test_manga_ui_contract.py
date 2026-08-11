@@ -7,6 +7,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML = (ROOT / "index.html").read_text(encoding="utf-8")
+ACCOUNT_SYNC = (ROOT / "account-sync.js").read_text(encoding="utf-8")
 
 
 class HiddenAncestorParser(HTMLParser):
@@ -224,9 +225,12 @@ class MangaUIContractTests(unittest.TestCase):
         self.assertIn('Content-Security-Policy', HTML)
         for method in ("isConfigured", "restoreSession", "signIn", "signUp", "signOut"):
             self.assertRegex(HTML, rf"\b{method}\(")
+        self.assertIn("AccountClient.configure", HTML)
+        self.assertIn("createOwnerRestClient", HTML)
+        self.assertIn("async recover", ACCOUNT_SYNC)
+        self.assertIn("liangli-auth-refresh", ACCOUNT_SYNC)
         self.assertIn("helperRefs", HTML)
         self.assertIn("flashCopyMap_", HTML)
-        self.assertIn("liangli-auth-refresh", HTML)
         self.assertIn("addEventListener('storage'", HTML)
 
     def test_all_five_views_have_manga_identity(self):
