@@ -116,10 +116,10 @@ async function testInstallFailureKeepsPreviousWorkerActive() {
   assert.equal(harness.skipWaitingCalls(), 0);
 }
 
-async function testInstallUsesV9ShellCacheWithAccountSyncModule() {
+async function testInstallUsesV10ShellCacheWithAccountSyncModule() {
   const harness = createHarness();
   await dispatch(harness, 'install');
-  assert.deepEqual(harness.opened, ['liangli-v9']);
+  assert.deepEqual(harness.opened, ['liangli-v10']);
   assert.ok(
     harness.shellCache.installAssets.includes('./account-sync.js'),
     'the account sync module must be available to an offline shell',
@@ -159,7 +159,7 @@ async function testActivationDeletesOnlyOwnedStaleCaches() {
   await testCachedRangeReturnsValidPartialResponse();
   await testRangeMissFetchesAndCachesFullResponse();
   await testInstallFailureKeepsPreviousWorkerActive();
-  await testInstallUsesV9ShellCacheWithAccountSyncModule();
+  await testInstallUsesV10ShellCacheWithAccountSyncModule();
   await testCrossOriginSupabaseRequestIsLeftNetworkOnly();
   await testActivationDeletesOnlyOwnedStaleCaches();
   console.log('service worker behavior: ok');

@@ -238,6 +238,14 @@ assert.equal(status.textContent,'cloud validation failed','rendering the signed-
 
 
 class MangaUIContractTests(unittest.TestCase):
+    def test_user_visible_brand_is_powy_while_storage_protocol_stays_compatible(self):
+        self.assertIn('<title>Powy</title>', HTML)
+        self.assertIn('<div class="logo">P</div>', HTML)
+        self.assertIn('<h1 id="appName">Powy</h1>', HTML)
+        self.assertNotIn('量力', HTML)
+        self.assertIn('LiangliAccountSync', HTML)
+        self.assertIn('liangli-flashcards-v1', HTML)
+
     def test_document_declares_a_favicon(self):
         self.assertRegex(
             HTML,

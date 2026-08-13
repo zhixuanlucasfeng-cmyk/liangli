@@ -11,7 +11,11 @@ MANIFEST = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
 
 class ServiceWorkerContractTests(unittest.TestCase):
     def test_shell_cache_version_tracks_life_release(self):
-        self.assertIn("const VERSION = 'liangli-v9'", SW)
+        self.assertIn("const VERSION = 'liangli-v10'", SW)
+
+    def test_manifest_uses_powy_brand(self):
+        self.assertEqual(MANIFEST["name"], "Powy")
+        self.assertEqual(MANIFEST["short_name"], "Powy")
 
     def test_account_sync_module_is_precached_with_the_same_origin_shell(self):
         assets = SW.split("const ASSETS =", 1)[1].split("];", 1)[0]

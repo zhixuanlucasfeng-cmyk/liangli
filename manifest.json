@@ -1,6 +1,6 @@
 {
-  "name": "量力 Liangli",
-  "short_name": "量力",
+  "name": "Powy",
+  "short_name": "Powy",
   "description": "反假性自律的个人成长工具 — an anti-fake-productivity tool for students",
   "start_url": "./index.html",
   "scope": "./",
