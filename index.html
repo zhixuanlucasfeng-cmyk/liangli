@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'">
 <meta name="theme-color" content="#0b0c0f">
 <meta name="description" content="Powy · 反假性自律的个人成长工具">
 <link rel="manifest" href="manifest.json">
@@ -94,6 +94,10 @@ textarea{resize:vertical;min-height:76px;line-height:1.5}
 .nutrition-date-nav{display:grid;grid-template-columns:44px 1fr 44px;gap:8px;align-items:center;margin-bottom:10px}
 .nutrition-date-nav strong{text-align:center;font-size:13px}
 .nutrition-summary{padding:10px;margin-bottom:10px;background:var(--warning);border:2px solid var(--line);font-size:12px;font-weight:900;line-height:1.45}
+.calorie-stats{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:7px;background:transparent;padding:0;border:0}
+.calorie-stat{display:grid;gap:3px;align-content:center;min-height:82px;padding:9px;background:#fffdf6;border:3px solid var(--line);text-align:center}
+.calorie-stat.primary{background:var(--warning);box-shadow:3px 3px 0 var(--line)}
+.calorie-stat b{font:900 23px/1 Impact,"Arial Black",sans-serif;font-variant-numeric:tabular-nums}.calorie-stat.primary b{font-size:32px}.calorie-stat small{font-size:10px}.calorie-stat.is-negative{background:var(--blood);color:#fff}
 .food-entry{display:grid;grid-template-columns:1fr auto;gap:8px;padding:11px;margin-bottom:8px;background:#fffdf6;border:2px solid var(--line)}
 .food-entry-main{min-width:0}
 .food-entry-name{font-size:13px;font-weight:900;overflow-wrap:anywhere}
@@ -146,18 +150,21 @@ body{
     radial-gradient(circle at 18% 12%,rgba(255,95,143,.13),transparent 24%),
     repeating-linear-gradient(118deg,#050608 0 3px,#0b0c0f 3px 13px);
 }
-.app{background:var(--ink);box-shadow:0 0 0 3px var(--line),0 0 70px rgba(217,45,69,.16)}
+.app{background-color:var(--ink);background-image:var(--profile-wallpaper,none);background-size:cover;background-position:center;background-attachment:fixed;box-shadow:0 0 0 3px var(--line),0 0 70px rgba(217,45,69,.16)}
 header{position:relative;border-bottom:3px solid var(--line);background:var(--paper);color:var(--ink);overflow:hidden}
 header::after{content:"";position:absolute;right:-22px;top:-46px;width:120px;height:150px;background:repeating-radial-gradient(circle,var(--line) 0 1px,transparent 1px 5px);opacity:.16;transform:rotate(-16deg);pointer-events:none}
 .logo{border:3px solid var(--line);border-radius:50% 44% 48% 38%;background:var(--blood);color:#fff;box-shadow:3px 3px 0 var(--line);transform:rotate(-5deg)}
+.logo img{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
 header h1{font-family:"Kaiti SC","STKaiti","Segoe Print",cursive;font-weight:900;letter-spacing:.08em}
 header .sl{color:#4c4a48;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .langbtn{position:relative;z-index:1;min-height:44px;background:var(--warning);border:3px solid var(--line);border-radius:0;color:var(--ink);font-weight:900;box-shadow:3px 3px 0 var(--line)}
 .account-avatar{position:relative;z-index:1;min-width:44px;min-height:44px;padding:0;background:var(--paper);border:3px solid var(--line);color:var(--ink);font:900 19px/1 inherit;box-shadow:3px 3px 0 var(--line);cursor:pointer}
+.profile-avatar{position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);object-fit:cover;border-radius:50%}.profile-avatar[hidden]{display:none}.avatar-fallback{display:grid;place-items:center}
+.appearance-settings{margin-top:12px;padding:10px;background:#fff8e8;border:2px dashed var(--line)}.appearance-settings h3{margin:0 0 8px}.appearance-preview{display:flex;align-items:center;gap:10px;margin-bottom:8px}.appearance-preview img{width:64px;height:64px;object-fit:cover;border:3px solid var(--line);border-radius:50%}.appearance-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}.appearance-status{min-height:1.5em;margin-top:8px;font-size:11px;font-weight:800}
 .account-overlay{position:fixed;inset:0;z-index:70;display:flex;align-items:flex-end;justify-content:center;background:rgba(5,6,8,.82);padding:12px}
 .account-overlay[hidden]{display:none}.account-shell{width:100%;max-width:440px;max-height:calc(100dvh - 24px);overflow:auto;background:var(--paper);color:var(--ink);border:4px solid var(--line);box-shadow:7px 7px 0 var(--blood);padding:16px}
 .account-shell h2{margin:0;font-family:Impact,"Arial Black",sans-serif;letter-spacing:.04em}.account-head{display:flex;align-items:center;gap:8px}.account-head .btn{margin-left:auto;min-width:44px;padding:0;font-size:24px}.account-status{min-height:1.5em;margin:10px 0;padding:8px;background:#fffdf6;border:2px solid var(--line);font-size:12px;font-weight:800}.account-fields{display:grid;gap:8px}.account-fields label{display:grid;gap:4px;font-size:12px;font-weight:900}.account-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.account-actions .full{grid-column:1/-1}.account-choice,.account-recovery{margin-top:12px;padding:10px;background:#fff8e8;border:2px dashed var(--line)}.account-choice[hidden],.account-recovery[hidden]{display:none}.account-recovery-list{display:grid;gap:7px}.account-recovery-item{display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center;padding:8px;background:#fffdf6;border:2px solid var(--line);font-size:11px;font-weight:800}.account-welcome{align-items:center}.account-welcome .account-shell{max-width:390px}.account-confirm-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
-main{padding:14px 12px calc(104px + var(--safe-b));background:linear-gradient(90deg,transparent 49%,rgba(237,230,216,.035) 50%,transparent 51%)}
+main{padding:14px 12px calc(104px + var(--safe-b));background:linear-gradient(90deg,rgba(11,12,15,.82) 0 49%,rgba(40,40,44,.82) 50%,rgba(11,12,15,.82) 51%)}
 .manga-panel{
   position:relative;background:var(--paper);color:var(--ink);
   border:3px solid var(--line);box-shadow:5px 6px 0 var(--line);
@@ -324,6 +331,24 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
 @media (min-width:390px){
   .focus-view .ring .tm b{font-size:72px}
 }
+@media (min-width:768px){
+  body{display:block;background:var(--ink)}
+  .app{max-width:none;width:100%;min-height:100dvh;box-shadow:none;background-color:rgba(11,12,15,.86);background-image:var(--profile-wallpaper,none);background-size:cover;background-position:center;background-attachment:fixed}
+  header{padding-left:max(28px,env(safe-area-inset-left));padding-right:max(28px,env(safe-area-inset-right))}
+  main{padding-left:28px;padding-right:28px}
+  .view.active{width:100%;max-width:1280px;margin:0 auto}
+  .today-view.active,.pool-view.active,.goals-view.active,.focus-view.active{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
+  .manga-panel{margin-left:0;margin-right:0}
+  .life-panel:not([hidden]){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
+  .life-backup-panel{grid-column:1/-1}
+  .account-shell{max-width:720px}.flashcard-shell{max-width:none;padding-left:clamp(28px,8vw,120px);padding-right:clamp(28px,8vw,120px)}
+  nav{padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}
+}
+@media (min-width:1024px) and (orientation:landscape){
+  #lifeNutrition{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px}
+  #lifeWallet,#lifeJournal{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px}
+  main{padding-left:clamp(32px,5vw,72px);padding-right:clamp(32px,5vw,72px)}
+}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
   .manga-panel{transform:none}
@@ -335,9 +360,9 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
 <body>
 <div class="app">
   <header>
-    <div class="logo">P</div>
+    <div class="logo"><img src="icon-192.png" alt=""></div>
     <div><h1 id="appName">Powy</h1><span class="sl" id="tagline">反假性自律</span></div>
-    <button type="button" class="account-avatar" id="accountAvatar" onclick="openAccountPanel()" data-aria-i="accountTitle" aria-label="账号">◉</button>
+    <button type="button" class="account-avatar" id="accountAvatar" onclick="openAccountPanel()" data-aria-i="accountTitle" aria-label="账号"><span class="avatar-fallback" id="avatarFallback">◉</span><img class="profile-avatar" id="profileAvatar" alt="" hidden></button>
     <button class="langbtn" onclick="toggleLang()" id="langBtn">EN</button>
   </header>
 
@@ -551,7 +576,11 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
             <strong id="nutritionDateLabel"></strong>
             <button type="button" class="food-action" id="nutritionNextDate" onclick="shiftNutritionDay(1)" data-aria-i="nextDate" aria-label="后一天">›</button>
           </div>
-          <div class="nutrition-summary" id="nutritionSummary" aria-live="polite"></div>
+          <div class="nutrition-summary calorie-stats" id="nutritionSummary" aria-live="polite">
+            <div class="calorie-stat primary" id="calorieRemainingCard"><small data-i="caloriesRemaining">剩余</small><b id="calorieRemainingValue">0</b><small data-i="calorieUnit">千卡</small></div>
+            <div class="calorie-stat"><small data-i="caloriesConsumed">已摄入</small><b id="calorieConsumedValue">0</b><small data-i="calorieUnit">千卡</small></div>
+            <div class="calorie-stat"><small data-i="caloriesTarget">目标</small><b id="calorieTargetValue">0</b><small data-i="calorieUnit">千卡</small></div>
+          </div>
           <div id="foodTimeline"></div>
         </div>
       </section>
@@ -697,8 +726,8 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
     <div class="account-head"><h2 id="accountTitle" data-i="accountTitle">账号与同步</h2><button type="button" class="btn ghost" id="accountClose" onclick="closeAccountPanel()" data-aria-i="closeAccount" aria-label="关闭账号">×</button></div>
     <p class="account-status" id="accountSyncStatus" role="status" aria-live="polite"></p>
     <div class="account-fields">
-      <label for="accountEmail" data-i="emailLabel">邮箱<input id="accountEmail" type="email" autocomplete="email" data-ph="emailPh" placeholder="邮箱"></label>
-      <label for="accountPassword" data-i="passwordLabel">密码<input id="accountPassword" type="password" autocomplete="current-password" data-ph="passwordPh" placeholder="登录密码"></label>
+      <label for="accountEmail"><span data-i="emailLabel">邮箱</span><input id="accountEmail" type="email" autocomplete="email" data-ph="emailPh" placeholder="邮箱"></label>
+      <label for="accountPassword"><span data-i="passwordLabel">密码</span><input id="accountPassword" type="password" autocomplete="current-password" data-ph="passwordPh" placeholder="登录密码"></label>
       <div class="account-actions">
         <button type="button" class="btn" id="accountSignIn" onclick="signInAccount()" data-i="signIn">登录</button>
         <button type="button" class="btn ghost" id="accountSignUp" onclick="signUpAccount()" data-i="signUp">注册</button>
@@ -714,6 +743,19 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
       <div class="account-choice" id="accountStartEmptyConfirm" hidden><p data-i="startEmptyWarning">这会为该账号创建空的同步数据；本机恢复备份会保留。</p><div class="account-confirm-actions"><button type="button" class="btn" onclick="confirmStartEmpty()" data-i="confirmStartEmpty">确认开始</button><button type="button" class="btn ghost" onclick="cancelStartEmpty()" data-i="cancel">取消</button></div></div>
     </section>
     <section class="account-recovery" id="coreRecoveryList"><h3 data-i="recoveryTitle">本机恢复备份</h3><div class="account-recovery-list" id="coreRecoveryItems"></div></section>
+    <section class="appearance-settings" aria-labelledby="appearanceTitle">
+      <h3 id="appearanceTitle" data-i="appearanceTitle">个人外观</h3>
+      <div class="appearance-preview"><img id="appearanceAvatarPreview" src="icon-192.png" alt=""><p class="muted" data-i="appearanceLocalHint">头像和壁纸只保存在这台设备。</p></div>
+      <div class="appearance-actions">
+        <button type="button" class="btn ghost" onclick="document.getElementById('avatarFile').click()" data-i="chooseAvatar">选择头像</button>
+        <button type="button" class="btn ghost" onclick="document.getElementById('wallpaperFile').click()" data-i="chooseWallpaper">选择壁纸</button>
+        <button type="button" class="btn ghost" id="resetAvatar" onclick="resetAppearance('avatar')" data-i="resetAvatar">恢复默认头像</button>
+        <button type="button" class="btn ghost" id="resetWallpaper" onclick="resetAppearance('wallpaper')" data-i="resetWallpaper">恢复默认壁纸</button>
+      </div>
+      <input class="sr-only" id="avatarFile" type="file" accept="image/*" onchange="handleAppearanceFile('avatar',this)">
+      <input class="sr-only" id="wallpaperFile" type="file" accept="image/*" onchange="handleAppearanceFile('wallpaper',this)">
+      <div class="appearance-status" id="appearanceStatus" role="status" aria-live="polite"></div>
+    </section>
   </section>
 </div>
 <div class="flashcard-overlay" id="flashcardOverlay" role="dialog" aria-modal="true" aria-labelledby="flashcardTitle" hidden>
@@ -808,7 +850,7 @@ const I18N={
    saveLog:"保存记录",history:"历史记录",
    navToday:"今日",navPool:"成长池",navGoals:"目标",navFocus:"专注",navLife:"生活",
    nutritionTitle:"营养",walletTitle:"钱包",journalTitle:"记录",lifeBackupTitle:"生活数据备份",lifeBackupHint:"导出或导入营养与钱包数据；不会包含任务、账号或卡片。",exportLifeData:"导出生活数据",importLifeData:"导入生活数据",confirmLifeImport:"确认导入",cancelLifeImport:"取消",lifeImportReady:"已准备好导入",lifeImportSummary:"将导入 {foods} 条饮食记录、{favorites} 个收藏食物、{cycles} 个预算周期和 {expenses} 条消费记录。",lifeImportDone:"生活数据已导入。",lifeImportInvalid:"生活备份文件无效，未导入任何数据。",lifeImportStoreError:"无法保存导入内容，当前数据未改变。",lifeStorageInvalid:"已保存的生活数据无法验证。原始数据保持不变；请导入一份有效备份以修复。",lifeStorageReadError:"暂时无法读取生活数据。没有覆盖原始数据；请检查浏览器存储权限后重试。",
-   calorieTargetLabel:"每日热量目标",saveFavoriteFood:"收藏食物",foodNameLabel:"食物",foodNamePh:"例如：鸡蛋",foodPortionLabel:"份量",foodPortionPh:"例如：2 个",foodModeLabel:"热量录入方式",foodModeManual:"手动",foodModeEstimate:"估算",estimateCalories:"估算热量",foodCaloriesLabel:"热量 (kcal)",foodEatenAtLabel:"进食时间",saveFood:"保存食物",updateFood:"更新食物",previousDate:"前一天",nextDate:"后一天",editFood:"编辑食物",deleteFood:"删除食物",foodManualNeeded:"未找到可用估算，请手动填写热量。",foodNameNeeded:"请填写食物名称。",foodCaloriesInvalid:"请填写 0 到 1,000,000 之间的有效热量。",foodDateInvalid:"请选择有效进食时间。",lifeTextTooLong:"输入内容过长，请缩短后再保存。",foodStoreError:"保存失败，表单内容已保留。",foodSaved:"食物已保存。",foodUpdated:"食物已更新。",foodDeleted:"食物已删除。",foodFavoriteSaved:"已收藏这个食物。",foodEmptyDay:"这一天还没有饮食记录。",caloriesConsumed:"已摄入",caloriesRemaining:"剩余",calorieUnit:"千卡",
+   calorieTargetLabel:"每日热量目标",saveFavoriteFood:"收藏食物",foodNameLabel:"食物",foodNamePh:"例如：鸡蛋",foodPortionLabel:"份量",foodPortionPh:"例如：2 个",foodModeLabel:"热量录入方式",foodModeManual:"手动",foodModeEstimate:"估算",estimateCalories:"估算热量",foodCaloriesLabel:"热量 (kcal)",foodEatenAtLabel:"进食时间",saveFood:"保存食物",updateFood:"更新食物",previousDate:"前一天",nextDate:"后一天",editFood:"编辑食物",deleteFood:"删除食物",foodManualNeeded:"未找到可用估算，请手动填写热量。",foodNameNeeded:"请填写食物名称。",foodCaloriesInvalid:"请填写 0 到 1,000,000 之间的有效热量。",foodDateInvalid:"请选择有效进食时间。",lifeTextTooLong:"输入内容过长，请缩短后再保存。",foodStoreError:"保存失败，表单内容已保留。",foodSaved:"食物已保存。",foodUpdated:"食物已更新。",foodDeleted:"食物已删除。",foodFavoriteSaved:"已收藏这个食物。",foodEmptyDay:"这一天还没有饮食记录。",caloriesConsumed:"已摄入",caloriesRemaining:"今日剩余",caloriesTarget:"目标",calorieUnit:"千卡",appearanceTitle:"个人外观",appearanceLocalHint:"头像和壁纸只保存在这台设备。",chooseAvatar:"选择头像",chooseWallpaper:"选择壁纸",resetAvatar:"恢复默认头像",resetWallpaper:"恢复默认壁纸",appearanceSaved:"外观已保存。",appearanceReset:"已恢复默认。",appearanceInvalid:"请选择有效的图片文件（最大 20MB）。",appearanceStoreError:"图片无法保存，请检查浏览器存储空间。",
    budgetTotalLabel:"周期总金额",budgetSavingsLabel:"建议储蓄比例 (%)",budgetStartLabel:"开始日期",budgetPeriodLabel:"周期单位",budgetPeriodCountLabel:"周期数量",budgetPeriodDay:"天",budgetPeriodWeek:"周",budgetPeriodMonth:"月",budgetPeriodYear:"年",moneyAmountPh:"例如：875.00",createBudget:"开始预算周期",walletNoCycle:"还没有进行中的预算周期。",walletSummaryTitle:"本周期",walletTotalLabel:"总额",walletSavedLabel:"建议储蓄",walletSpendableLabel:"可用零花钱",walletTodayLabel:"今日剩余",walletSpentLabel:"今日已花",walletNegativeNote:"今天暂时超出额度也没关系，这个差额会平静地结转到下一天。",walletCycleEndTitle:"这个周期已经结束",walletCycleEndDesc:"选择下一步前不会自动续期，也不会影响你继续使用其他页面。",walletCarryLabel:"把最终余额（包括负数）带到下一周期",walletRechargeLabel:"充值后的新总额",walletRenewSame:"沿用设置",walletRenewRecharge:"充值并续期",walletRenewPause:"暂停预算",expenseTitle:"记一笔消费",expenseNameLabel:"消费名称",expenseNamePh:"例如：午餐",expenseAmountLabel:"金额",expenseCategoryLabel:"分类（可选）",expenseCategoryPh:"例如：餐饮",expenseTimeLabel:"消费时间",saveExpense:"保存消费",updateExpense:"更新消费",expenseTimelineTitle:"消费时间线",editExpense:"编辑消费",deleteExpense:"删除消费",expenseEmpty:"这个周期还没有消费记录。",expenseCycleEnded:"本周期已经结束。续期后即可继续记账。",walletCycleDates:"周期（含首尾）",walletCycleInvalid:"请填写有效的金额、储蓄比例、开始日期和正数周期。",walletNoActiveCycle:"请先开始一个预算周期。",expenseNameNeeded:"请填写消费名称。",expenseAmountInvalid:"请填写有效金额。",expenseDateInvalid:"请选择有效消费时间。",expenseOutsideCycle:"消费时间需要在当前预算周期内。",walletRechargeInvalid:"请填写有效的新总额。",walletCycleNotEnded:"当前周期还没有结束。",walletStoreError:"保存失败，表单内容已保留。",walletCycleSaved:"预算周期已开始。",expenseSaved:"消费已保存。",expenseUpdated:"消费已更新。",expenseDeleted:"消费已删除。",walletRenewed:"新预算周期已开始。",walletPaused:"预算已暂停。",
    emptyTask:"还没有任务，加一个吧",emptyIdea:"成长池是空的～想法随手记这里",
    emptyGoal:"还没有目标。目标是方向，不是压力。",emptyLog:"还没有记录。从今天开始吧。",
@@ -836,7 +878,7 @@ const I18N={
    saveLog:"Save entry",history:"Past entries",
    navToday:"Today",navPool:"Pool",navGoals:"Goals",navFocus:"Focus",navLife:"Life",
    nutritionTitle:"Nutrition",walletTitle:"Wallet",journalTitle:"Journal",lifeBackupTitle:"Life data backup",lifeBackupHint:"Export or import nutrition and wallet data. Tasks, accounts, and cards are never included.",exportLifeData:"Export life data",importLifeData:"Import life data",confirmLifeImport:"Import now",cancelLifeImport:"Cancel",lifeImportReady:"Ready to import",lifeImportSummary:"This will import {foods} food entries, {favorites} favorite foods, {cycles} budget cycles, and {expenses} expenses.",lifeImportDone:"Life data imported.",lifeImportInvalid:"This life backup is invalid. Nothing was imported.",lifeImportStoreError:"Could not save the import. Your current data is unchanged.",lifeStorageInvalid:"Saved Life data could not be validated. The original bytes are unchanged; import a valid backup to repair them.",lifeStorageReadError:"Life data cannot be read right now. The original bytes were not overwritten; check browser storage access and try again.",
-   calorieTargetLabel:"Daily calorie target",saveFavoriteFood:"Favorite food",foodNameLabel:"Food",foodNamePh:"e.g. Eggs",foodPortionLabel:"Portion",foodPortionPh:"e.g. 2 pieces",foodModeLabel:"Calorie entry mode",foodModeManual:"Manual",foodModeEstimate:"Estimate",estimateCalories:"Estimate calories",foodCaloriesLabel:"Calories (kcal)",foodEatenAtLabel:"Eaten at",saveFood:"Save food",updateFood:"Update food",previousDate:"Previous day",nextDate:"Next day",editFood:"Edit food",deleteFood:"Delete food",foodManualNeeded:"No estimate found. Enter calories manually.",foodNameNeeded:"Enter a food name.",foodCaloriesInvalid:"Enter calories from 0 through 1,000,000.",foodDateInvalid:"Choose a valid time.",lifeTextTooLong:"This text is too long. Shorten it before saving.",foodStoreError:"Could not save. Your form is unchanged.",foodSaved:"Food saved.",foodUpdated:"Food updated.",foodDeleted:"Food deleted.",foodFavoriteSaved:"Favorite saved.",foodEmptyDay:"No food logged for this day.",caloriesConsumed:"consumed",caloriesRemaining:"remaining",calorieUnit:"kcal",
+   calorieTargetLabel:"Daily calorie target",saveFavoriteFood:"Favorite food",foodNameLabel:"Food",foodNamePh:"e.g. Eggs",foodPortionLabel:"Portion",foodPortionPh:"e.g. 2 pieces",foodModeLabel:"Calorie entry mode",foodModeManual:"Manual",foodModeEstimate:"Estimate",estimateCalories:"Estimate calories",foodCaloriesLabel:"Calories (kcal)",foodEatenAtLabel:"Eaten at",saveFood:"Save food",updateFood:"Update food",previousDate:"Previous day",nextDate:"Next day",editFood:"Edit food",deleteFood:"Delete food",foodManualNeeded:"No estimate found. Enter calories manually.",foodNameNeeded:"Enter a food name.",foodCaloriesInvalid:"Enter calories from 0 through 1,000,000.",foodDateInvalid:"Choose a valid time.",lifeTextTooLong:"This text is too long. Shorten it before saving.",foodStoreError:"Could not save. Your form is unchanged.",foodSaved:"Food saved.",foodUpdated:"Food updated.",foodDeleted:"Food deleted.",foodFavoriteSaved:"Favorite saved.",foodEmptyDay:"No food logged for this day.",caloriesConsumed:"Consumed",caloriesRemaining:"Remaining today",caloriesTarget:"Target",calorieUnit:"kcal",appearanceTitle:"Appearance",appearanceLocalHint:"Avatar and wallpaper stay on this device.",chooseAvatar:"Choose avatar",chooseWallpaper:"Choose wallpaper",resetAvatar:"Reset avatar",resetWallpaper:"Reset wallpaper",appearanceSaved:"Appearance saved.",appearanceReset:"Restored default.",appearanceInvalid:"Choose a valid image file up to 20 MB.",appearanceStoreError:"Could not save the image. Check browser storage.",
    budgetTotalLabel:"Cycle total",budgetSavingsLabel:"Suggested savings (%)",budgetStartLabel:"Start date",budgetPeriodLabel:"Period unit",budgetPeriodCountLabel:"Period count",budgetPeriodDay:"Day",budgetPeriodWeek:"Week",budgetPeriodMonth:"Month",budgetPeriodYear:"Year",moneyAmountPh:"e.g. 875.00",createBudget:"Start budget cycle",walletNoCycle:"No budget cycle is active yet.",walletSummaryTitle:"This cycle",walletTotalLabel:"Total",walletSavedLabel:"Suggested savings",walletSpendableLabel:"Spending allowance",walletTodayLabel:"Left today",walletSpentLabel:"Spent today",walletNegativeNote:"It is okay to be over today's amount. The difference will carry calmly into the next day.",walletCycleEndTitle:"This cycle has ended",walletCycleEndDesc:"Nothing renews until you choose. You can keep using every other page.",walletCarryLabel:"Carry the final balance (including a negative one) into the next cycle",walletRechargeLabel:"New total after recharge",walletRenewSame:"Use same settings",walletRenewRecharge:"Recharge and renew",walletRenewPause:"Pause budgeting",expenseTitle:"Log an expense",expenseNameLabel:"Expense name",expenseNamePh:"e.g. Lunch",expenseAmountLabel:"Amount",expenseCategoryLabel:"Category (optional)",expenseCategoryPh:"e.g. Food",expenseTimeLabel:"Spent at",saveExpense:"Save expense",updateExpense:"Update expense",expenseTimelineTitle:"Expense timeline",editExpense:"Edit expense",deleteExpense:"Delete expense",expenseEmpty:"No expenses in this cycle yet.",expenseCycleEnded:"This cycle has ended. Renew it to log more expenses.",walletCycleDates:"Cycle (inclusive)",walletCycleInvalid:"Enter a valid amount, savings percentage, start date, and positive period.",walletNoActiveCycle:"Start a budget cycle first.",expenseNameNeeded:"Enter an expense name.",expenseAmountInvalid:"Enter a valid amount.",expenseDateInvalid:"Choose a valid expense time.",expenseOutsideCycle:"The expense time must be within the active budget cycle.",walletRechargeInvalid:"Enter a valid new total.",walletCycleNotEnded:"The current cycle has not ended yet.",walletStoreError:"Could not save. Your form is unchanged.",walletCycleSaved:"Budget cycle started.",expenseSaved:"Expense saved.",expenseUpdated:"Expense updated.",expenseDeleted:"Expense deleted.",walletRenewed:"New budget cycle started.",walletPaused:"Budgeting paused.",
    emptyTask:"No tasks yet. Add one.",emptyIdea:"Your growth pool is empty — jot ideas here.",
    emptyGoal:"No goals yet. A goal is a direction, not pressure.",emptyLog:"No entries yet. Start today.",
@@ -910,6 +952,80 @@ const DB={
     try{localStorage.setItem('ll_'+k,JSON.stringify(v));return true}catch(e){return false}
   }
 };
+const APPEARANCE_DB_NAME='powy-profile-v1',APPEARANCE_STORE='images',MAX_APPEARANCE_FILE_BYTES=20*1024*1024;
+let avatarObjectUrl=null,wallpaperObjectUrl=null;
+const appearanceGeneration={avatar:0,wallpaper:0},appearanceMutationQueue={avatar:Promise.resolve(),wallpaper:Promise.resolve()};
+function openAppearanceDB(){
+  return new Promise((resolve,reject)=>{
+    const request=indexedDB.open(APPEARANCE_DB_NAME,1);
+    request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(APPEARANCE_STORE))request.result.createObjectStore(APPEARANCE_STORE);};
+    request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error||new Error('Appearance database failed'));
+  });
+}
+async function appearanceRecord(mode,operation,value){
+  const database=await openAppearanceDB();
+  try{return await new Promise((resolve,reject)=>{
+    const transaction=database.transaction(APPEARANCE_STORE,operation==='get'?'readonly':'readwrite'),store=transaction.objectStore(APPEARANCE_STORE);
+    const request=operation==='get'?store.get(mode):operation==='put'?store.put(value,mode):store.delete(mode);
+    if(operation==='get')request.onsuccess=()=>resolve(request.result??null);
+    else transaction.oncomplete=()=>resolve(null);
+    request.onerror=()=>reject(request.error||new Error('Appearance storage failed'));
+    transaction.onerror=()=>reject(transaction.error||new Error('Appearance storage failed'));
+    transaction.onabort=()=>reject(transaction.error||new Error('Appearance storage failed'));
+  });}finally{database.close();}
+}
+function revokeAppearanceUrl(mode){
+  const current=mode==='avatar'?avatarObjectUrl:wallpaperObjectUrl;
+  if(current)URL.revokeObjectURL(current);
+  if(mode==='avatar')avatarObjectUrl=null;else wallpaperObjectUrl=null;
+}
+function applyAppearanceBlob(mode,blob){
+  revokeAppearanceUrl(mode);
+  if(mode==='avatar'){
+    const avatar=document.getElementById('profileAvatar'),preview=document.getElementById('appearanceAvatarPreview');
+    if(blob){avatarObjectUrl=URL.createObjectURL(blob);avatar.src=avatarObjectUrl;preview.src=avatarObjectUrl;avatar.hidden=false;document.getElementById('avatarFallback').hidden=true;}
+    else{avatar.removeAttribute('src');avatar.hidden=true;document.getElementById('avatarFallback').hidden=false;preview.src='icon-192.png';}
+  }else{
+    if(blob){wallpaperObjectUrl=URL.createObjectURL(blob);document.querySelector('.app').style.setProperty('--profile-wallpaper',`url("${wallpaperObjectUrl}")`);}
+    else document.querySelector('.app').style.removeProperty('--profile-wallpaper');
+  }
+}
+async function compressAppearanceImage(file,mode){
+  if(!file||!String(file.type||'').startsWith('image/')||file.size<=0||file.size>MAX_APPEARANCE_FILE_BYTES)throw new Error('Invalid appearance image');
+  const sourceUrl=URL.createObjectURL(file);
+  try{
+    const image=new Image();await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(new Error('Image decode failed'));image.src=sourceUrl;});
+    const limit=mode==='avatar'?512:2048,scale=Math.min(1,limit/Math.max(image.naturalWidth,image.naturalHeight));
+    const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+    const context=canvas.getContext('2d');if(!context)throw new Error('Canvas unavailable');
+    context.drawImage(image,0,0,canvas.width,canvas.height);
+    return await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Image encode failed')),'image/webp',mode==='avatar'?.86:.8));
+  }finally{URL.revokeObjectURL(sourceUrl);}
+}
+function setAppearanceStatus(key){document.getElementById('appearanceStatus').textContent=key?T(key):'';}
+function queueAppearanceMutation(mode,operation){
+  const pending=appearanceMutationQueue[mode].catch(()=>{}).then(operation);
+  appearanceMutationQueue[mode]=pending;return pending;
+}
+async function handleAppearanceFile(mode,input){
+  const file=input?.files?.[0],generation=++appearanceGeneration[mode];
+  try{
+    const blob=await compressAppearanceImage(file,mode);if(generation!==appearanceGeneration[mode])return;
+    await queueAppearanceMutation(mode,async()=>{if(generation!==appearanceGeneration[mode])return;await appearanceRecord(mode,'put',blob);if(generation===appearanceGeneration[mode]){applyAppearanceBlob(mode,blob);setAppearanceStatus('appearanceSaved');}});
+  }
+  catch(error){if(generation===appearanceGeneration[mode])setAppearanceStatus(error?.message==='Invalid appearance image'?'appearanceInvalid':'appearanceStoreError');}
+  finally{if(input)input.value='';}
+}
+async function resetAppearance(mode){
+  const generation=++appearanceGeneration[mode];
+  try{await queueAppearanceMutation(mode,async()=>{if(generation!==appearanceGeneration[mode])return;await appearanceRecord(mode,'delete');if(generation===appearanceGeneration[mode]){applyAppearanceBlob(mode,null);setAppearanceStatus('appearanceReset');}});}
+  catch(error){if(generation===appearanceGeneration[mode])setAppearanceStatus('appearanceStoreError');}
+}
+async function loadAppearanceMode(mode){const generation=appearanceGeneration[mode],blob=await appearanceRecord(mode,'get');if(blob&&generation===appearanceGeneration[mode])applyAppearanceBlob(mode,blob);}
+async function loadAppearance(){
+  try{await Promise.all([loadAppearanceMode('avatar'),loadAppearanceMode('wallpaper')]);}
+  catch(error){setAppearanceStatus('appearanceStoreError');}
+}
 const CORE_LEGACY_KEYS=new Set(['tasks','ideas','goals','logs','focusMin','pomo','week','lastDay']);
 const AccountCore=globalThis.LiangliAccountSync||null;
 let activeCoreScope='local',activeCoreState=null,coreStateStorageStatus='missing';
@@ -3489,8 +3605,10 @@ function renderNutrition(){
   if(!eatenAt.value)eatenAt.value=currentLocalDateTimeValue();
   document.getElementById('nutritionDateLabel').textContent=selectedNutritionDay;
   const summary=summarizeCalories(S.foodEntries,selectedNutritionDay,S.calorieTarget);
-  document.getElementById('nutritionSummary').textContent=
-    `${T('caloriesConsumed')} ${summary.consumed} ${T('calorieUnit')} · ${T('caloriesRemaining')} ${summary.remaining} ${T('calorieUnit')}`;
+  document.getElementById('calorieRemainingValue').textContent=String(summary.remaining);
+  document.getElementById('calorieConsumedValue').textContent=String(summary.consumed);
+  document.getElementById('calorieTargetValue').textContent=String(summary.target);
+  document.getElementById('calorieRemainingCard').classList.toggle('is-negative',summary.remaining<0);
   document.getElementById('favoriteFoodOptions').innerHTML=S.favoriteFoods
     .map(name=>`<option value="${esc(name)}"></option>`).join('');
   const entries=foodEntriesForDay(S.foodEntries,selectedNutritionDay);
@@ -3842,6 +3960,7 @@ document.getElementById('goalName').addEventListener('keydown',e=>{if(e.key==='E
 
 /* ============ init ============ */
 applyLang(); drawRing();
+loadAppearance();
 updateFlashcardAccountUI(null);
 showAccountWelcome();
 if(AccountClient.isConfigured())AccountClient.restoreSession().then(session=>{if(session){scheduleCoreSync('login');manualFlashcardSync();}}).catch(()=>updateFlashcardAccountUI(null));

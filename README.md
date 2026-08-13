@@ -59,7 +59,7 @@ liangli/
 assets/power-{cat|human}/{idle|content|tired|exhausted}.{mp4|webp}
 ```
 
-Service Worker 的应用壳缓存当前为 `liangli-v9`。安装时预缓存 HTML、`account-sync.js`、manifest、图标和 8 张 WebP poster；MP4 第一次播放后写入 `liangli-video-v1`，并正确响应浏览器的 Range 请求。Supabase Auth、PostgREST/REST、令牌和所有跨域响应保持 network-only：它们不会进入 Service Worker 缓存。
+Service Worker 的应用壳缓存当前为 `liangli-v11`。安装时预缓存 HTML、`account-sync.js`、manifest、图标和 8 张 WebP poster；MP4 第一次播放后写入 `liangli-video-v1`，并正确响应浏览器的 Range 请求。Supabase Auth、PostgREST/REST、令牌和所有跨域响应保持 network-only：它们不会进入 Service Worker 缓存。
 
 ### 素材生成与验收
 

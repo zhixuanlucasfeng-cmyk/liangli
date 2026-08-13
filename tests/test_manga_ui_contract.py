@@ -240,11 +240,38 @@ assert.equal(status.textContent,'cloud validation failed','rendering the signed-
 class MangaUIContractTests(unittest.TestCase):
     def test_user_visible_brand_is_powy_while_storage_protocol_stays_compatible(self):
         self.assertIn('<title>Powy</title>', HTML)
-        self.assertIn('<div class="logo">P</div>', HTML)
+        self.assertIn('<div class="logo"><img src="icon-192.png" alt=""></div>', HTML)
         self.assertIn('<h1 id="appName">Powy</h1>', HTML)
         self.assertNotIn('量力', HTML)
         self.assertIn('LiangliAccountSync', HTML)
         self.assertIn('liangli-flashcards-v1', HTML)
+
+    def test_nutrition_summary_prioritizes_remaining_calories(self):
+        for element_id in ('calorieRemainingValue', 'calorieConsumedValue', 'calorieTargetValue'):
+            self.assertIn(f'id="{element_id}"', HTML)
+        compact = HTML.replace(' ', '')
+        self.assertIn("calorieRemainingValue').textContent=String(summary.remaining)", compact)
+        self.assertIn("classList.toggle('is-negative',summary.remaining<0)", compact)
+
+    def test_profile_appearance_controls_are_local_and_accessible(self):
+        for element_id in ('profileAvatar', 'avatarFile', 'wallpaperFile', 'resetAvatar', 'resetWallpaper', 'appearanceStatus'):
+            self.assertIn(f'id="{element_id}"', HTML)
+        self.assertRegex(HTML, r'id="avatarFile"[^>]*accept="image/\*"')
+        self.assertRegex(HTML, r'id="wallpaperFile"[^>]*accept="image/\*"')
+        for fragment in ('powy-profile-v1', 'indexedDB.open', 'new Image()', 'image.naturalWidth', 'URL.revokeObjectURL'):
+            self.assertIn(fragment, HTML)
+
+    def test_account_field_translation_does_not_delete_inputs(self):
+        self.assertIn('<label for="accountEmail"><span data-i="emailLabel">', HTML)
+        self.assertIn('<label for="accountPassword"><span data-i="passwordLabel">', HTML)
+        self.assertNotIn('<label for="accountEmail" data-i=', HTML)
+
+    def test_ipad_layout_fills_viewport_and_uses_landscape_columns(self):
+        compact = re.sub(r'\s+', '', HTML)
+        self.assertIn('@media(min-width:768px)', compact)
+        self.assertIn('.app{max-width:none;', compact)
+        self.assertIn('@media(min-width:1024px)and(orientation:landscape)', compact)
+        self.assertIn('#lifeNutrition{grid-template-columns:minmax(0,1fr)minmax(0,1fr)', compact)
 
     def test_document_declares_a_favicon(self):
         self.assertRegex(

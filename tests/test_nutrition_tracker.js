@@ -67,6 +67,7 @@ function element(value='') {
     innerHTML:'',
     hidden:false,
     checked:false,
+    classList:{values:new Set(),toggle(name,force){if(force)this.values.add(name);else this.values.delete(name);}},
     attributes:{},
     focusCount:0,
     focus(){ this.focusCount += 1; },
@@ -135,6 +136,7 @@ const messages = {
   caloriesConsumed:'consumed',
   caloriesRemaining:'remaining',
   calorieUnit:'kcal',
+  caloriesTarget:'target',
   saveFood:'Save food',
   updateFood:'Update food',
 };
@@ -181,6 +183,15 @@ vm.runInContext(
   uiContext,
 );
 const ui = uiContext.nutritionUI;
+
+for(const id of ['calorieRemainingValue','calorieConsumedValue','calorieTargetValue','calorieRemainingCard'])elements.set(id,element());
+ui.setSelectedDay('2026-08-09');
+uiState.foodEntries=[normalizeFoodEntry({id:'egg',name:'Fried egg',portion:'1',calories:70,eatenAt:'2026-08-09T09:34:00.000Z',mode:'manual'})];
+ui.renderNutrition();
+assert.equal(elements.get('calorieRemainingValue').textContent,'1930','the primary balance subtracts a 70 kcal meal from a 2000 kcal target');
+assert.equal(elements.get('calorieConsumedValue').textContent,'70');
+assert.equal(elements.get('calorieTargetValue').textContent,'2000');
+uiState.foodEntries=[];
 
 assert.equal(
   ui.currentLocalDateTimeValue(new Date(2026, 7, 9, 8, 5, 42)),
