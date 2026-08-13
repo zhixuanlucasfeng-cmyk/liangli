@@ -208,7 +208,7 @@
   const CORE_REMOTE_TABLES=Object.freeze({
     task:'liangli_tasks',growth:'liangli_growth_items',goal:'liangli_goals',focus:'liangli_focus_sessions',mood:'liangli_mood_entries'
   });
-  const accountRuntime={url:'',anonKey:'',fetch:null,location:null,getStoredSession:()=>null,setStoredSession:()=>{},onSessionChange:null};
+  const accountRuntime={url:'',anonKey:'',fetch:null,location:null,history:null,getStoredSession:()=>null,setStoredSession:()=>{},onSessionChange:null};
   function accountFetch(){const fetcher=accountRuntime.fetch||root.fetch;if(typeof fetcher!=='function')throw new Error('Account sync unavailable');return fetcher;}
   function configured(){return /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(accountRuntime.url)&&typeof accountRuntime.anonKey==='string'&&accountRuntime.anonKey.length>40;}
   function activeOwner(session,generation){return AccountClient.generation===generation&&AccountClient.session?.user?.id===session?.user?.id;}
@@ -224,6 +224,7 @@
     return new Set(Object.freeze([...values]));
   }
   function safeEmail(email){const value=typeof email==='string'?email.trim():'';if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)||value.length>320)throw new Error('Invalid email');return value;}
+  function safePassword(password){if(typeof password!=='string'||password.length<6||password.length>1000)throw new Error('Invalid password');return password;}
   function safeRedirect(){
     const location=accountRuntime.location||root.location;
     if(!location||typeof location.origin!=='string'||typeof location.pathname!=='string'||!location.pathname.startsWith('/'))throw new Error('Invalid recovery redirect');
@@ -231,9 +232,9 @@
   }
 
   const AccountClient={
-    client:null,session:null,refreshPromise:null,refreshOwner:null,authInvalid:false,authorizationBlocked:false,generation:0,
+    client:null,session:null,refreshPromise:null,refreshOwner:null,authInvalid:false,authorizationBlocked:false,generation:0,authAttempt:0,
     configure(options={}){
-      for(const key of ['url','anonKey','fetch','location','getStoredSession','setStoredSession','onSessionChange'])if(Object.hasOwn(options,key))accountRuntime[key]=options[key];
+      for(const key of ['url','anonKey','fetch','location','history','getStoredSession','setStoredSession','onSessionChange'])if(Object.hasOwn(options,key))accountRuntime[key]=options[key];
       return this;
     },
     isConfigured(){return configured();},
@@ -309,18 +310,41 @@
       }
     },
     async signIn(email,password){
-      const session=this.sessionFromPayload(await this.authRequest('token?grant_type=password',{email:safeEmail(email),password}));
+      const attempt=++this.authAttempt,session=this.sessionFromPayload(await this.authRequest('token?grant_type=password',{email:safeEmail(email),password:safePassword(password)}));
+      if(attempt!==this.authAttempt)return null;
       if(!session)throw new Error('Authentication failed');return await this.activate(session);
     },
     async signUp(email,password){
-      const data=await this.authRequest('signup',{email:safeEmail(email),password}),session=this.sessionFromPayload(data);
+      const attempt=++this.authAttempt,data=await this.authRequest('signup',{email:safeEmail(email),password:safePassword(password)}),session=this.sessionFromPayload(data);
+      if(attempt!==this.authAttempt)return {session:null,user:null,discarded:true};
       if(session)await this.activate(session);return {session,user:plain(data)&&data.user?data.user:null};
     },
     async recover(email,redirectTo){
       void redirectTo;
       return await this.authRequest('recover',{email:safeEmail(email),redirect_to:safeRedirect()});
     },
-    async signOut(){try{if(this.session)await this.authRequest('logout',null,this.session.access_token);}finally{await this.activate(null);}}
+    async consumeAuthRedirect(){
+      if(!this.isConfigured())return null;
+      const location=accountRuntime.location||root.location,history=accountRuntime.history||root.history;
+      if(!location||typeof location.hash!=='string')return null;
+      const params=new URLSearchParams(location.hash.replace(/^#/,''));
+      const type=params.get('type');
+      if(!['recovery','signup','invite','magiclink'].includes(type)||!params.get('refresh_token'))return null;
+      const attempt=++this.authAttempt;
+      const session=this.sessionFromPayload(await this.authRequest('token?grant_type=refresh_token',{refresh_token:params.get('refresh_token')}));
+      if(attempt!==this.authAttempt)return null;
+      if(!session)throw new Error('Authentication failed');
+      const active=await this.activate(session);
+      if(history&&typeof history.replaceState==='function')history.replaceState(null,'',`${location.pathname||'/'}${location.search||''}`);
+      return {session:active,type};
+    },
+    async updatePassword(password){
+      if(!this.isConfigured()||!this.session?.access_token)throw new Error('Authentication failed');
+      const response=await accountFetch()(`${accountRuntime.url}/auth/v1/user`,{method:'PUT',headers:{apikey:accountRuntime.anonKey,Authorization:`Bearer ${this.session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({password:safePassword(password)})});
+      if(!response.ok)throw new Error('Authentication failed');
+      return response.status===204?{}:await response.json();
+    },
+    async signOut(){const attempt=++this.authAttempt;try{if(this.session)await this.authRequest('logout',null,this.session.access_token);}finally{if(attempt===this.authAttempt)await this.activate(null);}}
   };
 
   function createOwnerRestClient(session,generation,allowedTables,allowedRpcs=[]){

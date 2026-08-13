@@ -6,7 +6,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'">
 <meta name="theme-color" content="#0b0c0f">
 <meta name="description" content="Powy · 反假性自律的个人成长工具">
-<link rel="manifest" href="manifest.json?v=12">
+<link rel="manifest" href="manifest.json?v=13">
 <link rel="icon" href="powy-power-192.png">
 <link rel="apple-touch-icon" href="powy-power-192.png">
 <meta name="mobile-web-app-capable" content="yes">
@@ -737,6 +737,11 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
         <button type="button" class="btn ghost full" id="copyLocalFlashcards" onclick="copyLocalFlashcardsToAccount()" data-i="copyLocalCards" hidden>把本机卡片复制到此账号</button>
       </div>
     </div>
+    <section class="account-choice" id="accountPasswordReset" hidden>
+      <h3 data-i="resetPasswordTitle">设置新密码</h3>
+      <label for="accountNewPassword"><span data-i="newPasswordLabel">新密码</span><input id="accountNewPassword" type="password" minlength="6" autocomplete="new-password" data-ph="resetPasswordPh" placeholder="至少 6 位新密码"></label>
+      <button type="button" class="btn full" id="accountUpdatePassword" onclick="updateAccountPassword()" data-i="updatePassword">保存新密码</button>
+    </section>
     <section class="account-choice" id="accountFirstLoginChoices" hidden>
       <h3 data-i="firstLoginTitle">选择账号数据</h3><p class="muted" data-i="firstLoginBody">此账号还没有云端数据。请选择要保留的数据。</p>
       <div class="account-actions"><button type="button" class="btn" id="accountUploadDevice" onclick="chooseUploadDevice()" data-i="uploadThisDevice">上传这台设备的数据</button><button type="button" class="btn ghost" id="accountStartEmpty" onclick="chooseStartEmpty()" data-i="startEmpty">从空账号开始</button></div>
@@ -825,8 +830,8 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
 <script src="account-sync.js"></script>
 <script>
 /* ============ i18n ============ */
-const SUPABASE_URL='';
-const SUPABASE_ANON_KEY='';
+const SUPABASE_URL='https://rczhmavbzppssffgdnoh.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjemhtYXZienBwc3NmZmdkbm9oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1OTk4ODcsImV4cCI6MjEwMjE3NTg4N30.DRokVb4HR5zt215tz911HBNZl6iJ-WDlU3jrwYUGobw';
 const I18N={
  zh:{tagline:"反假性自律",loadTitle:"今日精力负荷",companionCat:'Power 猫',companionHuman:'人形 Power',
    companionIdle:'待命',companionContent:'状态良好',companionTired:'有些疲惫',companionExhausted:'精力耗尽',
@@ -834,7 +839,7 @@ const I18N={
    addTask:"添加任务",taskPh:"今天想完成什么？",energyLabel:"预估精力消耗",taskMore:"更多安排",taskLess:"收起安排",
    startTime:"开始时间",endTime:"结束时间",studyHelper:"学习助手",helperNone:"不需要",helperPomodoro:"番茄钟",helperFlashcards:"Flashcards",helperQuiz:"自测模式",helperChecklist:"分步清单",timeOrderError:"结束时间要晚于开始时间",openHelper:"打开学习助手",taskPomos:"个番茄",helperComing:"这个学习助手正在接入",
    flashcardsTitle:"FLASHCARDS",flashcardsLocal:"仅此设备",decksTitle:"牌组",deckNamePh:"牌组名称",createDeck:"新建牌组",cardFrontPh:"正面：问题或提示",cardBackPh:"背面：答案",addCard:"添加卡片",startReview:"开始复习",cardFrontLabel:"正面",cardBackLabel:"背面",showAnswer:"显示答案",gradeAgain:"重来",gradeHard:"困难",gradeGood:"良好",gradeEasy:"简单",flashcardKeys:"空格翻面 · 1–4 评分",backToDecks:"返回牌组",closeFlashcards:"关闭 Flashcards",deleteDeck:"删除牌组",deleteCard:"删除卡片",cardsCount:"张卡",dueCount:"待复习",emptyDecks:"还没有牌组。为一门课建一个吧。",emptyCards:"这个牌组还没有卡片。",reviewDone:"这轮复习完成了。",deckNameNeeded:"先写牌组名称",cardSidesNeeded:"正面和背面都要填写",flashcardStoreError:"本地卡片库暂时无法打开",exportJson:"导出 JSON",exportCsv:"导出 CSV",importCards:"导入",confirmImport:"确认导入",cancelImport:"取消",importReady:"准备导入",importDone:"卡片已导入",importInvalid:"导入文件格式不正确",importCollision:"个重复 ID 将复制为新卡片",selectDeckFirst:"先选择一个牌组",contentTooLong:"牌组名最多 120 字，卡片每面最多 10000 字",syncNotConfigured:"账号同步尚未配置，卡片仍安全保存在本机。",syncSignIn:"登录后可跨设备同步 Flashcards。",emailPh:"邮箱",passwordPh:"登录密码",newPasswordPh:"注册新密码",signIn:"登录",signUp:"注册",signOut:"退出",syncNow:"立即同步",copyLocalCards:"把本机卡片复制到此账号",copyLocalDone:"本机卡片已复制到账号",signedInAs:"已登录",authCheckEmail:"请检查邮箱完成注册",authError:"账号操作失败，请稍后重试",syncLocal:"仅此设备",syncWaiting:"等待同步",syncing:"正在同步",syncDone:"已同步",syncFailed:"同步失败",
-   accountWelcomeTitle:"账号与同步",accountWelcomeBody:"可选：登录后同步任务、成长、目标、专注和心情。营养与钱包仍只保存在本机。",continueOnDevice:"继续使用本机",openAccount:"注册 / 登录",accountTitle:"账号与同步",closeAccount:"关闭账号",emailLabel:"邮箱",passwordLabel:"密码",recoverPassword:"找回密码",firstLoginTitle:"选择账号数据",firstLoginBody:"此账号还没有云端数据。请选择要保留的数据。",uploadThisDevice:"上传这台设备的数据",startEmpty:"从空账号开始",startEmptyWarning:"这会为该账号创建空的同步数据；本机恢复备份会保留。",confirmStartEmpty:"确认开始",cancel:"取消",recoveryTitle:"本机恢复备份",restoreToDevice:"恢复到这台设备",noRecoveries:"还没有恢复备份",recoveryCounts:"任务 {tasks} · 成长 {growth} · 目标 {goals} · 专注 {focus} · 心情 {mood}",accountLocal:"仅此设备",accountUnavailable:"账号同步尚未配置，数据继续保存在本机。",accountFirstLoginFailed:"无法读取云端数据；当前本机数据未改变。",accountRecoveryFailed:"无法创建恢复备份；当前数据未改变。",accountChoiceFailed:"账号初始化失败；当前数据未改变。",
+   accountWelcomeTitle:"账号与同步",accountWelcomeBody:"可选：登录后同步任务、成长、目标、专注和心情。营养与钱包仍只保存在本机。",continueOnDevice:"继续使用本机",openAccount:"注册 / 登录",accountTitle:"账号与同步",closeAccount:"关闭账号",emailLabel:"邮箱",passwordLabel:"密码",recoverPassword:"找回密码",resetPasswordTitle:"设置新密码",newPasswordLabel:"新密码",resetPasswordPh:"至少 6 位新密码",updatePassword:"保存新密码",passwordUpdated:"密码已更新，可以继续使用。",firstLoginTitle:"选择账号数据",firstLoginBody:"此账号还没有云端数据。请选择要保留的数据。",uploadThisDevice:"上传这台设备的数据",startEmpty:"从空账号开始",startEmptyWarning:"这会为该账号创建空的同步数据；本机恢复备份会保留。",confirmStartEmpty:"确认开始",cancel:"取消",recoveryTitle:"本机恢复备份",restoreToDevice:"恢复到这台设备",noRecoveries:"还没有恢复备份",recoveryCounts:"任务 {tasks} · 成长 {growth} · 目标 {goals} · 专注 {focus} · 心情 {mood}",accountLocal:"仅此设备",accountUnavailable:"账号同步尚未配置，数据继续保存在本机。",accountFirstLoginFailed:"无法读取云端数据；当前本机数据未改变。",accountRecoveryFailed:"无法创建恢复备份；当前数据未改变。",accountChoiceFailed:"账号初始化失败；当前数据未改变。",
    eLight:"轻 10",eMid:"中 25",eHeavy:"重 45",addToday:"加入今日",todayTasks:"今日任务",
    poolTitle:"成长池",poolDesc:"突然冒出来的想法先存这儿，不逼自己马上做。等状态好、精力有富余时，再一键转成今日任务。",
    ideaPh:"比如：想学一点心理学…",save:"存起来",myIdeas:"我的想法",toTask:"转为任务",
@@ -862,7 +867,7 @@ const I18N={
    addTask:"Add a task",taskPh:"What do you want to get done today?",energyLabel:"Estimated energy cost",taskMore:"More options",taskLess:"Hide options",
    startTime:"Start time",endTime:"End time",studyHelper:"Study helper",helperNone:"None",helperPomodoro:"Pomodoro",helperFlashcards:"Flashcards",helperQuiz:"Self quiz",helperChecklist:"Step checklist",timeOrderError:"End time must be later than start time",openHelper:"Open study helper",taskPomos:"pomodoros",helperComing:"This study helper is being connected",
    flashcardsTitle:"FLASHCARDS",flashcardsLocal:"On this device",decksTitle:"Decks",deckNamePh:"Deck name",createDeck:"New deck",cardFrontPh:"Front: question or prompt",cardBackPh:"Back: answer",addCard:"Add card",startReview:"Start review",cardFrontLabel:"Front",cardBackLabel:"Back",showAnswer:"Show answer",gradeAgain:"Again",gradeHard:"Hard",gradeGood:"Good",gradeEasy:"Easy",flashcardKeys:"Space to flip · 1–4 to grade",backToDecks:"Back to decks",closeFlashcards:"Close Flashcards",deleteDeck:"Delete deck",deleteCard:"Delete card",cardsCount:"cards",dueCount:"due",emptyDecks:"No decks yet. Make one for a subject.",emptyCards:"This deck has no cards yet.",reviewDone:"This review is complete.",deckNameNeeded:"Name the deck first",cardSidesNeeded:"Fill in both front and back",flashcardStoreError:"The local card library could not open",exportJson:"Export JSON",exportCsv:"Export CSV",importCards:"Import",confirmImport:"Import now",cancelImport:"Cancel",importReady:"Ready to import",importDone:"Cards imported",importInvalid:"The import file is invalid",importCollision:"duplicate IDs will be copied as new cards",selectDeckFirst:"Select a deck first",contentTooLong:"Deck names are limited to 120 characters and card sides to 10,000",syncNotConfigured:"Account sync is not configured. Cards remain safe on this device.",syncSignIn:"Sign in to sync Flashcards across devices.",emailPh:"Email",passwordPh:"Sign-in password",newPasswordPh:"New sign-up password",signIn:"Sign in",signUp:"Sign up",signOut:"Sign out",syncNow:"Sync now",copyLocalCards:"Copy on-device cards to this account",copyLocalDone:"On-device cards copied to the account",signedInAs:"Signed in",authCheckEmail:"Check your email to finish signing up",authError:"Account action failed. Try again later",syncLocal:"On this device",syncWaiting:"Waiting to sync",syncing:"Syncing",syncDone:"Synced",syncFailed:"Sync failed",
-   accountWelcomeTitle:"Account & sync",accountWelcomeBody:"Optional: sign in to sync tasks, growth, goals, focus, and mood. Nutrition and Wallet stay on this device.",continueOnDevice:"Continue on this device",openAccount:"Sign up / sign in",accountTitle:"Account & sync",closeAccount:"Close account",emailLabel:"Email",passwordLabel:"Password",recoverPassword:"Recover password",firstLoginTitle:"Choose account data",firstLoginBody:"This account has no cloud data yet. Choose what to keep.",uploadThisDevice:"Upload this device",startEmpty:"Start with an empty account",startEmptyWarning:"This creates empty synced data for this account. Your local recovery backup stays here.",confirmStartEmpty:"Confirm start empty",cancel:"Cancel",recoveryTitle:"Local recovery backups",restoreToDevice:"Restore to this device",noRecoveries:"No recovery backups yet",recoveryCounts:"Tasks {tasks} · Growth {growth} · Goals {goals} · Focus {focus} · Mood {mood}",accountLocal:"On this device",accountUnavailable:"Account sync is not configured. Your data stays on this device.",accountFirstLoginFailed:"Cloud data could not be read. Your current device data is unchanged.",accountRecoveryFailed:"A recovery backup could not be created. Your current data is unchanged.",accountChoiceFailed:"Account setup failed. Your current device data is unchanged.",
+   accountWelcomeTitle:"Account & sync",accountWelcomeBody:"Optional: sign in to sync tasks, growth, goals, focus, and mood. Nutrition and Wallet stay on this device.",continueOnDevice:"Continue on this device",openAccount:"Sign up / sign in",accountTitle:"Account & sync",closeAccount:"Close account",emailLabel:"Email",passwordLabel:"Password",recoverPassword:"Recover password",resetPasswordTitle:"Set a new password",newPasswordLabel:"New password",resetPasswordPh:"At least 6 characters",updatePassword:"Save new password",passwordUpdated:"Password updated. You can keep using Powy.",firstLoginTitle:"Choose account data",firstLoginBody:"This account has no cloud data yet. Choose what to keep.",uploadThisDevice:"Upload this device",startEmpty:"Start with an empty account",startEmptyWarning:"This creates empty synced data for this account. Your local recovery backup stays here.",confirmStartEmpty:"Confirm start empty",cancel:"Cancel",recoveryTitle:"Local recovery backups",restoreToDevice:"Restore to this device",noRecoveries:"No recovery backups yet",recoveryCounts:"Tasks {tasks} · Growth {growth} · Goals {goals} · Focus {focus} · Mood {mood}",accountLocal:"On this device",accountUnavailable:"Account sync is not configured. Your data stays on this device.",accountFirstLoginFailed:"Cloud data could not be read. Your current device data is unchanged.",accountRecoveryFailed:"A recovery backup could not be created. Your current device data is unchanged.",accountChoiceFailed:"Account setup failed. Your current device data is unchanged.",
    eLight:"Light 10",eMid:"Medium 25",eHeavy:"Heavy 45",addToday:"Add to today",todayTasks:"Today's tasks",
    poolTitle:"Growth pool",poolDesc:"Park sudden ideas here without forcing yourself to act now. Turn them into tasks when you actually have energy to spare.",
    ideaPh:"e.g. I want to learn some psychology…",save:"Save",myIdeas:"My ideas",toTask:"Make a task",
@@ -909,6 +914,7 @@ async function activateAccountSession(session){
 }
 async function handleAccountSessionChange(session){
   abortAccountReconciliation();if(coreSyncController)coreSyncController.cancel();cancelStartEmpty();accountPanelMessageOverride=null;
+  accountRecoveryMode=session?readAccountRecoveryMode(session):false;
   const nextScope=session?session.user.id:'local',scopeChanged=ActiveFlashcardStore.scope!==FlashcardStore.normalizeScope(nextScope);
   ActiveFlashcardStore=FlashcardStore.forScope(nextScope);updateFlashcardAccountUI(session);
   if(session)await activateAccountSession(session);
@@ -1169,6 +1175,10 @@ if(AccountCore){
   });
 }
 let accountReturnFocus=null,pendingAccountDeviceState=null,pendingFirstLoginSession=null,accountReconciliation=null,accountPanelMessageOverride=null;
+let accountAuthAttempt=0,accountAuthBusy=false,accountRecoveryMode=false;
+function recoveryModeKey(userId){return `passwordRecovery_${String(userId||'').toLowerCase()}`;}
+function readAccountRecoveryMode(session){return Boolean(session?.user?.id&&DB.get(recoveryModeKey(session.user.id),false));}
+function writeAccountRecoveryMode(session,enabled){if(session?.user?.id)DB.set(recoveryModeKey(session.user.id),Boolean(enabled));accountRecoveryMode=Boolean(enabled);}
 const accountReconciliationGate=LiangliAccountSync.createAccountReconciliationGate();
 let welcomeReturnFocus=null;
 function openAccountPanel(){
@@ -1203,21 +1213,37 @@ function accountModalKeydown(event){
   if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
   else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
 }
-function signInAccount(){
+function setAccountAuthBusy(busy){accountAuthBusy=busy;renderAccountPanel();}
+async function signInAccount(){
   const password=document.getElementById('accountPassword');
   if(!AccountClient.isConfigured()){setAccountSyncStatus('local');return Promise.resolve(null);}
-  return AccountClient.signIn(document.getElementById('accountEmail').value,password.value).catch(()=>{setAccountMessage(T('authError'));return null;}).finally(()=>{password.value='';});
+  const attempt=++accountAuthAttempt;setAccountAuthBusy(true);
+  try{return await AccountClient.signIn(document.getElementById('accountEmail').value,password.value);}
+  catch(error){if(attempt===accountAuthAttempt)setAccountMessage(T('authError'));return null;}
+  finally{password.value='';if(attempt===accountAuthAttempt)setAccountAuthBusy(false);}
 }
-function signUpAccount(){
+async function signUpAccount(){
   const password=document.getElementById('accountPassword');
   if(!AccountClient.isConfigured()){setAccountSyncStatus('local');return Promise.resolve(null);}
-  return AccountClient.signUp(document.getElementById('accountEmail').value,password.value).then(result=>{if(!result.session)toast(T('authCheckEmail'));return result;}).catch(()=>{setAccountMessage(T('authError'));return null;}).finally(()=>{password.value='';});
+  const attempt=++accountAuthAttempt;setAccountAuthBusy(true);
+  try{const result=await AccountClient.signUp(document.getElementById('accountEmail').value,password.value);if(!result.discarded&&!result.session)toast(T('authCheckEmail'));return result;}
+  catch(error){if(attempt===accountAuthAttempt)setAccountMessage(T('authError'));return null;}
+  finally{password.value='';if(attempt===accountAuthAttempt)setAccountAuthBusy(false);}
 }
-function recoverAccount(){
+async function recoverAccount(){
   if(!AccountClient.isConfigured()){setAccountSyncStatus('local');return Promise.resolve(null);}
-  return AccountClient.recover(document.getElementById('accountEmail').value).then(()=>setAccountMessage(T('authCheckEmail'))).catch(()=>setAccountMessage(T('authError')));
+  const attempt=++accountAuthAttempt;setAccountAuthBusy(true);
+  try{const result=await AccountClient.recover(document.getElementById('accountEmail').value);if(attempt===accountAuthAttempt)setAccountMessage(T('authCheckEmail'));return result;}
+  catch(error){if(attempt===accountAuthAttempt)setAccountMessage(T('authError'));return null;}
+  finally{if(attempt===accountAuthAttempt)setAccountAuthBusy(false);}
 }
-function signOutAccount(){return AccountClient.signOut().catch(()=>setAccountMessage(T('authError')));}
+async function updateAccountPassword(){
+  const input=document.getElementById('accountNewPassword'),button=document.getElementById('accountUpdatePassword');button.disabled=true;
+  try{await AccountClient.updatePassword(input.value);input.value='';writeAccountRecoveryMode(AccountClient.session,false);setAccountMessage(T('passwordUpdated'));renderAccountPanel();return true;}
+  catch(error){setAccountMessage(T('authError'));return false;}
+  finally{button.disabled=false;}
+}
+function signOutAccount(){writeAccountRecoveryMode(AccountClient.session,false);return AccountClient.signOut().catch(()=>setAccountMessage(T('authError')));}
 function setAccountMessage(message){const status=document.getElementById('accountSyncStatus');if(status)status.textContent=message;}
 function setAccountPanelError(message){accountPanelMessageOverride=message;setAccountMessage(message);}
 function setAccountSyncStatus(status){
@@ -1271,12 +1297,13 @@ function restoreCoreRecovery(key){
 }
 function renderAccountPanel(){
   const configured=AccountClient.isConfigured(),session=AccountClient.session,signedIn=Boolean(session);
-  for(const id of ['accountEmail','accountPassword'])document.getElementById(id).disabled=signedIn;
-  for(const id of ['accountSignIn','accountSignUp','accountRecover'])document.getElementById(id).disabled=!configured||signedIn;
+  for(const id of ['accountEmail','accountPassword'])document.getElementById(id).disabled=signedIn||accountAuthBusy;
+  for(const id of ['accountSignIn','accountSignUp','accountRecover'])document.getElementById(id).disabled=!configured||signedIn||accountAuthBusy;
   document.getElementById('accountSignOut').hidden=!signedIn;
   document.getElementById('accountSyncNow').disabled=!signedIn||navigator.onLine===false;
   document.getElementById('copyLocalFlashcards').hidden=!signedIn;
   document.getElementById('accountFirstLoginChoices').hidden=!pendingFirstLoginSession;
+  document.getElementById('accountPasswordReset').hidden=!accountRecoveryMode;
   if(accountPanelMessageOverride)setAccountMessage(accountPanelMessageOverride);
   else if(!signedIn)setAccountMessage(T(configured?'syncSignIn':'accountUnavailable'));
   else if(!pendingFirstLoginSession)setAccountMessage(`${T('signedInAs')} ${session.user.email||''}`);
@@ -1345,6 +1372,23 @@ function showAccountWelcome(){
     welcomeReturnFocus=document.activeElement;welcome.hidden=false;const app=document.querySelector('.app');app.inert=true;app.setAttribute('aria-hidden','true');document.body.style.overflow='hidden';
     setTimeout(()=>welcome.querySelectorAll('button:not([disabled]),input:not([disabled])')[0]?.focus(),0);
   }catch(error){}
+}
+async function initializeAccount(){
+  if(!AccountClient.isConfigured()){showAccountWelcome();return null;}
+  try{
+    const redirect=await AccountClient.consumeAuthRedirect();
+    if(redirect){
+      writeAccountRecoveryMode(redirect.session,redirect.type==='recovery');
+      if(redirect.type==='recovery'){closeAccountWelcome({markSeen:true});openAccountPanel();}
+      else showAccountWelcome();
+      renderAccountPanel();scheduleCoreSync('login');manualFlashcardSync();return redirect.session;
+    }
+    const session=await AccountClient.restoreSession();
+    accountRecoveryMode=readAccountRecoveryMode(session);
+    if(accountRecoveryMode){closeAccountWelcome({markSeen:true});openAccountPanel();}
+    if(session){scheduleCoreSync('login');manualFlashcardSync();}
+    showAccountWelcome();return session;
+  }catch(error){updateFlashcardAccountUI(null);showAccountWelcome();return null;}
 }
 function welcomeModalKeydown(event){
   if(event.key==='Escape'){event.preventDefault();continueOnThisDevice();return;}
@@ -3963,8 +4007,7 @@ document.getElementById('goalName').addEventListener('keydown',e=>{if(e.key==='E
 applyLang(); drawRing();
 loadAppearance();
 updateFlashcardAccountUI(null);
-showAccountWelcome();
-if(AccountClient.isConfigured())AccountClient.restoreSession().then(session=>{if(session){scheduleCoreSync('login');manualFlashcardSync();}}).catch(()=>updateFlashcardAccountUI(null));
+initializeAccount();
 if(rolledOverAtStartup)toast(T('newDayReset'));
 scheduleNextRollover();
 document.addEventListener('visibilitychange',()=>{

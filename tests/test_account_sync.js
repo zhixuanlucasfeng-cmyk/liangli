@@ -147,7 +147,7 @@ async function testAccountClient(){
     location:{origin:'https://app.example',pathname:'/planner'},
   };
   AccountClient.configure(validConfig);
-  AccountClient.session=null;AccountClient.generation=0;AccountClient.authInvalid=false;AccountClient.authorizationBlocked=false;
+  AccountClient.session=null;AccountClient.generation=0;AccountClient.authAttempt=0;AccountClient.authInvalid=false;AccountClient.authorizationBlocked=false;
 
   const session={access_token:'token-one',refresh_token:'refresh-one',expires_at:4102444800,user:{id:'u1'}};
   nextResponses=[{ok:true,status:200,json:async()=>({access_token:'token-one',refresh_token:'refresh-one',expires_in:3600,user:{id:'u1'}})}];
@@ -391,6 +391,62 @@ async function testAccountClient(){
     await AccountClient.signIn('log-safe@example.com','log-safe-password');
   }finally{Object.assign(console,originalConsole);}
   assert.equal(logged.length,0, 'auth operations do not log token, email, password, or response bodies');
+
+  let releaseFirstLogin,releaseSecondLogin;
+  validConfig.fetch=async(url,options)=>{
+    requests.push({url,options});
+    const email=JSON.parse(options.body).email;
+    return await new Promise(resolve=>{
+      if(email==='first@example.com')releaseFirstLogin=resolve;
+      else if(email==='second@example.com')releaseSecondLogin=resolve;
+    });
+  };
+  AccountClient.configure(validConfig);
+  const firstLogin=AccountClient.signIn('first@example.com','first-password');
+  const secondLogin=AccountClient.signIn('second@example.com','second-password');
+  releaseSecondLogin({ok:true,status:200,json:async()=>({access_token:'second-token',refresh_token:'second-refresh',expires_in:3600,user:{id:'second-user',email:'second@example.com'}})});
+  assert.equal((await secondLogin).user.id,'second-user');
+  releaseFirstLogin({ok:true,status:200,json:async()=>({access_token:'first-token',refresh_token:'first-refresh',expires_in:3600,user:{id:'first-user',email:'first@example.com'}})});
+  assert.equal(await firstLogin,null,'an older login response is discarded when a newer login finishes first');
+  assert.equal(AccountClient.session.user.id,'second-user','the most recently started login remains active');
+
+  const replaced=[];
+  validConfig.location={origin:'https://app.example',pathname:'/planner',search:'?lang=zh',hash:'#access_token=recovery-token&refresh_token=recovery-refresh&type=recovery&expires_in=3600'};
+  validConfig.history={replaceState:(state,title,url)=>replaced.push(url)};
+  validConfig.fetch=async(url,options)=>{
+    requests.push({url,options});
+    if(url.includes('grant_type=refresh_token'))return {ok:true,status:200,json:async()=>({access_token:'recovered-token',refresh_token:'recovered-refresh',expires_in:3600,user:{id:'recovery-user',email:'owner@example.com'}})};
+    if(url.endsWith('/auth/v1/user'))return {ok:true,status:200,json:async()=>({id:'recovery-user',email:'owner@example.com'})};
+    return {ok:true,status:200,json:async()=>({})};
+  };
+  AccountClient.configure(validConfig);
+  const recoveryRedirect=await AccountClient.consumeAuthRedirect();
+  assert.equal(recoveryRedirect.session.user.id,'recovery-user','a recovery email redirect activates its password-reset session');
+  assert.equal(recoveryRedirect.type,'recovery');
+  assert.deepEqual(replaced,['/planner?lang=zh'],'password recovery tokens are removed from the browser URL immediately');
+  await AccountClient.updatePassword('replacement-password');
+  assert.equal(requests.at(-1).url,'https://project.supabase.co/auth/v1/user');
+  assert.equal(requests.at(-1).options.method,'PUT');
+  assert.deepEqual(JSON.parse(requests.at(-1).options.body),{password:'replacement-password'});
+  assert.equal(requests.at(-1).options.headers.Authorization,'Bearer recovered-token');
+
+  const failedReplacements=[];
+  validConfig.location={origin:'https://app.example',pathname:'/planner',search:'',hash:'#refresh_token=retryable-refresh&type=recovery'};
+  validConfig.history={replaceState:(state,title,url)=>failedReplacements.push(url)};
+  validConfig.fetch=async()=>{throw new TypeError('Failed to fetch');};
+  AccountClient.configure(validConfig);
+  await assert.rejects(AccountClient.consumeAuthRedirect(),/Failed to fetch/);
+  assert.deepEqual(failedReplacements,[],'a failed recovery exchange keeps the email-link fragment available for retry');
+
+  const signupReplacements=[];
+  validConfig.location={origin:'https://app.example',pathname:'/planner',search:'',hash:'#refresh_token=signup-refresh&type=signup'};
+  validConfig.history={replaceState:(state,title,url)=>signupReplacements.push(url)};
+  validConfig.fetch=async()=>({ok:true,status:200,json:async()=>({access_token:'signup-token',refresh_token:'signup-next',expires_in:3600,user:{id:'signup-user',email:'new@example.com'}})});
+  AccountClient.configure(validConfig);
+  const signupRedirect=await AccountClient.consumeAuthRedirect();
+  assert.equal(signupRedirect.type,'signup','an email-confirmation redirect is distinguished from password recovery');
+  assert.equal(signupRedirect.session.user.id,'signup-user','email confirmation activates the new account');
+  assert.deepEqual(signupReplacements,['/planner'],'email-confirmation credentials are removed from browser history');
 
   validConfig.fetch=async(url,options)=>{
     requests.push({url,options});

@@ -23,6 +23,8 @@ function makeContext(record){
     renderAccountPanel:()=>calls.push(['render-account']),renderAll:()=>calls.push(['render-all']),
     T:key=>key,ActiveFlashcardStore:{scope:'local'},FlashcardStore:{normalizeScope:value=>value,forScope:value=>({scope:value})},
     updateFlashcardAccountUI:session=>calls.push(['flash-ui',session?.user?.id||null]),resetFlashcardScopeUI:()=>calls.push(['flash-reset']),
+    readAccountRecoveryMode:session=>{calls.push(['recovery-mode',session?.user?.id||null]);return session?.user?.id==='recovery-user';},
+    accountRecoveryMode:true,
   };
   context.globalThis=context;vm.createContext(context);
   vm.runInContext(`${script.slice(start,end)};globalThis.activateAccountSession=activateAccountSession;globalThis.handleAccountSessionChange=handleAccountSessionChange;`,context);
@@ -49,7 +51,12 @@ function makeContext(record){
 
   const signedOut=makeContext({status:'valid',state:validState});
   await signedOut.context.handleAccountSessionChange(null);
+  assert.equal(signedOut.context.accountRecoveryMode,false,'sign-out clears any in-memory password recovery mode');
   assert(signedOut.calls.some(call=>call[0]==='activate'&&call[1]==='local'),'sign-out returns to the anonymous local scope');
   assert(!signedOut.calls.some(call=>call[0]==='first-login'||call[0]==='resume'),'sign-out never starts account reconciliation');
+
+  const switched=makeContext({status:'valid',state:validState});
+  await switched.context.handleAccountSessionChange({access_token:'other',user:{id:'other-user'}});
+  assert.equal(switched.context.accountRecoveryMode,false,'switching accounts cannot leak password recovery mode to the new owner');
   console.log('account session restore behavior: ok');
 })().catch(error=>{console.error(error.stack||error);process.exitCode=1;});

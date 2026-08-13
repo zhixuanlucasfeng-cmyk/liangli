@@ -59,7 +59,7 @@ liangli/
 assets/power-{cat|human}/{idle|content|tired|exhausted}.{mp4|webp}
 ```
 
-Service Worker 的应用壳缓存当前为 `liangli-v12`。安装时预缓存 HTML、`account-sync.js`、manifest、图标和 8 张 WebP poster；MP4 第一次播放后写入 `liangli-video-v1`，并正确响应浏览器的 Range 请求。Supabase Auth、PostgREST/REST、令牌和所有跨域响应保持 network-only：它们不会进入 Service Worker 缓存。
+Service Worker 的应用壳缓存当前为 `liangli-v13`。安装时预缓存 HTML、`account-sync.js`、manifest、图标和 8 张 WebP poster；MP4 第一次播放后写入 `liangli-video-v1`，并正确响应浏览器的 Range 请求。Supabase Auth、PostgREST/REST、令牌和所有跨域响应保持 network-only：它们不会进入 Service Worker 缓存。
 
 ### 素材生成与验收
 
@@ -169,7 +169,7 @@ gh repo create liangli --public --source=. --push
    ```
 
    脚本会拒绝没有 `CORE_SYNC_TEST_DISPOSABLE=1` 的运行，并会创建/删除测试行；不要在生产库设置这个变量，也不要把连接字符串或任何密钥提交到仓库。
-4. 只在 `index.html` 顶部填写公开的 `SUPABASE_URL` 与 `SUPABASE_ANON_KEY`；两个默认值应保持空白，直到上述迁移和验收全部完成。浏览器客户端**绝不能**填写 service-role、管理密钥或数据库密码。认证和数据请求由原生 `fetch` 完成，不加载第三方 JavaScript。
+4. 只在 `index.html` 顶部填写公开的 `SUPABASE_URL` 与 `SUPABASE_ANON_KEY`。生产站点已经在迁移和验收完成后配置这两个公开值；浏览器客户端**绝不能**填写 service-role、管理密钥或数据库密码。认证和数据请求由原生 `fetch` 完成，不加载第三方 JavaScript。
 5. 部署 GitHub Pages 后，记下最终的 HTTPS 地址及路径。若按上面的仓库名部署，它是 `https://<你的用户名>.github.io/liangli/`。在 Supabase Auth → URL Configuration 中，把 **Site URL** 设为这个完整 HTTPS origin/path，并把**同一个完整字符串**加入 Allowed Redirect URLs；不要用 `http://`、`127.0.0.1`、局域网地址或缺少仓库路径的根域名替代它。
 6. 在生产前用真实浏览器逐项确认：注册、邮箱验证、密码恢复、两个不同账号互相不可见（RLS）、一台设备离线写入后恢复联网、退出账号后不继续上传，以及恢复会话/重新登录后只恢复该账号的数据。还要在两台设备上做一次离线编辑与重新上线合并。
 7. 只有本地发布套件、以上 disposable SQL 验收和实机清单都通过后，才推送并启用生产同步。

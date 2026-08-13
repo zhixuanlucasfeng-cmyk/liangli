@@ -143,7 +143,7 @@ const vm = require('node:vm');
 const html = fs.readFileSync('index.html', 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const start = script.indexOf('let accountReturnFocus=');
-const end = script.indexOf('function signInAccount(', start);
+const end = script.indexOf('async function signInAccount(', start);
 assert.notEqual(start, -1, 'account modal controller must keep a return-focus target');
 assert.notEqual(end, -1, 'account modal controller must expose global auth actions');
 
@@ -224,7 +224,7 @@ const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const start = script.indexOf('let accountReturnFocus=');
 const end = script.indexOf('async function beginAccountFirstLogin(', start);
 const status={textContent:''};
-const ids=['accountEmail','accountPassword','accountSignIn','accountSignUp','accountRecover','accountSignOut','accountSyncNow','copyLocalFlashcards','accountFirstLoginChoices','coreRecoveryItems'];
+const ids=['accountEmail','accountPassword','accountSignIn','accountSignUp','accountRecover','accountSignOut','accountSyncNow','copyLocalFlashcards','accountFirstLoginChoices','accountPasswordReset','accountUpdatePassword','coreRecoveryItems'];
 const elements=new Map(ids.map(id=>[id,{disabled:false,hidden:false,textContent:'',innerHTML:'',setAttribute(){}}]));
 elements.set('accountSyncStatus',status);
 const document={body:{style:{}},activeElement:null,querySelector(){return {inert:false,setAttribute(){},removeAttribute(){}};},getElementById:id=>elements.get(id)};
@@ -244,7 +244,7 @@ const html = fs.readFileSync('index.html', 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const start = script.indexOf('let accountReturnFocus=');
 const end = script.indexOf('async function beginAccountFirstLogin(', start);
-const ids=['accountEmail','accountPassword','accountSignIn','accountSignUp','accountRecover','accountSignOut','accountSyncNow','copyLocalFlashcards','accountFirstLoginChoices','coreRecoveryItems','accountSyncStatus'];
+const ids=['accountEmail','accountPassword','accountSignIn','accountSignUp','accountRecover','accountSignOut','accountSyncNow','copyLocalFlashcards','accountFirstLoginChoices','accountPasswordReset','accountUpdatePassword','coreRecoveryItems','accountSyncStatus'];
 const elements=new Map(ids.map(id=>[id,{disabled:false,hidden:false,textContent:'',innerHTML:'',setAttribute(){}}]));
 const document={body:{style:{}},activeElement:null,querySelector(){return {inert:false,setAttribute(){},removeAttribute(){}};},getElementById:id=>elements.get(id)};
 const context={document,navigator:{onLine:true},AccountClient:{generation:0,session:null,isConfigured(){return false;}},LiangliAccountSync:{createAccountReconciliationGate(){return {acquire(){return {};},owns(){return true;},release(){return true;}};},createCoreRecoveryStore(){return {list(){return [];},restore(){},save(){}};}},T:key=>key,esc:value=>String(value),setTimeout(){}};
@@ -299,7 +299,7 @@ class MangaUIContractTests(unittest.TestCase):
             HTML,
             r'<link\s+rel="icon"\s+href="powy-power-192\.png">',
         )
-        self.assertIn('<link rel="manifest" href="manifest.json?v=12">', HTML)
+        self.assertIn('<link rel="manifest" href="manifest.json?v=13">', HTML)
 
     def test_standalone_mode_has_standard_and_apple_metadata(self):
         self.assertIn('<meta name="mobile-web-app-capable" content="yes">', HTML)
@@ -375,8 +375,8 @@ class MangaUIContractTests(unittest.TestCase):
 
     def test_flashcard_sync_is_optional_and_secret_safe(self):
         compact = HTML.replace(" ", "")
-        self.assertIn("constSUPABASE_URL=''", compact)
-        self.assertIn("constSUPABASE_ANON_KEY=''", compact)
+        self.assertIn("constSUPABASE_URL='https://rczhmavbzppssffgdnoh.supabase.co'", compact)
+        self.assertRegex(compact, r"constSUPABASE_ANON_KEY='eyJ[A-Za-z0-9_.-]{100,}'")
         self.assertNotIn("service_role", HTML.lower())
         self.assertIn('id="accountModal"', HTML)
         self.assertIn('id="accountSyncNow"', HTML)
@@ -388,33 +388,42 @@ class MangaUIContractTests(unittest.TestCase):
         self.assertIn("AccountClient.configure", HTML)
         self.assertIn("createOwnerRestClient", HTML)
         self.assertIn("async recover", ACCOUNT_SYNC)
+        self.assertIn("async consumeAuthRedirect", ACCOUNT_SYNC)
         self.assertIn("liangli-auth-refresh", ACCOUNT_SYNC)
         self.assertIn("helperRefs", HTML)
         self.assertIn("flashCopyMap_", HTML)
         self.assertIn("addEventListener('storage'", HTML)
+        self.assertIn("passwordRecovery_", HTML)
+        self.assertIn("readAccountRecoveryMode(session)", HTML)
+        self.assertRegex(HTML, r"handleAccountSessionChange\(session\)[\s\S]{0,400}accountRecoveryMode=session\?readAccountRecoveryMode\(session\):false")
+        self.assertIn("writeAccountRecoveryMode(AccountClient.session,false)", HTML)
 
     def test_global_account_onboarding_is_accessible_and_bilingual(self):
         for element_id in (
             'accountAvatar', 'accountWelcome', 'accountWelcomeContinue', 'accountModal',
             'accountClose', 'accountEmail', 'accountPassword', 'accountSignIn',
             'accountSignUp', 'accountRecover', 'accountSignOut', 'accountSyncStatus',
+            'accountPasswordReset', 'accountNewPassword', 'accountUpdatePassword',
             'accountFirstLoginChoices', 'accountStartEmptyConfirm', 'coreRecoveryList',
         ):
             self.assertIn(f'id="{element_id}"', HTML)
         self.assertRegex(HTML, r'<button\b(?=[^>]*\bid="accountAvatar")(?=[^>]*\baria-label=)[^>]*>')
         self.assertRegex(HTML, r'<label\b[^>]*\bfor="accountEmail"')
         self.assertRegex(HTML, r'<label\b[^>]*\bfor="accountPassword"')
+        self.assertRegex(HTML, r'<label\b[^>]*\bfor="accountNewPassword"')
         self.assertIn('role="dialog"', HTML)
         self.assertIn('aria-modal="true"', HTML)
         start_empty = re.search(r'function chooseStartEmpty\(\)[\s\S]*?\n}', HTML)
         self.assertIsNotNone(start_empty)
         self.assertNotIn('confirm(', start_empty.group(0))
         for key in ('accountWelcomeTitle', 'continueOnDevice', 'accountTitle', 'recoverPassword',
+                    'resetPasswordTitle', 'updatePassword', 'passwordUpdated',
                     'uploadThisDevice', 'startEmpty', 'restoreToDevice'):
             self.assertEqual(len(re.findall(rf"\b{key}:", HTML)), 2)
         compact = HTML.replace(' ', '')
         for function_name in ('openAccountPanel', 'closeAccountPanel', 'signInAccount',
                               'signUpAccount', 'recoverAccount', 'signOutAccount',
+                              'updateAccountPassword', 'initializeAccount',
                               'chooseUploadDevice', 'chooseStartEmpty', 'restoreCoreRecovery'):
             self.assertIn(f'function{function_name}(', compact)
 
