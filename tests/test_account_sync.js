@@ -160,10 +160,27 @@ async function testAccountClient(){
   await AccountClient.signUp('new@example.com','another-password');
   assert.equal(requests[1].url,'https://project.supabase.co/auth/v1/signup');
 
+  nextResponses=[{ok:false,status:422,json:async()=>({error_code:'user_already_exists',msg:'User already registered'})}];
+  await assert.rejects(
+    AccountClient.signUp('existing@example.com','password-value'),
+    error=>error.code==='user_already_exists'&&error.status===422,
+    'signup preserves the safe Supabase error code so the UI can explain a rejected registration',
+  );
+  await assert.rejects(
+    AccountClient.signUp('not-an-email','password-value'),
+    error=>error.code==='invalid_email',
+    'local email validation exposes a safe code instead of an unexplained generic failure',
+  );
+  await assert.rejects(
+    AccountClient.signUp('new@example.com','short'),
+    error=>error.code==='weak_password',
+    'local password validation exposes a safe code instead of an unexplained generic failure',
+  );
+
   nextResponses=[{ok:true,status:200,json:async()=>({})}];
   await AccountClient.recover('  owner@example.com  ','https://attacker.example/reset');
-  assert.equal(requests[2].url,'https://project.supabase.co/auth/v1/recover');
-  assert.deepEqual(JSON.parse(requests[2].options.body),{email:'owner@example.com',redirect_to:'https://app.example/planner'});
+  assert.equal(requests[3].url,'https://project.supabase.co/auth/v1/recover');
+  assert.deepEqual(JSON.parse(requests[3].options.body),{email:'owner@example.com',redirect_to:'https://app.example/planner'});
 
   await AccountClient.activate(session);
   const client=api.createOwnerRestClient(session,AccountClient.generation,['liangli_tasks']);
@@ -178,20 +195,20 @@ async function testAccountClient(){
   nextResponses=[{ok:true,status:200,json:async()=>[{id:'task-1'}]}];
   const listed=await client.table('liangli_tasks').select('*');
   assert.deepEqual(listed,{data:[{id:'task-1'}],error:null});
-  assert.equal(requests[3].url,'https://project.supabase.co/rest/v1/liangli_tasks?select=*');
-  assert.equal(requests[3].options.headers.Authorization,'Bearer token-one');
-  assert.equal(requests[3].options.headers['Content-Type'],'application/json');
-  assert.equal(requests[3].options.headers.apikey,'a'.repeat(41));
+  assert.equal(requests[4].url,'https://project.supabase.co/rest/v1/liangli_tasks?select=*');
+  assert.equal(requests[4].options.headers.Authorization,'Bearer token-one');
+  assert.equal(requests[4].options.headers['Content-Type'],'application/json');
+  assert.equal(requests[4].options.headers.apikey,'a'.repeat(41));
 
   nextResponses=[{ok:true,status:200,json:async()=>[]}];
   await client.table('liangli_tasks').select('*',{clientUpdatedAtOrAfter:now});
-  assert.equal(requests[4].url,`https://project.supabase.co/rest/v1/liangli_tasks?select=*&client_updated_at=gte.${now}`, 'the explicit inclusive core cursor option produces a gte REST filter');
+  assert.equal(requests[5].url,`https://project.supabase.co/rest/v1/liangli_tasks?select=*&client_updated_at=gte.${now}`, 'the explicit inclusive core cursor option produces a gte REST filter');
 
   nextResponses=[{ok:true,status:200,json:async()=>({initialized:true})}];
   const initialized=await initializerClient.rpc('initialize_liangli_core_sync',{p_tasks:[],p_growth_items:[],p_goals:[],p_focus_sessions:[],p_mood_entries:[]});
   assert.deepEqual(initialized,{data:{initialized:true},error:null}, 'the exact initializer RPC returns its server commit result');
-  assert.equal(requests[5].url,'https://project.supabase.co/rest/v1/rpc/initialize_liangli_core_sync');
-  assert.deepEqual(JSON.parse(requests[5].options.body),{p_tasks:[],p_growth_items:[],p_goals:[],p_focus_sessions:[],p_mood_entries:[]});
+  assert.equal(requests[6].url,'https://project.supabase.co/rest/v1/rpc/initialize_liangli_core_sync');
+  assert.deepEqual(JSON.parse(requests[6].options.body),{p_tasks:[],p_growth_items:[],p_goals:[],p_focus_sessions:[],p_mood_entries:[]});
 
   const representedRow={id:uuid,user_id:'u1',payload:state.tasks[0],client_updated_at:state.tasks[0].updatedAt,deleted_at:null};
   nextResponses=[{ok:true,status:201,json:async()=>[representedRow]}];

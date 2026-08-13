@@ -223,8 +223,9 @@
     if(values.some(value=>typeof value!=='string'||!/^initialize_liangli_core_sync$/.test(value)))throw new Error('Invalid cloud RPC allowlist');
     return new Set(Object.freeze([...values]));
   }
-  function safeEmail(email){const value=typeof email==='string'?email.trim():'';if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)||value.length>320)throw new Error('Invalid email');return value;}
-  function safePassword(password){if(typeof password!=='string'||password.length<6||password.length>1000)throw new Error('Invalid password');return password;}
+  function codedAuthError(code,message,status=0){const error=new Error(message);error.code=code;error.status=status;return error;}
+  function safeEmail(email){const value=typeof email==='string'?email.trim():'';if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)||value.length>320)throw codedAuthError('invalid_email','Invalid email');return value;}
+  function safePassword(password){if(typeof password!=='string'||password.length<6||password.length>1000)throw codedAuthError('weak_password','Invalid password');return password;}
   function safeRedirect(){
     const location=accountRuntime.location||root.location;
     if(!location||typeof location.origin!=='string'||typeof location.pathname!=='string'||!location.pathname.startsWith('/'))throw new Error('Invalid recovery redirect');
@@ -241,7 +242,13 @@
     async authRequest(path,body,token=''){
       if(!this.isConfigured())throw new Error('Account sync unavailable');
       const response=await accountFetch()(`${accountRuntime.url}/auth/v1/${path}`,{method:'POST',headers:{apikey:accountRuntime.anonKey,'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:body==null?undefined:JSON.stringify(body)});
-      if(!response.ok){const error=new Error('Authentication failed');error.authRejected=[400,401,403].includes(response.status);error.status=response.status;throw error;}
+      if(!response.ok){
+        let payload={};try{payload=await response.json();}catch{}
+        const safeCodes=new Set(['email_address_invalid','email_exists','invalid_credentials','over_email_send_rate_limit','over_request_rate_limit','signup_disabled','user_already_exists','weak_password']);
+        const responseCode=typeof payload?.error_code==='string'?payload.error_code:'';
+        const error=codedAuthError(safeCodes.has(responseCode)?responseCode:'auth_failed','Authentication failed',response.status);
+        error.authRejected=[400,401,403].includes(response.status);throw error;
+      }
       return response.status===204?{}:await response.json();
     },
     sessionFromPayload(data){

@@ -236,6 +236,25 @@ context.accountStatus.renderAccountPanel();
 assert.equal(status.textContent,'cloud validation failed','rendering the signed-in panel preserves an explicit initialized-login error in its live region');
 """
 
+ACCOUNT_AUTH_ERROR_HARNESS = r"""
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const html = fs.readFileSync('index.html', 'utf8');
+const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+const start = script.indexOf('let accountReturnFocus=');
+const end = script.indexOf('async function beginAccountFirstLogin(', start);
+const context={document:{body:{style:{}},activeElement:null,querySelector(){return {inert:false,setAttribute(){},removeAttribute(){}};},getElementById(){return null;}},navigator:{onLine:true},AccountClient:{generation:0,session:null,isConfigured(){return true;}},LiangliAccountSync:{createAccountReconciliationGate(){return {acquire(){return {};},owns(){return true;},release(){return true;}};},createCoreRecoveryStore(){return {list(){return [];},restore(){},save(){}};}},T:key=>key,esc:value=>String(value),setTimeout(){}};
+vm.createContext(context);
+vm.runInContext(`${script.slice(start,end)}\n;globalThis.accountAuthErrorKey=accountAuthErrorKey;`,context);
+assert.equal(context.accountAuthErrorKey({code:'invalid_email'}),'authInvalidEmail');
+assert.equal(context.accountAuthErrorKey({code:'weak_password'}),'authWeakPassword');
+assert.equal(context.accountAuthErrorKey({code:'user_already_exists'}),'authAlreadyRegistered');
+assert.equal(context.accountAuthErrorKey({code:'invalid_credentials'}),'authInvalidCredentials');
+assert.equal(context.accountAuthErrorKey({status:500}),'authServerError');
+assert.equal(context.accountAuthErrorKey(new TypeError('Failed to fetch')),'authNetworkError');
+"""
+
 ACCOUNT_UNCONFIGURED_HARNESS = r"""
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -455,7 +474,12 @@ class MangaUIContractTests(unittest.TestCase):
         for function_name in ('signInAccount', 'signUpAccount', 'recoverAccount'):
             match = re.search(rf"async function {function_name}\(\)\{{([\s\S]*?)\n\}}", HTML)
             self.assertIsNotNone(match)
-            self.assertIn("setAccountPanelError(T('authError'))", match.group(1))
+            self.assertIn("setAccountPanelError(T(accountAuthErrorKey(error)))", match.group(1))
+
+    def test_auth_errors_are_mapped_to_actionable_safe_messages(self):
+        result = subprocess.run(['node', '-e', ACCOUNT_AUTH_ERROR_HARNESS], cwd=ROOT, text=True,
+                                capture_output=True, timeout=5, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_all_five_views_have_manga_identity(self):
         for view in ("today", "pool", "goals", "focus", "life"):
