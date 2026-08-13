@@ -242,6 +242,79 @@ async function testAccountClient(){
   await AccountClient.restoreSession();
   assert.equal(restoredTransitions.length,1,'re-reading the already-active same-user session does not emit another identity transition');
   assert.equal(AccountClient.generation,restoredGeneration,'re-reading the already-active same-user session preserves its generation');
+
+  const offlineTransitions=[];
+  const offlineExpired={access_token:'offline-expired',refresh_token:'offline-refresh',expires_at:1,user:{id:'offline-user'}};
+  stored.session=offlineExpired;AccountClient.session=null;AccountClient.generation=30;AccountClient.refreshPromise=null;
+  validConfig.onSessionChange=session=>offlineTransitions.push(session);
+  validConfig.fetch=async()=>{throw new TypeError('Failed to fetch');};
+  AccountClient.configure(validConfig);
+  const offlineRestored=await AccountClient.restoreSession();
+  assert.equal(offlineRestored.user.id,'offline-user','an expired stored identity resumes locally when refresh transport is offline');
+  assert.equal(AccountClient.session.user.id,'offline-user','offline refresh failure keeps the active account identity');
+  assert.equal(stored.session.user.id,'offline-user','offline refresh failure preserves the durable stored session');
+  assert.deepEqual(offlineTransitions.map(session=>session?.user?.id),['offline-user'],
+    'offline startup activates the stored account scope exactly once before refresh');
+
+  const unavailableTransitions=[];
+  const unavailableExpired={access_token:'unavailable-expired',refresh_token:'unavailable-refresh',expires_at:1,user:{id:'unavailable-user'}};
+  stored.session=unavailableExpired;AccountClient.session=null;AccountClient.generation=32;AccountClient.refreshPromise=null;
+  validConfig.onSessionChange=session=>unavailableTransitions.push(session);
+  validConfig.fetch=async()=>({ok:false,status:503,json:async()=>({error:'temporarily_unavailable'})});
+  AccountClient.configure(validConfig);
+  const unavailableRestored=await AccountClient.restoreSession();
+  assert.equal(unavailableRestored.user.id,'unavailable-user','a transient auth-service failure retains the returning account');
+  assert.equal(stored.session.user.id,'unavailable-user','a transient auth-service failure preserves the durable session');
+  assert.deepEqual(unavailableTransitions.map(session=>session?.user?.id),['unavailable-user'],
+    'a transient auth-service failure never emits sign-out');
+
+  const rejectedTransitions=[];
+  const rejectedExpired={access_token:'rejected-expired',refresh_token:'rejected-refresh',expires_at:1,user:{id:'rejected-user'}};
+  stored.session=rejectedExpired;AccountClient.session=null;AccountClient.generation=35;AccountClient.refreshPromise=null;
+  validConfig.onSessionChange=session=>rejectedTransitions.push(session);
+  validConfig.fetch=async()=>({ok:false,status:400,json:async()=>({error:'invalid_grant'})});
+  AccountClient.configure(validConfig);
+  await assert.rejects(AccountClient.restoreSession(),/Authentication failed/);
+  assert.equal(AccountClient.session,null,'a definitive refresh-token rejection clears the active session');
+  assert.equal(stored.session,null,'a definitive refresh-token rejection clears the durable session');
+  assert.deepEqual(rejectedTransitions.map(session=>session?.user?.id||null),['rejected-user',null],
+    'a definitive rejection first resumes locally and then emits one explicit sign-out transition');
+
+  const requestRejectedTransitions=[];
+  const requestRejectedSession={access_token:'request-rejected-token',refresh_token:'request-rejected-refresh',expires_at:4102444800,user:{id:'request-rejected-user'}};
+  stored.session=requestRejectedSession;AccountClient.session=requestRejectedSession;AccountClient.generation=40;AccountClient.refreshPromise=null;AccountClient.authInvalid=false;
+  validConfig.onSessionChange=session=>requestRejectedTransitions.push(session);
+  let requestRejectedStep=0;
+  validConfig.fetch=async url=>{
+    if(url.includes('/rest/v1/')){requestRejectedStep++;return {ok:false,status:401,json:async()=>({})};}
+    assert(url.includes('/auth/v1/token?grant_type=refresh_token'));
+    return {ok:false,status:400,json:async()=>({error:'invalid_grant'})};
+  };
+  AccountClient.configure(validConfig);
+  const requestRejectedClient=api.createOwnerRestClient(requestRejectedSession,40,['liangli_tasks']);
+  await requestRejectedClient.table('liangli_tasks').select('*');
+  assert.equal(requestRejectedStep,1,'a definitive refresh rejection does not retry REST with rejected credentials');
+  assert.equal(AccountClient.session,null,'REST 401 followed by definitive refresh rejection clears the active session');
+  assert.equal(stored.session,null,'REST 401 followed by definitive refresh rejection clears the durable session');
+  assert.deepEqual(requestRejectedTransitions.map(session=>session?.user?.id||null),[null],
+    'REST 401 followed by definitive refresh rejection emits one sign-out transition');
+
+  const requestUnavailableTransitions=[];
+  const requestUnavailableSession={access_token:'request-unavailable-token',refresh_token:'request-unavailable-refresh',expires_at:4102444800,user:{id:'request-unavailable-user'}};
+  stored.session=requestUnavailableSession;AccountClient.session=requestUnavailableSession;AccountClient.generation=42;AccountClient.refreshPromise=null;AccountClient.authInvalid=false;
+  validConfig.onSessionChange=session=>requestUnavailableTransitions.push(session);
+  validConfig.fetch=async url=>url.includes('/rest/v1/')
+    ?{ok:false,status:401,json:async()=>({})}
+    :{ok:false,status:503,json:async()=>({error:'temporarily_unavailable'})};
+  AccountClient.configure(validConfig);
+  const requestUnavailableClient=api.createOwnerRestClient(requestUnavailableSession,42,['liangli_tasks']);
+  const requestUnavailable=await requestUnavailableClient.table('liangli_tasks').select('*');
+  assert.equal(requestUnavailable.error,true,'REST 401 followed by transient refresh failure remains retryable');
+  assert.equal(requestUnavailable.transient,true,'the caller can distinguish a transient refresh failure');
+  assert.equal(AccountClient.session.user.id,'request-unavailable-user','transient refresh failure retains the active account');
+  assert.equal(stored.session.user.id,'request-unavailable-user','transient refresh failure retains the durable account');
+  assert.equal(AccountClient.authInvalid,false,'transient refresh failure never marks credentials invalid');
+  assert.deepEqual(requestUnavailableTransitions,[],'transient refresh failure emits no sign-out transition');
   validConfig.onSessionChange=null;
 
   let rejectOldRefresh;
@@ -269,7 +342,8 @@ async function testAccountClient(){
   const newSession={access_token:'new-generation-token',refresh_token:'new-generation-refresh',expires_at:4102444800,user:{id:'u1'}};
   await AccountClient.activate(newSession);
   const newRequest=api.createOwnerRestClient(newSession,AccountClient.generation,['liangli_tasks']).table('liangli_tasks').select('*');
-  rejectOldRefresh(new Error('old refresh rejected'));
+  const staleRejection=new Error('old refresh rejected');staleRejection.authRejected=true;staleRejection.status=400;
+  rejectOldRefresh(staleRejection);
   assert.deepEqual(await newRequest,{data:[{id:'new-generation-row'}],error:null}, 'a new generation runs its own refresh after an old refresh rejects');
   assert.equal(AccountClient.authInvalid,false, 'an old refresh rejection cannot invalidate the current generation');
   assert.equal((await oldRequest).discarded,true, 'the old owner request remains discarded after its refresh rejects');

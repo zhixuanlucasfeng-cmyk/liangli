@@ -3121,7 +3121,9 @@ async function manualFlashcardSync(){
     const refreshGeneration=AccountClient.generation,refreshUserId=AccountClient.session.user.id;
     try{await AccountClient.refreshSession(refreshUserId);}catch(error){
       if(AccountClient.generation!==refreshGeneration||AccountClient.session?.user.id!==refreshUserId){if(AccountClient.session)queueMicrotask(()=>manualFlashcardSync());return null;}
-      AccountClient.authInvalid=true;setFlashcardSyncStatus('syncFailed');return null;
+      setFlashcardSyncStatus('syncFailed');
+      if(!error?.authRejected)scheduleFlashcardSyncRetry();
+      return null;
     }
     if(!AccountClient.session)return null;
   }
