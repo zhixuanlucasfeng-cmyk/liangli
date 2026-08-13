@@ -1,12 +1,12 @@
 /* Powy — service worker
    改了 index.html 之后，把下面的版本号 +1，用户下次打开就会拿到新版本。 */
-const VERSION = 'liangli-v13';
+const VERSION = 'liangli-v14';
 const VIDEO_CACHE = 'liangli-video-v1';
 const ASSETS = [
   './',
   './index.html',
   './account-sync.js',
-  './manifest.json?v=13',
+  './manifest.json?v=14',
   './powy-power-192.png',
   './powy-power-512.png',
   './powy-power-maskable-512.png',

@@ -6,7 +6,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'">
 <meta name="theme-color" content="#0b0c0f">
 <meta name="description" content="Powy · 反假性自律的个人成长工具">
-<link rel="manifest" href="manifest.json?v=13">
+<link rel="manifest" href="manifest.json?v=14">
 <link rel="icon" href="powy-power-192.png">
 <link rel="apple-touch-icon" href="powy-power-192.png">
 <meta name="mobile-web-app-capable" content="yes">
@@ -1219,7 +1219,7 @@ async function signInAccount(){
   if(!AccountClient.isConfigured()){setAccountSyncStatus('local');return Promise.resolve(null);}
   const attempt=++accountAuthAttempt;setAccountAuthBusy(true);
   try{return await AccountClient.signIn(document.getElementById('accountEmail').value,password.value);}
-  catch(error){if(attempt===accountAuthAttempt)setAccountMessage(T('authError'));return null;}
+  catch(error){if(attempt===accountAuthAttempt)setAccountPanelError(T('authError'));return null;}
   finally{password.value='';if(attempt===accountAuthAttempt)setAccountAuthBusy(false);}
 }
 async function signUpAccount(){
@@ -1227,14 +1227,14 @@ async function signUpAccount(){
   if(!AccountClient.isConfigured()){setAccountSyncStatus('local');return Promise.resolve(null);}
   const attempt=++accountAuthAttempt;setAccountAuthBusy(true);
   try{const result=await AccountClient.signUp(document.getElementById('accountEmail').value,password.value);if(!result.discarded&&!result.session)toast(T('authCheckEmail'));return result;}
-  catch(error){if(attempt===accountAuthAttempt)setAccountMessage(T('authError'));return null;}
+  catch(error){if(attempt===accountAuthAttempt)setAccountPanelError(T('authError'));return null;}
   finally{password.value='';if(attempt===accountAuthAttempt)setAccountAuthBusy(false);}
 }
 async function recoverAccount(){
   if(!AccountClient.isConfigured()){setAccountSyncStatus('local');return Promise.resolve(null);}
   const attempt=++accountAuthAttempt;setAccountAuthBusy(true);
   try{const result=await AccountClient.recover(document.getElementById('accountEmail').value);if(attempt===accountAuthAttempt)setAccountMessage(T('authCheckEmail'));return result;}
-  catch(error){if(attempt===accountAuthAttempt)setAccountMessage(T('authError'));return null;}
+  catch(error){if(attempt===accountAuthAttempt)setAccountPanelError(T('authError'));return null;}
   finally{if(attempt===accountAuthAttempt)setAccountAuthBusy(false);}
 }
 async function updateAccountPassword(){

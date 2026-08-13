@@ -11,7 +11,7 @@ MANIFEST = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
 
 class ServiceWorkerContractTests(unittest.TestCase):
     def test_shell_cache_version_tracks_life_release(self):
-        self.assertIn("const VERSION = 'liangli-v13'", SW)
+        self.assertIn("const VERSION = 'liangli-v14'", SW)
 
     def test_manifest_uses_powy_brand(self):
         self.assertEqual(MANIFEST["name"], "Powy")
@@ -29,7 +29,7 @@ class ServiceWorkerContractTests(unittest.TestCase):
 
     def test_versioned_manifest_request_is_precached_exactly(self):
         assets = SW.split("const ASSETS =", 1)[1].split("];", 1)[0]
-        self.assertIn("'./manifest.json?v=13'", assets)
+        self.assertIn("'./manifest.json?v=14'", assets)
         self.assertNotIn("'./manifest.json',", assets)
 
     def test_cross_origin_api_requests_are_never_cached(self):

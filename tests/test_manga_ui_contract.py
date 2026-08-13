@@ -299,7 +299,7 @@ class MangaUIContractTests(unittest.TestCase):
             HTML,
             r'<link\s+rel="icon"\s+href="powy-power-192\.png">',
         )
-        self.assertIn('<link rel="manifest" href="manifest.json?v=13">', HTML)
+        self.assertIn('<link rel="manifest" href="manifest.json?v=14">', HTML)
 
     def test_standalone_mode_has_standard_and_apple_metadata(self):
         self.assertIn('<meta name="mobile-web-app-capable" content="yes">', HTML)
@@ -450,6 +450,12 @@ class MangaUIContractTests(unittest.TestCase):
         result = subprocess.run(['node', '-e', ACCOUNT_STATUS_HARNESS], cwd=ROOT, text=True,
                                 capture_output=True, timeout=5, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_auth_action_errors_survive_busy_state_rerender(self):
+        for function_name in ('signInAccount', 'signUpAccount', 'recoverAccount'):
+            match = re.search(rf"async function {function_name}\(\)\{{([\s\S]*?)\n\}}", HTML)
+            self.assertIsNotNone(match)
+            self.assertIn("setAccountPanelError(T('authError'))", match.group(1))
 
     def test_all_five_views_have_manga_identity(self):
         for view in ("today", "pool", "goals", "focus", "life"):
