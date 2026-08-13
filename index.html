@@ -6,9 +6,9 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'">
 <meta name="theme-color" content="#0b0c0f">
 <meta name="description" content="Powy · 反假性自律的个人成长工具">
-<link rel="manifest" href="manifest.json">
-<link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json?v=12">
+<link rel="icon" href="powy-power-192.png">
+<link rel="apple-touch-icon" href="powy-power-192.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -360,7 +360,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
 <body>
 <div class="app">
   <header>
-    <div class="logo"><img src="icon-192.png" alt=""></div>
+    <div class="logo"><img src="powy-power-192.png" alt=""></div>
     <div><h1 id="appName">Powy</h1><span class="sl" id="tagline">反假性自律</span></div>
     <button type="button" class="account-avatar" id="accountAvatar" onclick="openAccountPanel()" data-aria-i="accountTitle" aria-label="账号"><span class="avatar-fallback" id="avatarFallback">◉</span><img class="profile-avatar" id="profileAvatar" alt="" hidden></button>
     <button class="langbtn" onclick="toggleLang()" id="langBtn">EN</button>
@@ -745,7 +745,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
     <section class="account-recovery" id="coreRecoveryList"><h3 data-i="recoveryTitle">本机恢复备份</h3><div class="account-recovery-list" id="coreRecoveryItems"></div></section>
     <section class="appearance-settings" aria-labelledby="appearanceTitle">
       <h3 id="appearanceTitle" data-i="appearanceTitle">个人外观</h3>
-      <div class="appearance-preview"><img id="appearanceAvatarPreview" src="icon-192.png" alt=""><p class="muted" data-i="appearanceLocalHint">头像和壁纸只保存在这台设备。</p></div>
+      <div class="appearance-preview"><img id="appearanceAvatarPreview" src="powy-power-192.png" alt=""><p class="muted" data-i="appearanceLocalHint">头像和壁纸只保存在这台设备。</p></div>
       <div class="appearance-actions">
         <button type="button" class="btn ghost" onclick="document.getElementById('avatarFile').click()" data-i="chooseAvatar">选择头像</button>
         <button type="button" class="btn ghost" onclick="document.getElementById('wallpaperFile').click()" data-i="chooseWallpaper">选择壁纸</button>
@@ -984,7 +984,7 @@ function applyAppearanceBlob(mode,blob){
   if(mode==='avatar'){
     const avatar=document.getElementById('profileAvatar'),preview=document.getElementById('appearanceAvatarPreview');
     if(blob){avatarObjectUrl=URL.createObjectURL(blob);avatar.src=avatarObjectUrl;preview.src=avatarObjectUrl;avatar.hidden=false;document.getElementById('avatarFallback').hidden=true;}
-    else{avatar.removeAttribute('src');avatar.hidden=true;document.getElementById('avatarFallback').hidden=false;preview.src='icon-192.png';}
+    else{avatar.removeAttribute('src');avatar.hidden=true;document.getElementById('avatarFallback').hidden=false;preview.src='powy-power-192.png';}
   }else{
     if(blob){wallpaperObjectUrl=URL.createObjectURL(blob);document.querySelector('.app').style.setProperty('--profile-wallpaper',`url("${wallpaperObjectUrl}")`);}
     else document.querySelector('.app').style.removeProperty('--profile-wallpaper');
@@ -1271,7 +1271,8 @@ function restoreCoreRecovery(key){
 }
 function renderAccountPanel(){
   const configured=AccountClient.isConfigured(),session=AccountClient.session,signedIn=Boolean(session);
-  for(const id of ['accountEmail','accountPassword','accountSignIn','accountSignUp','accountRecover'])document.getElementById(id).disabled=!configured||signedIn;
+  for(const id of ['accountEmail','accountPassword'])document.getElementById(id).disabled=signedIn;
+  for(const id of ['accountSignIn','accountSignUp','accountRecover'])document.getElementById(id).disabled=!configured||signedIn;
   document.getElementById('accountSignOut').hidden=!signedIn;
   document.getElementById('accountSyncNow').disabled=!signedIn||navigator.onLine===false;
   document.getElementById('copyLocalFlashcards').hidden=!signedIn;

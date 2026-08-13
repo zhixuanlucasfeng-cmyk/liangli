@@ -236,11 +236,32 @@ context.accountStatus.renderAccountPanel();
 assert.equal(status.textContent,'cloud validation failed','rendering the signed-in panel preserves an explicit initialized-login error in its live region');
 """
 
+ACCOUNT_UNCONFIGURED_HARNESS = r"""
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const html = fs.readFileSync('index.html', 'utf8');
+const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+const start = script.indexOf('let accountReturnFocus=');
+const end = script.indexOf('async function beginAccountFirstLogin(', start);
+const ids=['accountEmail','accountPassword','accountSignIn','accountSignUp','accountRecover','accountSignOut','accountSyncNow','copyLocalFlashcards','accountFirstLoginChoices','coreRecoveryItems','accountSyncStatus'];
+const elements=new Map(ids.map(id=>[id,{disabled:false,hidden:false,textContent:'',innerHTML:'',setAttribute(){}}]));
+const document={body:{style:{}},activeElement:null,querySelector(){return {inert:false,setAttribute(){},removeAttribute(){}};},getElementById:id=>elements.get(id)};
+const context={document,navigator:{onLine:true},AccountClient:{generation:0,session:null,isConfigured(){return false;}},LiangliAccountSync:{createAccountReconciliationGate(){return {acquire(){return {};},owns(){return true;},release(){return true;}};},createCoreRecoveryStore(){return {list(){return [];},restore(){},save(){}};}},T:key=>key,esc:value=>String(value),setTimeout(){}};
+vm.createContext(context);
+vm.runInContext(`${script.slice(start,end)}\n;globalThis.renderAccountPanel=renderAccountPanel;`,context);
+context.renderAccountPanel();
+assert.equal(elements.get('accountEmail').disabled,false,'email stays editable so users can prepare account credentials');
+assert.equal(elements.get('accountPassword').disabled,false,'password stays editable so users can prepare account credentials');
+assert.equal(elements.get('accountSignIn').disabled,true,'network auth remains unavailable until a backend is configured');
+assert.equal(elements.get('accountSignUp').disabled,true,'registration remains unavailable until a backend is configured');
+"""
+
 
 class MangaUIContractTests(unittest.TestCase):
     def test_user_visible_brand_is_powy_while_storage_protocol_stays_compatible(self):
         self.assertIn('<title>Powy</title>', HTML)
-        self.assertIn('<div class="logo"><img src="icon-192.png" alt=""></div>', HTML)
+        self.assertIn('<div class="logo"><img src="powy-power-192.png" alt=""></div>', HTML)
         self.assertIn('<h1 id="appName">Powy</h1>', HTML)
         self.assertNotIn('量力', HTML)
         self.assertIn('LiangliAccountSync', HTML)
@@ -276,8 +297,9 @@ class MangaUIContractTests(unittest.TestCase):
     def test_document_declares_a_favicon(self):
         self.assertRegex(
             HTML,
-            r'<link\s+rel="icon"\s+href="icon-192\.png">',
+            r'<link\s+rel="icon"\s+href="powy-power-192\.png">',
         )
+        self.assertIn('<link rel="manifest" href="manifest.json?v=12">', HTML)
 
     def test_standalone_mode_has_standard_and_apple_metadata(self):
         self.assertIn('<meta name="mobile-web-app-capable" content="yes">', HTML)
@@ -399,6 +421,13 @@ class MangaUIContractTests(unittest.TestCase):
     def test_global_account_modal_keyboard_behavior(self):
         result = subprocess.run(
             ['node', '-e', ACCOUNT_MODAL_HARNESS], cwd=ROOT, text=True,
+            capture_output=True, timeout=5, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_unconfigured_account_fields_remain_editable(self):
+        result = subprocess.run(
+            ['node', '-e', ACCOUNT_UNCONFIGURED_HARNESS], cwd=ROOT, text=True,
             capture_output=True, timeout=5, check=False,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
