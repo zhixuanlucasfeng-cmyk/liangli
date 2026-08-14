@@ -131,6 +131,8 @@ async function startReaction(harness) {
   harness.triggerCompanionReaction();
   const reaction = harness.layers.find(layer => layer.getAttribute('src')?.endsWith('/tap.mp4'));
   assert.ok(reaction, 'tap must prepare the reaction source');
+  assert.equal(reaction.playCount, 1,
+    'tap must request playback inside the user activation handler');
   await reaction.emit('canplay');
   harness.runTimers();
   return reaction;
@@ -285,11 +287,13 @@ async function testReactionFailuresResumeBaseLoop() {
   for (const failure of ['error', 'play']) {
     const harness = createHarness();
     const baseSrc = establishActive(harness, 'content');
+    if (failure === 'play') {
+      harness.layers[1].playBehavior = () => Promise.reject(new Error('reaction unavailable'));
+    }
     harness.triggerCompanionReaction();
     const reaction = harness.layers.find(layer => layer.getAttribute('src')?.endsWith('/tap.mp4'));
     assert.ok(reaction);
     if (failure === 'play') {
-      reaction.playBehavior = () => Promise.reject(new Error('reaction unavailable'));
       await reaction.emit('canplay');
     } else {
       await reaction.emit('error');
@@ -312,6 +316,23 @@ async function testReducedMotionSkipsReaction() {
   assert.equal(harness.state().companionReactionPlaying, false);
   assert.equal(harness.layers.some(layer => layer.getAttribute('src')?.endsWith('/tap.mp4')), false);
   assert.equal(harness.layers.reduce((sum, layer) => sum + layer.playCount, 0), 0);
+}
+
+async function testReactionWatchdogRecoversNoEventStall() {
+  const harness = createHarness();
+  const baseSrc = establishActive(harness, 'content');
+  harness.requestCompanion('cat', 'content');
+
+  harness.triggerCompanionReaction();
+  assert.equal(harness.state().companionReactionPlaying, true);
+  harness.runTimers();
+
+  assert.equal(harness.state().companionReactionPlaying, false,
+    'a stalled reaction load must release the reaction lock');
+  assert.equal(harness.layers.some(layer =>
+    layer.getAttribute('src')?.endsWith('/tap.mp4')), false);
+  assert.ok(harness.layers.some(layer => layer.getAttribute('src') === baseSrc),
+    'a stalled reaction load must preserve the base loop');
 }
 
 async function testLeavingTodayCancelsReactionAndCanResume() {
@@ -339,6 +360,7 @@ async function testLeavingTodayCancelsReactionAndCanResume() {
   await testRepeatedTapDoesNotReloadReaction();
   await testReactionFailuresResumeBaseLoop();
   await testReducedMotionSkipsReaction();
+  await testReactionWatchdogRecoversNoEventStall();
   await testLeavingTodayCancelsReactionAndCanResume();
   console.log('companion playback behavior: ok');
 })().catch(error => {

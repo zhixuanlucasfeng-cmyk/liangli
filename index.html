@@ -2738,6 +2738,7 @@ let companionMediaActive=true;
 let currentCompanion='cat';
 let currentCompanionState='idle';
 let companionReactionPlaying=false;
+let companionReactionTimer=null;
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 const companionStateKeys={
   idle:'companionIdle',content:'companionContent',
@@ -2760,6 +2761,8 @@ function stopLayer(layer){
 function cancelCompanionTransition(){
   clearTimeout(companionSwapTimer);
   companionSwapTimer=null;
+  clearTimeout(companionReactionTimer);
+  companionReactionTimer=null;
   pendingCompanionSrc='';
   const pendingIndex=activeCompanionLayer===0?1:0;
   const pending=companionLayers[pendingIndex];
@@ -2858,15 +2861,26 @@ function triggerCompanionReaction(){
   next.src=next.dataset.companionSrc;
   next.addEventListener('error',()=>finishCompanionReaction(requestId),{once:true});
   next.addEventListener('ended',()=>finishCompanionReaction(requestId),{once:true});
+  companionReactionTimer=setTimeout(()=>finishCompanionReaction(requestId),4000);
+  next.load();
+  let playPromise;
+  try{
+    playPromise=Promise.resolve(next.play());
+  }catch(e){
+    finishCompanionReaction(requestId);
+    return;
+  }
+  playPromise.catch(()=>finishCompanionReaction(requestId));
   next.addEventListener('canplay',async()=>{
     if(requestId!==companionRequestId||next._companionRequestId!==requestId)return;
     try{
-      await next.play();
+      await playPromise;
     }catch(e){
-      finishCompanionReaction(requestId);
       return;
     }
     if(requestId!==companionRequestId||next._companionRequestId!==requestId)return;
+    clearTimeout(companionReactionTimer);
+    companionReactionTimer=null;
     document.getElementById('companionPoster').classList.remove('is-visible');
     next.classList.add('is-active');
     const old=companionLayers[activeCompanionLayer];
@@ -2878,7 +2892,6 @@ function triggerCompanionReaction(){
       companionSwapTimer=null;
     },150);
   },{once:true});
-  next.load();
 }
 function setTodayMediaActive(active){
   if(companionMediaActive===active)return;
