@@ -769,6 +769,13 @@ class MangaUIContractTests(unittest.TestCase):
         self.assertIn('id="companionPoster"', HTML)
         self.assertIn('id="companionStatus"', HTML)
         self.assertIn('aria-live="polite"', HTML)
+        stage = re.search(
+            r'<button\b[^>]*\bid="companionStage"[^>]*>', HTML
+        )
+        self.assertIsNotNone(stage)
+        self.assertIn('type="button"', stage.group(0))
+        self.assertIn('data-aria-i="companionReact"', stage.group(0))
+        self.assertIn('onclick="triggerCompanionReaction()"', stage.group(0))
 
     def test_companion_video_matcher_allows_additional_classes(self):
         fixture = (

@@ -46,7 +46,7 @@ main{flex:1;overflow-y:auto;padding:4px 14px calc(96px + var(--safe-b));-webkit-
 .gh b{font-size:25px}
 .warnbox{margin-top:10px;background:rgba(255,92,92,.12);border:1px solid rgba(255,92,92,.35);color:#ffb3b3;padding:9px 12px;border-radius:11px;font-size:12.5px;line-height:1.5;display:none}
 .warnbox.show{display:block}
-.companion-stage{height:170px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--card2);border-radius:11px;margin-bottom:6px;position:relative}
+.companion-stage{width:100%;height:170px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--card2);border:0;border-radius:11px;margin-bottom:6px;padding:0;position:relative;color:inherit;font:inherit;cursor:pointer}
 .companion-poster,.companion-video{position:absolute;inset:0;margin:auto;width:170px;height:170px;display:block;object-fit:contain;background:transparent}
 .companion-poster{z-index:0}
 .companion-poster.is-visible{z-index:2}
@@ -372,12 +372,12 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
     <section class="view manga-view today-view active" id="v-today">
       <div class="card manga-panel hero-panel">
         <div class="manga-decor hero-rays" aria-hidden="true"></div>
-        <div class="companion-stage manga-stage">
+        <button type="button" class="companion-stage manga-stage" id="companionStage" data-aria-i="companionReact" aria-label="戳一下伙伴" onclick="triggerCompanionReaction()">
           <img id="companionPoster" class="companion-poster" alt="">
           <video class="companion-video is-active" muted loop playsinline aria-hidden="true"></video>
           <video class="companion-video" muted loop playsinline aria-hidden="true"></video>
           <div class="manga-decor" aria-hidden="true"></div>
-        </div>
+        </button>
         <span id="companionStatus" class="sr-only" aria-live="polite"></span>
         <div class="companion-picker" id="companionPicker" role="group" aria-label="Companion">
           <button type="button" data-companion="cat" aria-pressed="true" onclick="setCompanion('cat')"><span data-i="companionCat">Power 猫</span></button>
@@ -847,7 +847,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
 const SUPABASE_URL='https://rczhmavbzppssffgdnoh.supabase.co';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjemhtYXZienBwc3NmZmdkbm9oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1OTk4ODcsImV4cCI6MjEwMjE3NTg4N30.DRokVb4HR5zt215tz911HBNZl6iJ-WDlU3jrwYUGobw';
 const I18N={
- zh:{tagline:"反假性自律",loadTitle:"今日精力负荷",companionCat:'Power 猫',companionHuman:'人形 Power',
+ zh:{tagline:"反假性自律",loadTitle:"今日精力负荷",companionCat:'Power 猫',companionHuman:'人形 Power',companionReact:'戳一下伙伴',
    companionIdle:'待命',companionContent:'状态良好',companionTired:'有些疲惫',companionExhausted:'精力耗尽',
    loadWarn:"⚠️ 已超出今日承载范围。别急着加 —— 把非必要的任务放进成长池吧。",
    addTask:"添加任务",taskPh:"今天想完成什么？",energyLabel:"预估精力消耗",taskMore:"更多安排",taskLess:"收起安排",
@@ -875,7 +875,7 @@ const I18N={
    emptyGoal:"还没有目标。目标是方向，不是压力。",emptyLog:"还没有记录。从今天开始吧。",
    savedLog:"记录已保存",movedTask:"已移到今日任务",newDayReset:"新的一天，精力已经重新归零。昨天没做完的事放回成长池了。",days:["一","二","三","四","五","六","日"],
    overload:"负荷已超载，这条先进成长池了"},
- en:{tagline:"Anti-fake-productivity",loadTitle:"Today's energy load",companionCat:'Power Cat',companionHuman:'Human Power',
+ en:{tagline:"Anti-fake-productivity",loadTitle:"Today's energy load",companionCat:'Power Cat',companionHuman:'Human Power',companionReact:'Tap companion',
    companionIdle:'Idle',companionContent:'Feeling good',companionTired:'Getting tired',companionExhausted:'Exhausted',
    loadWarn:"⚠️ You're over today's capacity. Don't push — move the non-essential ones to your Growth Pool.",
    addTask:"Add a task",taskPh:"What do you want to get done today?",energyLabel:"Estimated energy cost",taskMore:"More options",taskLess:"Hide options",
@@ -2737,6 +2737,7 @@ let previousCompanionState=null;
 let companionMediaActive=true;
 let currentCompanion='cat';
 let currentCompanionState='idle';
+let companionReactionPlaying=false;
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 const companionStateKeys={
   idle:'companionIdle',content:'companionContent',
@@ -2770,13 +2771,14 @@ function cancelCompanionTransition(){
 function requestCompanion(companion,state){
   currentCompanion=companion;
   currentCompanionState=state;
-  const requestId=++companionRequestId;
-  cancelCompanionTransition();
   const poster=document.getElementById('companionPoster');
   const posterSrc=companionMediaSrc(companion,state,'webp');
   if(poster.getAttribute('src')!==posterSrc)poster.src=posterSrc;
   document.getElementById('companionStatus').textContent=
     `${T(companion==='human'?'companionHuman':'companionCat')} · ${T(companionStateKeys[state])}`;
+  if(companionReactionPlaying)return;
+  const requestId=++companionRequestId;
+  cancelCompanionTransition();
 
   if(!companionMediaActive){
     poster.classList.add('is-visible');
@@ -2803,6 +2805,7 @@ function requestCompanion(companion,state){
   const nextIndex=activeCompanionLayer===0?1:0;
   const next=companionLayers[nextIndex];
   stopLayer(next);
+  next.loop=true;
   next._companionRequestId=requestId;
   next.dataset.companionSrc=videoSrc;
   next.src=videoSrc;
@@ -2836,10 +2839,52 @@ function requestCompanion(companion,state){
     },150);
   },{once:true});
 }
+function finishCompanionReaction(requestId){
+  if(!companionReactionPlaying||requestId!==companionRequestId)return;
+  companionReactionPlaying=false;
+  requestCompanion(currentCompanion,currentCompanionState);
+}
+function triggerCompanionReaction(){
+  if(companionReactionPlaying||!companionMediaActive||reducedMotion.matches)return;
+  companionReactionPlaying=true;
+  const requestId=++companionRequestId;
+  cancelCompanionTransition();
+  const nextIndex=activeCompanionLayer===0?1:0;
+  const next=companionLayers[nextIndex];
+  stopLayer(next);
+  next.loop=false;
+  next._companionRequestId=requestId;
+  next.dataset.companionSrc=companionMediaSrc(currentCompanion,'tap','mp4');
+  next.src=next.dataset.companionSrc;
+  next.addEventListener('error',()=>finishCompanionReaction(requestId),{once:true});
+  next.addEventListener('ended',()=>finishCompanionReaction(requestId),{once:true});
+  next.addEventListener('canplay',async()=>{
+    if(requestId!==companionRequestId||next._companionRequestId!==requestId)return;
+    try{
+      await next.play();
+    }catch(e){
+      finishCompanionReaction(requestId);
+      return;
+    }
+    if(requestId!==companionRequestId||next._companionRequestId!==requestId)return;
+    document.getElementById('companionPoster').classList.remove('is-visible');
+    next.classList.add('is-active');
+    const old=companionLayers[activeCompanionLayer];
+    companionSwapTimer=setTimeout(()=>{
+      if(requestId!==companionRequestId||next._companionRequestId!==requestId)return;
+      stopLayer(old);
+      activeCompanionLayer=nextIndex;
+      pendingCompanionSrc='';
+      companionSwapTimer=null;
+    },150);
+  },{once:true});
+  next.load();
+}
 function setTodayMediaActive(active){
   if(companionMediaActive===active)return;
   companionMediaActive=active;
   if(!active){
+    companionReactionPlaying=false;
     companionRequestId++;
     cancelCompanionTransition();
     companionLayers.forEach(stopLayer);

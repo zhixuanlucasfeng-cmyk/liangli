@@ -32,6 +32,7 @@ class FakeMediaLayer {
     this.loadCount = 0;
     this.pauseCount = 0;
     this.playCount = 0;
+    this.loop = true;
     this.playBehavior = () => Promise.resolve();
   }
   get src() { return this.getAttribute('src'); }
@@ -76,7 +77,7 @@ function deferred() {
   return {promise, resolve, reject};
 }
 
-function createHarness() {
+function createHarness({reducedMotion = false} = {}) {
   const layers = [new FakeMediaLayer('is-active'), new FakeMediaLayer()];
   const poster = new FakePoster();
   const status = {textContent: ''};
@@ -95,7 +96,7 @@ function createHarness() {
         throw new Error(`Unexpected id: ${id}`);
       },
     },
-    matchMedia: () => ({matches: false}),
+    matchMedia: () => ({matches: reducedMotion}),
     T: key => key,
     setTimeout(callback) {
       const id = nextTimer++;
@@ -107,10 +108,11 @@ function createHarness() {
   vm.createContext(context);
   vm.runInContext(`${controller}\n;globalThis.playback={
     requestCompanion,
+    triggerCompanionReaction,
     setTodayMediaActive,
     stopLayer,
     companionMediaSrc,
-    state:()=>({activeCompanionLayer,pendingCompanionSrc,companionRequestId,companionMediaActive,currentCompanionState,currentCompanion})
+    state:()=>({activeCompanionLayer,pendingCompanionSrc,companionRequestId,companionMediaActive,currentCompanionState,currentCompanion,companionReactionPlaying})
   };`, context);
   return {
     ...context.playback,
@@ -123,6 +125,15 @@ function createHarness() {
       callbacks.forEach(callback => callback());
     },
   };
+}
+
+async function startReaction(harness) {
+  harness.triggerCompanionReaction();
+  const reaction = harness.layers.find(layer => layer.getAttribute('src')?.endsWith('/tap.mp4'));
+  assert.ok(reaction, 'tap must prepare the reaction source');
+  await reaction.emit('canplay');
+  harness.runTimers();
+  return reaction;
 }
 
 function establishActive(harness, state = 'idle') {
@@ -236,11 +247,99 @@ async function testTodayVisibilityStopsAndRaceSafelyResumesDecode() {
   assert.equal(stale.playCount, 0, 'late canplay after leaving Today must stay invalidated');
 }
 
+async function testTapStartsOneShotAndLatestStateResumes() {
+  const harness = createHarness();
+  establishActive(harness);
+
+  const reaction = await startReaction(harness);
+  assert.equal(reaction.loop, false, 'tap reaction must not loop');
+  assert.equal(reaction.playCount, 1);
+
+  harness.requestCompanion('human', 'tired');
+  assert.equal(reaction.getAttribute('src').endsWith('/tap.mp4'), true,
+    'state changes must not interrupt an active reaction');
+  assert.equal(harness.state().currentCompanionState, 'tired');
+
+  await reaction.emit('ended');
+  const resumed = harness.layers.find(layer => layer.getAttribute('src') ===
+    harness.companionMediaSrc('human', 'tired', 'mp4'));
+  assert.ok(resumed, 'reaction end must resume the latest energy state');
+  assert.equal(resumed.loop, true, 'base state must resume looping');
+}
+
+async function testRepeatedTapDoesNotReloadReaction() {
+  const harness = createHarness();
+  establishActive(harness);
+  const reaction = await startReaction(harness);
+  const loadCount = reaction.loadCount;
+  const playCount = reaction.playCount;
+
+  harness.triggerCompanionReaction();
+
+  assert.equal(reaction.loadCount, loadCount);
+  assert.equal(reaction.playCount, playCount);
+  assert.equal(harness.layers.filter(layer => layer.dataset.companionSrc?.endsWith('/tap.mp4')).length, 1);
+}
+
+async function testReactionFailuresResumeBaseLoop() {
+  for (const failure of ['error', 'play']) {
+    const harness = createHarness();
+    const baseSrc = establishActive(harness, 'content');
+    harness.triggerCompanionReaction();
+    const reaction = harness.layers.find(layer => layer.getAttribute('src')?.endsWith('/tap.mp4'));
+    assert.ok(reaction);
+    if (failure === 'play') {
+      reaction.playBehavior = () => Promise.reject(new Error('reaction unavailable'));
+      await reaction.emit('canplay');
+    } else {
+      await reaction.emit('error');
+    }
+    harness.runTimers();
+
+    assert.equal(harness.state().companionReactionPlaying, false);
+    const base = harness.layers.find(layer => layer.getAttribute('src') === baseSrc);
+    assert.ok(base, `${failure} failure must restore the base source`);
+    assert.equal(base.loop, true);
+  }
+}
+
+async function testReducedMotionSkipsReaction() {
+  const harness = createHarness({reducedMotion: true});
+  establishActive(harness);
+
+  harness.triggerCompanionReaction();
+
+  assert.equal(harness.state().companionReactionPlaying, false);
+  assert.equal(harness.layers.some(layer => layer.getAttribute('src')?.endsWith('/tap.mp4')), false);
+  assert.equal(harness.layers.reduce((sum, layer) => sum + layer.playCount, 0), 0);
+}
+
+async function testLeavingTodayCancelsReactionAndCanResume() {
+  const harness = createHarness();
+  establishActive(harness, 'content');
+  harness.requestCompanion('cat', 'content');
+  await startReaction(harness);
+
+  harness.setTodayMediaActive(false);
+  assert.equal(harness.state().companionReactionPlaying, false);
+  assert.equal(harness.layers.some(layer => layer.hasAttribute('src')), false);
+
+  harness.setTodayMediaActive(true);
+  assert.equal(harness.layers.some(layer =>
+    layer.getAttribute('src')?.endsWith('/content.mp4')), true,
+  'returning to Today must restore the base loop after a cancelled reaction');
+}
+
 (async () => {
   await testLatestActiveRequestWins();
   await testRejectedPlayShowsPosterAndClearsVideos();
   await testStableActiveSourceDoesNotReload();
   await testTodayVisibilityStopsAndRaceSafelyResumesDecode();
+  await testTapStartsOneShotAndLatestStateResumes();
+  await testRepeatedTapDoesNotReloadReaction();
+  await testReactionFailuresResumeBaseLoop();
+  await testReducedMotionSkipsReaction();
+  await testLeavingTodayCancelsReactionAndCanResume();
   console.log('companion playback behavior: ok');
 })().catch(error => {
   console.error(error.stack || error);
