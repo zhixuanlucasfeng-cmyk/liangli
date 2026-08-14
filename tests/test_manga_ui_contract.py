@@ -230,7 +230,7 @@ elements.set('accountSyncStatus',status);
 const document={body:{style:{}},activeElement:null,querySelector(){return {inert:false,setAttribute(){},removeAttribute(){}};},getElementById:id=>elements.get(id)};
 const context={document,navigator:{onLine:true},AccountClient:{generation:1,session:{user:{id:'u1',email:'owner@example.test'}},isConfigured(){return true;}},LiangliAccountSync:{createAccountReconciliationGate(){return {acquire(){return {};},owns(){return true;},release(){return true;}};},createCoreRecoveryStore(){return {list(){return [];},restore(){},save(){}};}},T:key=>key,esc:value=>String(value),setTimeout(){}};
 vm.createContext(context);
-vm.runInContext(`${script.slice(start,end)}\n;globalThis.accountStatus={setAccountPanelError,renderAccountPanel,setAccountAuthMode,toggleAccountPasswordVisibility,signUpAccount};`,context);
+vm.runInContext(`${script.slice(start,end)}\n;globalThis.accountStatus={setAccountPanelError,renderAccountPanel,setAccountAuthMode,toggleAccountPasswordVisibility,signUpAccount,recoverAccount};`,context);
 context.accountStatus.setAccountPanelError('cloud validation failed');
 context.accountStatus.renderAccountPanel();
 assert.equal(status.textContent,'cloud validation failed','rendering the signed-in panel preserves an explicit initialized-login error in its live region');
@@ -259,6 +259,9 @@ assert.equal(elements.get('accountPasswordConfirm').type,'text');
   assert.equal(context.AccountClient.signUpCalls,1,'matching passwords submit exactly once');
   assert.equal(elements.get('accountAuthForm').hidden,true,'successful account creation immediately replaces the form with the signed-in card');
   assert.equal(status.textContent,'accountCreated','successful account creation gives an explicit confirmation');
+  context.AccountClient.session=null;context.AccountClient.recover=async()=>({});context.accountStatus.setAccountAuthMode('signin');elements.get('accountEmail').value='owner@example.test';
+  await context.accountStatus.recoverAccount();
+  assert.equal(status.textContent,'authResetSent','password-recovery success remains visible after the busy-state rerender');
 })().catch(error=>{console.error(error);process.exitCode=1;});
 """
 
