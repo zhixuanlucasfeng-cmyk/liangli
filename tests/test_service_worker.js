@@ -47,7 +47,7 @@ function createHarness({videoBody, addAllError, cacheNames, fetchImpl} = {}) {
   const caches = {
     open(name) {
       opened.push(name);
-      return Promise.resolve(name === 'liangli-video-v1' ? videoCache : shellCache);
+      return Promise.resolve(name === 'liangli-video-v2' ? videoCache : shellCache);
     },
     keys() { return Promise.resolve(cacheNames || []); },
     delete(name) { deleted.push(name); return Promise.resolve(true); },
@@ -116,10 +116,10 @@ async function testInstallFailureKeepsPreviousWorkerActive() {
   assert.equal(harness.skipWaitingCalls(), 0);
 }
 
-async function testInstallUsesV17ShellCacheWithAccountSyncModule() {
+async function testInstallUsesV18ShellCacheWithAccountSyncModule() {
   const harness = createHarness();
   await dispatch(harness, 'install');
-  assert.deepEqual(harness.opened, ['liangli-v17']);
+  assert.deepEqual(harness.opened, ['liangli-v18']);
   assert.ok(
     harness.shellCache.installAssets.includes('./account-sync.js'),
     'the account sync module must be available to an offline shell',
@@ -146,12 +146,12 @@ async function testCrossOriginSupabaseRequestIsLeftNetworkOnly() {
 async function testActivationDeletesOnlyOwnedStaleCaches() {
   const harness = createHarness({
     cacheNames: [
-      'liangli-v4', 'liangli-v5', 'liangli-video-v0', 'liangli-video-v1',
+      'liangli-v4', 'liangli-v5', 'liangli-video-v0', 'liangli-video-v1', 'liangli-video-v2',
       'liangli-vendor-cache', 'other-app-v9',
     ],
   });
   await dispatch(harness, 'activate');
-  assert.deepEqual(harness.deleted.sort(), ['liangli-v4', 'liangli-v5', 'liangli-video-v0']);
+  assert.deepEqual(harness.deleted.sort(), ['liangli-v4', 'liangli-v5', 'liangli-video-v0', 'liangli-video-v1']);
   assert.equal(harness.claimCalls(), 1);
 }
 
@@ -159,7 +159,7 @@ async function testActivationDeletesOnlyOwnedStaleCaches() {
   await testCachedRangeReturnsValidPartialResponse();
   await testRangeMissFetchesAndCachesFullResponse();
   await testInstallFailureKeepsPreviousWorkerActive();
-  await testInstallUsesV17ShellCacheWithAccountSyncModule();
+  await testInstallUsesV18ShellCacheWithAccountSyncModule();
   await testCrossOriginSupabaseRequestIsLeftNetworkOnly();
   await testActivationDeletesOnlyOwnedStaleCaches();
   console.log('service worker behavior: ok');
