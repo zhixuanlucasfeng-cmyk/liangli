@@ -200,8 +200,11 @@ button,input,textarea,select{min-height:44px}
 .today-view .hero-panel>*:not(.manga-decor){margin-left:16px;margin-right:16px}
 .today-view .hero-panel .companion-stage{margin-left:0;margin-right:0}
 .hero-rays{background:repeating-conic-gradient(from 12deg at 50% 35%,transparent 0 7deg,rgba(255,255,255,.08) 7deg 9deg);opacity:.7}
-.companion-stage{height:218px;background:linear-gradient(145deg,#2b2c33,var(--ink));border:0;border-bottom:3px solid var(--line);border-radius:0;margin-bottom:10px}
-.companion-stage .companion-poster,.companion-stage .companion-video{width:218px;height:218px;filter:contrast(1.1) saturate(.88)}
+.companion-stage{height:clamp(280px,58vw,360px);background:#191c22;border:0;border-bottom:3px solid var(--line);border-radius:0;margin-bottom:10px;isolation:isolate}
+.companion-stage .companion-poster,.companion-stage .companion-video{width:100%;height:100%;object-fit:cover;object-position:center 34%;filter:none;image-rendering:auto;transform:translateZ(0)}
+.companion-stage[data-companion="human"][data-state="idle"] .companion-poster,.companion-stage[data-companion="human"][data-state="idle"] .companion-video{object-position:center 46%}
+.companion-stage[data-companion="human"][data-state="exhausted"] .companion-poster,.companion-stage[data-companion="human"][data-state="exhausted"] .companion-video{object-position:center 50%}
+.companion-stage[data-companion="cat"] .companion-poster,.companion-stage[data-companion="cat"] .companion-video{object-position:center 45%}
 .companion-picker{background:var(--paper);border:2px solid var(--line);border-radius:0}
 .companion-picker button{min-height:44px;border-radius:0;color:var(--ink);font-weight:900}
 .companion-picker button[aria-pressed="true"]{background:var(--power-pink);color:var(--ink);box-shadow:inset 0 0 0 2px var(--line)}
@@ -340,6 +343,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
   .view.active{width:100%;max-width:1280px;margin:0 auto}
   .today-view.active,.pool-view.active,.goals-view.active,.focus-view.active{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
   .manga-panel{margin-left:0;margin-right:0}
+  .today-view .hero-panel .companion-stage{height:clamp(320px,34vw,420px)}
   .life-panel:not([hidden]){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
   .life-backup-panel{grid-column:1/-1}
   .account-shell{max-width:720px}.flashcard-shell{max-width:none;padding-left:clamp(28px,8vw,120px);padding-right:clamp(28px,8vw,120px)}
@@ -2774,6 +2778,9 @@ function cancelCompanionTransition(){
 function requestCompanion(companion,state){
   currentCompanion=companion;
   currentCompanionState=state;
+  const stage=document.getElementById('companionStage');
+  stage.dataset.companion=companion;
+  stage.dataset.state=state;
   const poster=document.getElementById('companionPoster');
   const posterSrc=companionMediaSrc(companion,state,'webp');
   if(poster.getAttribute('src')!==posterSrc)poster.src=posterSrc;

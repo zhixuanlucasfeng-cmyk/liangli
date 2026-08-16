@@ -81,6 +81,7 @@ function createHarness({reducedMotion = false} = {}) {
   const layers = [new FakeMediaLayer('is-active'), new FakeMediaLayer()];
   const poster = new FakePoster();
   const status = {textContent: ''};
+  const stage = {dataset: {}};
   const timers = new Map();
   let nextTimer = 1;
   const context = {
@@ -93,6 +94,7 @@ function createHarness({reducedMotion = false} = {}) {
       getElementById(id) {
         if (id === 'companionPoster') return poster;
         if (id === 'companionStatus') return status;
+        if (id === 'companionStage') return stage;
         throw new Error(`Unexpected id: ${id}`);
       },
     },
@@ -118,6 +120,7 @@ function createHarness({reducedMotion = false} = {}) {
     ...context.playback,
     layers,
     poster,
+    stage,
     timers,
     runTimers() {
       const callbacks = [...timers.values()];
@@ -125,6 +128,15 @@ function createHarness({reducedMotion = false} = {}) {
       callbacks.forEach(callback => callback());
     },
   };
+}
+
+function testStageTracksLatestCharacterAndState() {
+  const harness = createHarness();
+
+  harness.requestCompanion('human', 'tired');
+
+  assert.equal(harness.stage.dataset.companion, 'human');
+  assert.equal(harness.stage.dataset.state, 'tired');
 }
 
 async function startReaction(harness) {
@@ -352,6 +364,7 @@ async function testLeavingTodayCancelsReactionAndCanResume() {
 }
 
 (async () => {
+  testStageTracksLatestCharacterAndState();
   await testLatestActiveRequestWins();
   await testRejectedPlayShowsPosterAndClearsVideos();
   await testStableActiveSourceDoesNotReload();
