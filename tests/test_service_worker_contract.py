@@ -11,7 +11,7 @@ MANIFEST = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
 
 class ServiceWorkerContractTests(unittest.TestCase):
     def test_shell_cache_version_tracks_account_clarity_release(self):
-        self.assertIn("const VERSION = 'liangli-v19'", SW)
+        self.assertIn("const VERSION = 'liangli-v20'", SW)
 
     def test_manifest_uses_powy_brand(self):
         self.assertEqual(MANIFEST["name"], "Powy")

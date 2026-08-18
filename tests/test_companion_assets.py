@@ -40,6 +40,14 @@ class CompanionAssetTests(unittest.TestCase):
                     self.assertLessEqual(duration, 4.1)
                     self.assertLessEqual(int(media["format"]["size"]), 2_000_000)
 
+    def test_human_idle_uses_high_frame_rate_for_smooth_looping(self):
+        media = self.probe(ROOT / "assets" / "power-human" / "idle.mp4")
+        video = next(
+            stream for stream in media["streams"] if stream["codec_type"] == "video"
+        )
+        numerator, denominator = map(int, video["avg_frame_rate"].split("/"))
+        self.assertGreaterEqual(numerator / denominator, 48)
+
 
 if __name__ == "__main__":
     unittest.main()
