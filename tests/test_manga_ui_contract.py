@@ -363,12 +363,6 @@ class MangaUIContractTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_load_thresholds_are_unchanged(self):
-        self.assertIn(
-            "used===0 ? 'idle' : used>max ? 'exhausted' : used>max*0.8 ? 'tired' : 'content'",
-            HTML,
-        )
-
     def test_daily_energy_uses_local_calendar_and_lifecycle_checks(self):
         compact = HTML.replace(" ", "")
         self.assertNotIn("newDate().toISOString().slice(0,10)", compact)
@@ -802,7 +796,7 @@ class MangaUIContractTests(unittest.TestCase):
 
     def test_companion_status_localizes_character_and_state(self):
         compact = HTML.replace(" ", "")
-        for key in ("companionIdle", "companionContent", "companionTired", "companionExhausted"):
+        for key in ("companionIdle", "companionContent", "companionStrained", "companionTired", "companionExhausted"):
             self.assertEqual(len(re.findall(rf"\b{key}:", HTML)), 2)
         self.assertIn("T(companion==='human'?'companionHuman':'companionCat')", compact)
         self.assertIn("T(companionStateKeys[state])", compact)
@@ -826,15 +820,15 @@ class MangaUIContractTests(unittest.TestCase):
     def test_overload_animation_runs_only_on_state_entry(self):
         compact = HTML.replace(" ", "")
         for fragment in (
-            "letpreviousCompanionState=null",
-            "previousCompanionState!=='exhausted'",
+            "letpreviousOverloaded=false",
+            "overloaded&&!previousOverloaded",
             "classList.add('bursting')",
             "animationend",
             "classList.remove('bursting')",
         ):
             self.assertIn(fragment, compact)
         self.assertIn(
-            "if(state!=='exhausted')warning.classList.remove('bursting')", compact
+            "if(!overloaded)warning.classList.remove('bursting')", compact
         )
 
     def test_reduced_motion_css_contract(self):

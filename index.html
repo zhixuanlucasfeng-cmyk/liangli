@@ -852,7 +852,7 @@ const SUPABASE_URL='https://rczhmavbzppssffgdnoh.supabase.co';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjemhtYXZienBwc3NmZmdkbm9oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1OTk4ODcsImV4cCI6MjEwMjE3NTg4N30.DRokVb4HR5zt215tz911HBNZl6iJ-WDlU3jrwYUGobw';
 const I18N={
  zh:{tagline:"反假性自律",loadTitle:"今日精力负荷",companionCat:'Power 猫',companionHuman:'人形 Power',companionReact:'戳一下伙伴',
-   companionIdle:'待命',companionContent:'状态良好',companionTired:'有些疲惫',companionExhausted:'精力耗尽',
+   companionIdle:'待命',companionContent:'状态良好',companionStrained:'开始费劲',companionTired:'有些疲惫',companionExhausted:'精力耗尽',
    loadWarn:"⚠️ 已超出今日承载范围。别急着加 —— 把非必要的任务放进成长池吧。",
    addTask:"添加任务",taskPh:"今天想完成什么？",energyLabel:"预估精力消耗",taskMore:"更多安排",taskLess:"收起安排",
    startTime:"开始时间",endTime:"结束时间",studyHelper:"学习助手",helperNone:"不需要",helperPomodoro:"番茄钟",helperFlashcards:"Flashcards",helperQuiz:"自测模式",helperChecklist:"分步清单",timeOrderError:"结束时间要晚于开始时间",openHelper:"打开学习助手",taskPomos:"个番茄",helperComing:"这个学习助手正在接入",
@@ -880,7 +880,7 @@ const I18N={
    savedLog:"记录已保存",movedTask:"已移到今日任务",newDayReset:"新的一天，精力已经重新归零。昨天没做完的事放回成长池了。",days:["一","二","三","四","五","六","日"],
    overload:"负荷已超载，这条先进成长池了"},
  en:{tagline:"Anti-fake-productivity",loadTitle:"Today's energy load",companionCat:'Power Cat',companionHuman:'Human Power',companionReact:'Tap companion',
-   companionIdle:'Idle',companionContent:'Feeling good',companionTired:'Getting tired',companionExhausted:'Exhausted',
+   companionIdle:'Idle',companionContent:'Feeling good',companionStrained:'Feeling the load',companionTired:'Getting tired',companionExhausted:'Exhausted',
    loadWarn:"⚠️ You're over today's capacity. Don't push — move the non-essential ones to your Growth Pool.",
    addTask:"Add a task",taskPh:"What do you want to get done today?",energyLabel:"Estimated energy cost",taskMore:"More options",taskLess:"Hide options",
    startTime:"Start time",endTime:"End time",studyHelper:"Study helper",helperNone:"None",helperPomodoro:"Pomodoro",helperFlashcards:"Flashcards",helperQuiz:"Self quiz",helperChecklist:"Step checklist",timeOrderError:"End time must be later than start time",openHelper:"Open study helper",taskPomos:"pomodoros",helperComing:"This study helper is being connected",
@@ -2737,7 +2737,7 @@ const companionLayers=[...document.querySelectorAll('.companion-video')];
 let activeCompanionLayer=0;
 let pendingCompanionSrc='';
 let companionSwapTimer=null;
-let previousCompanionState=null;
+let previousOverloaded=false;
 let companionMediaActive=true;
 let currentCompanion='cat';
 let currentCompanionState='idle';
@@ -2746,7 +2746,7 @@ let companionReactionTimer=null;
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 const companionStateKeys={
   idle:'companionIdle',content:'companionContent',
-  tired:'companionTired',exhausted:'companionExhausted'
+  strained:'companionStrained',tired:'companionTired',exhausted:'companionExhausted'
 };
 
 function companionMediaSrc(companion,state,extension){
@@ -2914,6 +2914,13 @@ function setTodayMediaActive(active){
   }
   requestCompanion(currentCompanion,currentCompanionState);
 }
+function companionStateForEnergy(used){
+  if(used<20)return 'idle';
+  if(used<40)return 'content';
+  if(used<60)return 'strained';
+  if(used<80)return 'tired';
+  return 'exhausted';
+}
 function renderCompanion(state){
   requestCompanion(S.companion,state);
   document.querySelectorAll('[data-companion]').forEach(btn=>
@@ -2932,15 +2939,15 @@ function renderLoad(){
   const bar=document.getElementById('loadBar');
   bar.style.width=pct+'%';
   bar.style.background = used>max?'var(--danger)':used>max*0.8?'var(--warn)':'var(--ok)';
-  const state = used===0 ? 'idle' : used>max ? 'exhausted' : used>max*0.8 ? 'tired' : 'content';
+  const state=companionStateForEnergy(used),overloaded=used>max;
   document.getElementById('loadState').textContent=T(companionStateKeys[state]);
   const warning=document.getElementById('loadWarn');
-  warning.classList.toggle('show',state==='exhausted');
-  if(state==='exhausted'&&previousCompanionState!=='exhausted'){
+  warning.classList.toggle('show',overloaded);
+  if(overloaded&&!previousOverloaded){
     warning.classList.add('bursting');
   }
-  if(state!=='exhausted')warning.classList.remove('bursting');
-  previousCompanionState=state;
+  if(!overloaded)warning.classList.remove('bursting');
+  previousOverloaded=overloaded;
   renderCompanion(state);
 }
 document.getElementById('loadWarn').addEventListener('animationend',e=>{

@@ -1,7 +1,7 @@
 /* Powy — service worker
    改了 index.html 之后，把下面的版本号 +1，用户下次打开就会拿到新版本。 */
-const VERSION = 'liangli-v20';
-const VIDEO_CACHE = 'liangli-video-v4';
+const VERSION = 'liangli-v21';
+const VIDEO_CACHE = 'liangli-video-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -12,10 +12,12 @@ const ASSETS = [
   './powy-power-maskable-512.png',
   './assets/power-cat/idle.webp',
   './assets/power-cat/content.webp',
+  './assets/power-cat/strained.webp',
   './assets/power-cat/tired.webp',
   './assets/power-cat/exhausted.webp',
   './assets/power-human/idle.webp',
   './assets/power-human/content.webp',
+  './assets/power-human/strained.webp',
   './assets/power-human/tired.webp',
   './assets/power-human/exhausted.webp'
 ];

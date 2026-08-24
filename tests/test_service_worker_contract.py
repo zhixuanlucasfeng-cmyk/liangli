@@ -11,7 +11,7 @@ MANIFEST = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
 
 class ServiceWorkerContractTests(unittest.TestCase):
     def test_shell_cache_version_tracks_account_clarity_release(self):
-        self.assertIn("const VERSION = 'liangli-v20'", SW)
+        self.assertIn("const VERSION = 'liangli-v21'", SW)
 
     def test_manifest_uses_powy_brand(self):
         self.assertEqual(MANIFEST["name"], "Powy")
@@ -38,7 +38,7 @@ class ServiceWorkerContractTests(unittest.TestCase):
 
     def test_posters_are_precached(self):
         for character in ("cat", "human"):
-            for state in ("idle", "content", "tired", "exhausted"):
+            for state in ("idle", "content", "strained", "tired", "exhausted"):
                 self.assertIn(f"./assets/power-{character}/{state}.webp", SW)
 
     def test_mp4s_are_not_install_precached(self):

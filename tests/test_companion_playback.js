@@ -114,6 +114,7 @@ function createHarness({reducedMotion = false} = {}) {
     setTodayMediaActive,
     stopLayer,
     companionMediaSrc,
+    companionStateForEnergy,
     state:()=>({activeCompanionLayer,pendingCompanionSrc,companionRequestId,companionMediaActive,currentCompanionState,currentCompanion,companionReactionPlaying})
   };`, context);
   return {
@@ -137,6 +138,20 @@ function testStageTracksLatestCharacterAndState() {
 
   assert.equal(harness.stage.dataset.companion, 'human');
   assert.equal(harness.stage.dataset.state, 'tired');
+}
+
+function testEnergyChangesStateEveryTwentyPoints() {
+  const harness = createHarness();
+  const cases = [
+    [0, 'idle'], [19, 'idle'],
+    [20, 'content'], [39, 'content'],
+    [40, 'strained'], [59, 'strained'],
+    [60, 'tired'], [79, 'tired'],
+    [80, 'exhausted'], [100, 'exhausted'], [120, 'exhausted'],
+  ];
+  for (const [used, expected] of cases) {
+    assert.equal(harness.companionStateForEnergy(used), expected, `energy ${used}`);
+  }
 }
 
 async function startReaction(harness) {
@@ -365,6 +380,7 @@ async function testLeavingTodayCancelsReactionAndCanResume() {
 
 (async () => {
   testStageTracksLatestCharacterAndState();
+  testEnergyChangesStateEveryTwentyPoints();
   await testLatestActiveRequestWins();
   await testRejectedPlayShowsPosterAndClearsVideos();
   await testStableActiveSourceDoesNotReload();

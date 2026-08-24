@@ -24,7 +24,7 @@ class CompanionAssetTests(unittest.TestCase):
 
     def test_every_character_state_has_a_crisp_square_silent_video(self):
         for character in ("human", "cat"):
-            for state in ("idle", "content", "tired", "exhausted", "tap"):
+            for state in ("idle", "content", "strained", "tired", "exhausted", "tap"):
                 with self.subTest(character=character, state=state):
                     path = ROOT / "assets" / f"power-{character}" / f"{state}.mp4"
                     self.assertTrue(path.is_file(), f"missing companion video: {path}")
@@ -40,13 +40,15 @@ class CompanionAssetTests(unittest.TestCase):
                     self.assertLessEqual(duration, 4.1)
                     self.assertLessEqual(int(media["format"]["size"]), 2_000_000)
 
-    def test_human_idle_uses_high_frame_rate_for_smooth_looping(self):
-        media = self.probe(ROOT / "assets" / "power-human" / "idle.mp4")
-        video = next(
-            stream for stream in media["streams"] if stream["codec_type"] == "video"
-        )
-        numerator, denominator = map(int, video["avg_frame_rate"].split("/"))
-        self.assertGreaterEqual(numerator / denominator, 48)
+    def test_human_energy_states_use_high_frame_rate_for_smooth_looping(self):
+        for state in ("idle", "content", "strained", "tired"):
+            with self.subTest(state=state):
+                media = self.probe(ROOT / "assets" / "power-human" / f"{state}.mp4")
+                video = next(
+                    stream for stream in media["streams"] if stream["codec_type"] == "video"
+                )
+                numerator, denominator = map(int, video["avg_frame_rate"].split("/"))
+                self.assertGreaterEqual(numerator / denominator, 48)
 
 
 if __name__ == "__main__":
