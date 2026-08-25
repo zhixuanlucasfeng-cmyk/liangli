@@ -32,6 +32,8 @@ class FakeMediaLayer {
     this.loadCount = 0;
     this.pauseCount = 0;
     this.playCount = 0;
+    this.paused = true;
+    this.currentTime = 0;
     this.loop = true;
     this.playBehavior = () => Promise.resolve();
   }
@@ -41,8 +43,14 @@ class FakeMediaLayer {
   hasAttribute(name) { return this.attrs.has(name); }
   removeAttribute(name) { this.attrs.delete(name); }
   load() { this.loadCount += 1; }
-  pause() { this.pauseCount += 1; }
-  play() { this.playCount += 1; return this.playBehavior(); }
+  pause() { this.pauseCount += 1; this.paused = true; }
+  play() {
+    this.playCount += 1;
+    return Promise.resolve(this.playBehavior()).then(value => {
+      this.paused = false;
+      return value;
+    });
+  }
   addEventListener(type, listener, options = {}) {
     const listeners = this.listeners.get(type) || [];
     listeners.push({listener, once: Boolean(options.once)});
@@ -165,12 +173,13 @@ async function startReaction(harness) {
   return reaction;
 }
 
-function establishActive(harness, state = 'idle') {
-  const src = harness.companionMediaSrc('cat', state, 'mp4');
+function establishActive(harness, state = 'idle', companion = 'cat') {
+  const src = harness.companionMediaSrc(companion, state, 'mp4');
   const active = harness.layers[0];
   active.src = src;
   active.dataset.companionSrc = src;
   active.classList.add('is-active');
+  active.paused = false;
   return src;
 }
 
@@ -244,6 +253,38 @@ async function testStableActiveSourceDoesNotReload() {
   assert.equal(harness.layers[0].loadCount, activeLoads);
   assert.equal(harness.layers[0].getAttribute('src'), srcA);
   assert.equal(harness.layers[0].classList.contains('is-active'), true);
+}
+
+async function testStablePausedSourceResumesPlayback() {
+  const harness = createHarness();
+  establishActive(harness);
+  harness.layers[0].paused = true;
+
+  harness.requestCompanion('cat', 'idle');
+  await Promise.resolve();
+
+  assert.equal(harness.layers[0].playCount, 1,
+    'selecting an already loaded but paused companion must resume it');
+  assert.equal(harness.layers[0].paused, false);
+}
+
+async function testHumanTapRestartsCurrentVideoInsteadOfOldReactionAsset() {
+  const harness = createHarness();
+  const currentSrc = establishActive(harness, 'idle', 'human');
+  const active = harness.layers[0];
+  active.currentTime = 2.5;
+  harness.requestCompanion('human', 'idle');
+
+  harness.triggerCompanionReaction();
+  await Promise.resolve();
+
+  assert.equal(active.getAttribute('src'), currentSrc);
+  assert.equal(active.currentTime, 0,
+    'human tap must visibly restart the current new animation');
+  assert.equal(active.playCount, 1);
+  assert.equal(harness.layers.some(layer =>
+    layer.getAttribute('src')?.endsWith('/tap.mp4')), false,
+  'human tap must never load the outdated Power reaction video');
 }
 
 async function testTodayVisibilityStopsAndRaceSafelyResumesDecode() {
@@ -384,6 +425,8 @@ async function testLeavingTodayCancelsReactionAndCanResume() {
   await testLatestActiveRequestWins();
   await testRejectedPlayShowsPosterAndClearsVideos();
   await testStableActiveSourceDoesNotReload();
+  await testHumanTapRestartsCurrentVideoInsteadOfOldReactionAsset();
+  await testStablePausedSourceResumesPlayback();
   await testTodayVisibilityStopsAndRaceSafelyResumesDecode();
   await testTapStartsOneShotAndLatestStateResumes();
   await testRepeatedTapDoesNotReloadReaction();

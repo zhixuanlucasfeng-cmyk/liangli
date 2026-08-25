@@ -2762,6 +2762,17 @@ function stopLayer(layer){
   delete layer.dataset.companionSrc;
   delete layer._companionRequestId;
 }
+function resumeCompanionLayer(layer,restart=false){
+  const poster=document.getElementById('companionPoster');
+  if(restart){
+    try{layer.currentTime=0;}catch(e){}
+  }
+  let playback;
+  try{playback=Promise.resolve(layer.play());}
+  catch(e){poster.classList.add('is-visible');return;}
+  playback.then(()=>poster.classList.remove('is-visible'))
+    .catch(()=>poster.classList.add('is-visible'));
+}
 function cancelCompanionTransition(){
   clearTimeout(companionSwapTimer);
   companionSwapTimer=null;
@@ -2807,7 +2818,8 @@ function requestCompanion(companion,state){
   const videoSrc=companionMediaSrc(companion,state,'mp4');
   const active=companionLayers[activeCompanionLayer];
   if(active.dataset.companionSrc===videoSrc&&active.classList.contains('is-active')){
-    poster.classList.remove('is-visible');
+    if(active.paused)resumeCompanionLayer(active);
+    else poster.classList.remove('is-visible');
     return;
   }
 
@@ -2856,6 +2868,16 @@ function finishCompanionReaction(requestId){
 }
 function triggerCompanionReaction(){
   if(companionReactionPlaying||!companionMediaActive||reducedMotion.matches)return;
+  if(currentCompanion==='human'){
+    const active=companionLayers[activeCompanionLayer];
+    const expectedSrc=companionMediaSrc(currentCompanion,currentCompanionState,'mp4');
+    if(active.dataset.companionSrc===expectedSrc&&active.classList.contains('is-active')){
+      resumeCompanionLayer(active,true);
+    }else{
+      requestCompanion(currentCompanion,currentCompanionState);
+    }
+    return;
+  }
   companionReactionPlaying=true;
   const requestId=++companionRequestId;
   cancelCompanionTransition();
