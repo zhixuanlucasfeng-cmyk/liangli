@@ -19,6 +19,9 @@
 2. 从新仓库的 `main` 分支发布正式 Powy 网站。
 3. 原 `liangli` 仓库保留为兼容入口；其 Pages 首页只负责将访问者引导到 `/powy/`。
 4. 原仓库不再承载产品开发，新提交只进入 `powy`。
+5. 旧兼容入口保留 90 天；确认新站、注册、登录和找回密码稳定后，可归档或删除旧仓库。
+
+对外分享、文档和最终交付只使用干净的正式地址 `https://zhixuanlucasfeng-cmyk.github.io/powy/`，不附加 `?v=数字` 或其他版本查询参数。版本更新完全由 Service Worker 处理。
 
 ## 品牌统一
 
@@ -38,6 +41,7 @@
 - 现有 localStorage、IndexedDB 和 Supabase 表/RPC 继续可读，不清空、不自动覆盖。
 - 新 Service Worker 使用 `powy-*` 缓存，并在激活时清理本项目旧 `liangli-*` 缓存。
 - 生产 Supabase 表和 RPC 不为品牌目的改名；这些是已部署的数据协议，重命名没有用户收益且会增加同步风险。
+- 应用只保留现有的最新三份本机恢复快照；更旧快照可继续按现有保留策略删除。网页无权删除用户已经下载到设备文件夹中的 JSON 备份。
 
 ## 账号回调迁移
 
@@ -62,6 +66,7 @@ Supabase Auth 的生产 Site URL 改为新的 `/powy/` 完整 HTTPS 地址；All
 - Python、Node、媒体、JavaScript 语法和 `git diff --check` 全部通过。
 - 在真实浏览器验证五个页面、PWA 注册、伙伴视频和账号入口。
 - 新仓库 Pages 部署成功，Supabase 新回调生效，旧网址能到达新网址。
+- 所有交付链接均为不带版本查询参数的 `/powy/` 正式地址。
 
 ## 不做
 
