@@ -396,6 +396,17 @@ class MangaUIContractTests(unittest.TestCase):
         for helper in ("none", "pomodoro", "flashcards", "quiz", "checklist"):
             self.assertIn(f'value="{helper}"', HTML)
 
+    def test_today_has_a_direct_flashcard_entry(self):
+        self.assertRegex(
+            HTML,
+            r'<button\b[^>]*id="flashcardsQuickOpen"[^>]*onclick="openFlashcards\(\)"',
+        )
+        self.assertIn('data-i="openFlashcardsDirect"', HTML)
+        self.assertRegex(
+            HTML,
+            r'<div class="card manga-panel task-entry-panel">\s*<button\b[^>]*id="flashcardsQuickOpen"',
+        )
+
     def test_flashcard_overlay_is_accessible_and_complete(self):
         self.assertIn('id="flashcardOverlay"', HTML)
         self.assertIn('role="dialog"', HTML)
