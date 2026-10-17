@@ -12,17 +12,25 @@ if(!executablePath)throw new Error('Usage: node tests/packaged-smoke.cjs <packag
   let app;
   try{
     app=await electron.launch({executablePath:path.resolve(executablePath),args:['--user-data-dir='+profile]});
-    const actual=await app.evaluate(({app})=>({profile:app.getPath('userData'),packaged:app.isPackaged,version:app.getVersion()}));
+    const actual=await app.evaluate(({app})=>({profile:app.getPath('userData'),session:app.getPath('sessionData'),packaged:app.isPackaged,version:app.getVersion()}));
     assert.equal(fs.realpathSync(actual.profile),fs.realpathSync(profile));
+    assert.equal(fs.realpathSync(actual.session),fs.realpathSync(profile));
     assert.equal(actual.packaged,true);
     const page=await app.firstWindow();
     const errors=[];page.on('pageerror',error=>errors.push(error.message));
     await page.waitForSelector('#workspaceTitle');
+    assert.equal(await page.title(),'Powvy Habit');
     if(await page.locator('#accountWelcome').isVisible())await page.locator('#accountWelcomeContinue').click();
+    const theme=await page.locator('html').getAttribute('data-theme');
+    await page.locator('#themeToggle').click();
+    const changed=theme==='dark'?'light':'dark';
+    assert.equal(await page.locator('html').getAttribute('data-theme'),changed);
+    await page.reload();await page.waitForSelector('#workspaceTitle');
+    assert.equal(await page.locator('html').getAttribute('data-theme'),changed);
     await page.locator('nav [data-route=wallet]').click();
     assert.equal(await page.evaluate(()=>typeof require),'undefined');
     assert.equal(await page.evaluate(async()=> (await fetch('powy://app/package.json')).status),404);
     assert.deepEqual(errors,[]);
-    console.log('Packaged application launch, wallet navigation and isolation passed:',actual);
+    console.log('Packaged application launch, branding, theme persistence, wallet and isolation passed:',actual);
   }finally{if(app)await app.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

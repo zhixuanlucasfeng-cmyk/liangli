@@ -1,51 +1,93 @@
 ---
-name: Powy
-description: 安静、紧凑的个人工作台
+name: Powvy Habit
+description: 纸张、墨线与睡猫陪伴的校园漫画个人工作台
 colors:
-  bg: "#f5f6f8"
-  card: "#fff"
-  card2: "#f5f7fa"
-  txt: "#202632"
-  sub: "#606b7c"
-  line: "#dfe4ec"
-  accent: "#245cd6"
-  ok: "#247453"
-  warn: "#946000"
-  danger: "#bb3545"
-  sidebar: "#f0f2f6"
-  nav-active: "#e1eaff"
-  selected-text: "#184cac"
-  selected-bg: "#edf3ff"
-  selected-border: "#89aaf0"
+  bg: "#ded9cd"
+  card: "#f0ebde"
+  card2: "#e4dfd1"
+  txt: "#282927"
+  sub: "#57564e"
+  line: "#a29e90"
+  accent: "#9a3836"
+  ok: "#3c6650"
+  warn: "#79531b"
+  danger: "#a72e37"
+  ink: "#30332f"
+  warning: "#ead9cf"
+  selected-bg: "#e8cfc4"
+  selected-text: "#7b2929"
+  selected-border: "#9a3836"
+  on-accent: "#fff3e3"
+  sidebar: "#d2ccbd"
+  track: "#c9c3b4"
+  overlay: "#181b1c99"
+  dot: "#3338301c"
+  night-bg: "#191c1d"
+  night-card: "#252a2b"
+  night-card2: "#303637"
+  night-txt: "#eee7d8"
+  night-sub: "#c0b9ab"
+  night-line: "#70776f"
+  night-accent: "#ed9385"
+  night-ok: "#a6c8a1"
+  night-warn: "#ddbc7e"
+  night-danger: "#ff9a98"
+  night-ink: "#d7d0bf"
+  night-warning: "#493336"
+  night-selected-bg: "#4b3332"
+  night-selected-text: "#ffb4a6"
+  night-selected-border: "#ce857b"
+  night-on-accent: "#271b19"
+  night-sidebar: "#202525"
+  night-track: "#4c524e"
+  night-overlay: "#080b0cc9"
+  night-dot: "#d7d0bf13"
 typography:
   headline:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft Yahei", sans-serif'
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft Yahei\", sans-serif"
     fontSize: "24px"
-    fontWeight: 700
+    fontWeight: 800
     lineHeight: 1.5
-    letterSpacing: "-.025em"
+    letterSpacing: "-.03em"
   title:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft Yahei", sans-serif'
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft Yahei\", sans-serif"
     fontSize: "15px"
     fontWeight: 650
     lineHeight: 1.5
+  panel-tab:
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft Yahei\", sans-serif"
+    fontSize: "14px"
+    fontWeight: 750
+    lineHeight: 1.35
   body:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft Yahei", sans-serif'
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft Yahei\", sans-serif"
     fontSize: "14px"
     fontWeight: 400
     lineHeight: 1.5
   label:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft Yahei", sans-serif'
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft Yahei\", sans-serif"
     fontSize: "12px"
     fontWeight: 400
     lineHeight: 1.5
+  brand:
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft Yahei\", sans-serif"
+    fontSize: "18px"
+    fontWeight: 800
+    lineHeight: 1.12
+    letterSpacing: "-.025em"
+  button:
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft Yahei\", sans-serif"
+    fontSize: "13px"
+    fontWeight: 700
+    lineHeight: 1.5
 rounded:
-  tag: "5px"
-  action: "6px"
-  control: "7px"
-  inset: "8px"
-  card: "12px"
-  overlay: "14px"
+  control: "3px"
+  panel: "3px"
+  overlay: "5px"
+  utility: "6px"
+  status: "8px"
+  portrait: "10px"
+  progress: "4px"
 spacing:
   xs: "4px"
   sm: "8px"
@@ -57,12 +99,14 @@ spacing:
 components:
   button-primary:
     backgroundColor: "{colors.accent}"
-    textColor: "{colors.card}"
+    textColor: "{colors.on-accent}"
+    typography: "{typography.button}"
     rounded: "{rounded.control}"
     padding: "9px 14px"
   button-ghost:
     backgroundColor: "{colors.card}"
     textColor: "{colors.txt}"
+    typography: "{typography.button}"
     rounded: "{rounded.control}"
     padding: "9px 14px"
   input:
@@ -71,142 +115,157 @@ components:
     rounded: "{rounded.control}"
     padding: "9px 11px"
   nav-active:
-    backgroundColor: "{colors.nav-active}"
-    textColor: "{colors.selected-text}"
-    rounded: "{rounded.inset}"
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.on-accent}"
+    rounded: "{rounded.control}"
     padding: "11px 12px"
   tag:
     backgroundColor: "{colors.card2}"
     textColor: "{colors.sub}"
-    rounded: "{rounded.tag}"
+    rounded: "{rounded.control}"
     padding: "3px 7px"
   card:
     backgroundColor: "{colors.card}"
     textColor: "{colors.txt}"
-    rounded: "{rounded.card}"
+    rounded: "{rounded.panel}"
     padding: "22px"
+  panel-tab:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.bg}"
+    typography: "{typography.panel-tab}"
+    padding: "4px 10px"
+  theme-toggle:
+    backgroundColor: "{colors.card}"
+    textColor: "{colors.txt}"
+    rounded: "{rounded.control}"
+    padding: "9px"
+    width: "40px"
+    height: "40px"
+  theme-toggle-active:
+    backgroundColor: "{colors.selected-bg}"
+    textColor: "{colors.selected-text}"
+    rounded: "{rounded.control}"
+    padding: "9px"
+    width: "40px"
+    height: "40px"
   pager-button:
     backgroundColor: "{colors.card}"
     textColor: "{colors.txt}"
-    rounded: "{rounded.action}"
+    rounded: "{rounded.control}"
   review-card:
     backgroundColor: "{colors.card2}"
     textColor: "{colors.txt}"
-    rounded: "{rounded.card}"
+    rounded: "{rounded.panel}"
     padding: "28px"
 ---
 
-# Design System: Powy
+# Design System: Powvy Habit
 
 ## Overview
 
-**Creative North Star: "安静的个人工作台"**
+**Creative North Star: "校园漫画手账"**
 
-Powy 使用中性浅色画布、白色工作面板、石墨色文字和克制的蓝色交互状态。界面为日常操作服务：通过左侧导航进入工具，在有限视口中输入、检查和处理数据。
+Powvy Habit 是一本可以操作的校园漫画手账：暖灰纸张、炭黑墨线、深红选择状态与细密网点承载日常记录。熟睡的 Power 灵感小角猫是品牌锚点；左侧导航、紧凑表单和视口分页维持清楚的工作秩序。
 
-用户已确定干净的侧栏应用方向，保留 Powy 名称，移除漫画、Chainsaw Man 和 Power 角色装饰。系统字体、细边框、适度圆角和紧凑密度延续这一方向。本文件记录已构建的界面，以 `workspace.css`、`workspace.js` 和 `index.html` 为事实来源；不增加新的品牌假设。
+夜间模式把纸面换为石墨色、文字换为暖米色、交互换为浅珊瑚红，保持同一结构与印刷感。本规范记录 workspace.css、theme.js、workspace.js 和 index.html 的最终实现；已替代旧蓝白视觉。用户可见名称统一为 Powvy Habit，兼容性相关标识保持稳定。
 
 **Key Characteristics:**
 
-- 浅色中性底色，蓝色标记操作和选中状态。
-- 左侧导航与工作面板构成稳定的操作空间。
-- 长列表分页，完整文本按需展开。
-- 中英文共用系统字体与组件结构。
+- 暖纸／石墨双主题，墨线框与网点留白。
+- 小角猫与两行字标构成紧凑品牌区。
+- 左侧导航常驻，窄屏采用图标栏与操作／记录切换。
+- 列表按视口高度分页，完整内容可通过详情读取。
 
 ## Colors
 
-配色以低饱和中性色构建层次，蓝色负责主要交互；语义色仅表达状态。
+前置元数据中的无前缀颜色对应日间 CSS 变量；`night-` 前缀对应 `:root[data-theme=dark]` 对同名变量的覆盖，不是新增 CSS 变量。组件令牌展示日间角色，夜间使用对应的 `night-` 颜色。CSS 的 `accent2`、`focus`、`blood` 是 `accent` 别名，`paper` 是 `card` 别名。
 
 ### Primary
 
-`accent` 为操作蓝，用于主要按钮、焦点、进度与选择。选中导航使用 `nav-active` 背景和 `selected-text` 文字；较轻的选择面板使用 `selected-bg`，选项描边使用 `selected-border`。
+`accent` 深红／夜间浅珊瑚红用于主按钮、当前导航与进度。`on-accent` 是其专用前景；不要把面板颜色当作按钮文字。`selected-bg`、`selected-text`、`selected-border` 用于能量选择、类别、主题开关及文本选择。
 
 ### Neutral
 
-`bg` 是页面画布，`sidebar` 是侧栏底色，`card` 是工作面板，`card2` 是提示和次级内容底色。`txt`、`sub` 和 `line` 分别承载正文、辅助文字和分隔边框。以上前置元数据中的值为规范值。
+`bg` 是暖灰纸画布／石墨画布，`sidebar` 是侧栏，`card` 与 `card2` 是主次内容面。`txt`、`sub` 分别承载正文和说明；`line` 是细分隔线，`ink` 是面板边框与实色标题签。`track` 用于进度轨道及部分行分隔；`dot` 是半透明网点，`overlay` 是遮罩。
 
-### Semantic states
+`ok`、`warn`、`danger` 分别表示正常、警示与错误；`warning` 为危险操作悬停背景。状态同时依靠文字、图形或控件语义表达。
 
-`ok` 表示完成和正常状态，`warn` 表示警示，`danger` 表示删除、超额或错误。状态同时使用文字、形状或控件状态说明，不能仅靠颜色区分。
+**The Paper and Ink Rule.** 网点只铺在工作区背景与面板间隙；内容面板使用实色纸面，正文不叠加纹理。
+
+**The Same Notebook Rule.** 日夜主题共享结构、控件尺寸和状态语义，只切换配色；主题切换不改变工作数据。
 
 ## Typography
 
-全部界面使用前置元数据中的系统字体栈，不加载展示字体或图标字体。中文随系统使用 PingFang SC 或 Microsoft Yahei，英文随平台采用系统 UI 字体。
+共用系统 UI 字体栈，保留中文系统字体，不加载展示字体或图标字体。headline 用于页面标题，title 用于普通标题，panel-tab 用于面板墨色标题签。body、label 与 button 保持紧凑信息密度；品牌字标采用 brand 并自然换成两行。
 
-页面标题使用 headline，面板标题使用 title，正文使用 body，字段和说明使用 label。辅助说明通常使用 1.6 行高；列表元信息可降至 11px。导航为 13px，品牌名称为 21px。页面标题在窄屏调整为 22px，再到 20px。
-
-数字统计采用等宽数字特性 `font-variant-numeric: tabular-nums`；倒计时为 44px、500 字重，钱包与营养统计依容器使用约 19–25px。正文不采用装饰性全大写。提示文案在备份面板中限制为 65ch。
+页面标题在宽度 ≤1050px 时为 22px，≤500px 时为 20px；品牌在 ≤1050px 时为 16px，≤850px 时隐藏文字。导航为 13px、常态 600／选中 650 字重；列表元信息与标签为 11px，说明行高 1.6。统计和倒计时使用等宽数字；倒计时为 44px、500 字重，复习正反面为 22px。
 
 ## Layout
 
-应用默认高为 100dvh，左栏宽 200px，左栏顶部品牌区高 78px。工作区标题高 88px，主内容左右内边距 28px、底部 24px；常规面板间距 20px。默认编辑与记录双栏分别为 `minmax(280px,.85fr)` 和 `minmax(340px,1.4fr)`。这是实际实现；早期计划中的 68px 工作区标题高度不作为规范。
+应用高 100dvh；左栏默认宽 200px，品牌区高 78px。工作区标题高 88px，主内容两侧留白 28px、底部 24px；面板间距 20px。默认双栏为 `minmax(280px,.85fr) minmax(340px,1.4fr)`。睡猫图像使用完整轮廓：桌面 50px，≤1050px 为 42px，≤850px 为 48px；不裁切角色。
 
-今日页面左侧为紧凑负荷条和任务编辑区，右侧为任务列表。钱包提供概览、记一笔、记录、分类和预算五个入口；页签可换行，容纳英文和小屏。输入和预算页面内容最大宽度 720px，独立分类页面最大宽度 800px。
+- 宽度 ≤1050px：侧栏 160px，两侧留白 20px，卡片内边距 16px。
+- 宽度 ≤850px：保留 72px 图标侧栏；编辑与记录改为单栏互斥面板，保留名称和提示。卡片库按牌组／编辑器切换。
+- 宽度 ≤500px：两侧留白 12px，卡片内边距 14px，隐藏副标题；表单与页签允许换行，部分被动标签隐藏。
+- 高度 ≤800px：标题高 76px，面板内边距 18px、间距 16px；后续宽度规则覆盖相应属性，≤500px 标题恢复 88px。
+- 高度 ≤650px：应用最小操作高度 650px，允许正文滚动，保全控件可达性。
 
-### Responsive behavior
-
-- 宽度 ≤1050px：左栏缩至 160px，工作区左右留白 20px，卡片内边距 16px。
-- 宽度 ≤850px：保留 72px 图标侧栏，隐藏导航文字但保留可访问名称和标题；编辑与记录切换为单栏互斥面板。钱包概览隐藏分类面板，分类仍可从专用页签访问；卡片库按牌组与编辑器切换。
-- 宽度 ≤500px：工作区左右留白 12px，卡片内边距 14px，隐藏副标题；表单行、钱包页签和卡片头允许换行。钱包汇总改为两列。
-- 高度 ≤800px：工作区标题压至 76px，常规卡片内边距 18px、面板间距 16px，部分表单与统计进一步压缩。宽度规则随后覆盖相应属性；≤500px 时工作区标题为 88px。
-- 高度 ≤650px：启用正文滚动，应用使用 650px 最小操作高度。这是低高度、缩放及可访问性的明确例外，不得为了“无滚动”裁掉控件。
-
-### Pagination and overflow
-
-任务、想法、目标、日记、消费、饮食、钱包分类、牌组和卡片列表按可用高度与当前最大行高计算每页容量，至少一条；翻页范围会在增删、尺寸变化和切换视图后重新约束。分页条显示当前范围与总条数，边界按钮禁用，范围变化通过礼貌播报状态区域提供。
-
-正常工作区不进行长页面滚动；完整文本可通过详情对话框阅读。账户面板、详情正文、复习卡及卡片列表中的长内容允许局部滚动。分页不等于截断信息，缩略文本必须保留完整内容入口。复习卡使用安全居中，长文本溢出时起始内容仍可访问。
+任务、想法、目标、日记、消费、饮食、钱包分类、牌组与卡片列表按可用高度和最大行高分页，至少一条；增删和尺寸变化会约束页码。正常视口不使用长页面滚动。详情、账户面板、复习卡和长卡片内容允许局部滚动；完整文本通过详情入口读取，分页不能造成内容丢失。
 
 ## Elevation & Depth
 
-工作面板不使用阴影。白色与浅灰色面、1px 细边框和留白建立层次。模态界面使用 `#17243e66` 遮罩，账户与卡片弹层层级为 20；反馈 toast 使用深色文字底色和白字，层级为 50。无装饰性浮起、立体或纸张效果。
+不使用投影。实色纸面、2px 墨线、标题签反色与网点间隙建立印刷层次。背景网点为 `radial-gradient(var(--dot) .7px,transparent .8px)`，以 5px 网格重复。账户与卡片遮罩使用 overlay，层级 20；toast 层级 50，以正文色为底、画布色为字。主题切换不使用全屏渐变动画。
 
 ## Shapes
 
-卡片和详情框使用 card 圆角，输入与主要按钮使用 control 圆角，内部提示与导航使用 inset 圆角，弹层使用 overlay 圆角。标签和翻页控件采用更小的圆角。默认描边为 1px，图标采用细线 SVG；头像保留圆形裁切。
+主面板和大多数控件采用 3px 小圆角，面板、侧栏右边及弹层使用 2px 墨线；弹层圆角为 5px。输入、下拉、文本域使用 1px 辅助文字色边框；复选按钮为 1.5px。实色标题签保持直角。少量辅助图标按钮保留 6px、账户状态保留 8px、头像预览保留 10px；用户头像仍为圆形，进度轨道使用 4px 圆角。
 
 ## Components
 
 ### Buttons
 
-主要按钮为蓝底白字，13px、550 字重；次要按钮为白底、正文色文字和细边框。常规控件最小高度 40px，小按钮最小高度 34px。删除和辅助操作使用紧凑图标按钮。禁用状态透明度 .48，鼠标样式为不可用。
-
-悬停使用 `brightness(.97)`，颜色切换为 .15s。可见键盘焦点使用 2px 蓝色轮廓、3px 外偏移；输入框焦点外偏移为 1px。系统要求减少动态效果时关闭动画与过渡。
+主按钮使用 accent／on-accent，次按钮使用 card／txt 和 line 边框。常规最小高度 40px，小按钮 34px；≤1050px 常规水平内边距为 11px。按钮悬停亮度 .94，次按钮同时加深到 ink 边框；禁用透明度 .48。颜色过渡 .15s。可见键盘焦点为 2px accent 外框、3px 偏移；减少动态效果时关闭动画和过渡。
 
 ### Inputs / Fields
 
-输入、选择与文本域采用白底细灰边框。字段标签显示在控件上方；文本域行高 1.6，禁止手动拖拽改变尺寸。复选框和单选框保留原生平台语义与蓝色强调。缩短可见表单不应丢失标签、验证反馈或完整输入能力。
+输入框沿用纸面，辅助文字色边框保证日夜可见；占位文字使用 sub，焦点外框偏移 1px。标签与控件关联，文本域行高 1.6、禁止拖拽改尺寸。复选框和单选框保留原生语义。
 
 ### Navigation
 
-左侧导航具有线形图标、文字与分组分隔线。当前页面使用浅蓝底、蓝字及 650 字重，并带 `aria-current="page"`。窄屏仅隐藏视觉文字，保留 `aria-label` 与悬停标题；不恢复底部导航。
+选中项为 accent 底、on-accent 字与墨线边框，使用 `aria-current="page"`。未选中悬停使用 card2。窄屏仅隐藏视觉文字，保留可访问名称与标题。工作区页签和紧凑模式切换采用 ink／bg 反色，并同步 `aria-pressed`。
 
 ### Chips / Choices
 
-被动标签使用次级面板底色和辅助文字；窄手机屏隐藏部分紧凑标签。可选择项以浅蓝底和蓝色描边表达选中，并同步 `aria-pressed` 或 `aria-checked`。钱包类别选项允许换行。
+被动标签为 card2／sub，内边距 3px 7px；能量与心情选项为 card2／txt，选中后切换 selected 颜色组。类别选择允许换行；选择状态同步 `aria-checked` 或 `aria-pressed`。
 
 ### Cards / Containers
 
-默认卡片为白底、细边框、22px 内边距，采用垂直弹性布局，内部列表占据剩余高度。常规列表行以细分隔线区分；不为每条数据再添加一层卡片。
+面板是实色纸页与墨线框，默认内边距 22px、垂直弹性排列，列表占剩余高度。直接面板标题以墨色签呈现。列表行通过分隔线区分，避免重复套卡片。复习卡使用 card2、28px 内边距，安全居中与局部滚动容纳长文字。
 
-### Dialogs / Review
+### Theme / Identity
 
-详情使用原生 `dialog`，最大宽度 620px，最大高度为视口减 48px，正文可在 65dvh 内滚动。对话框具备标题关联和关闭按钮；长文字保留换行并允许任意字符处折行。复习卡背景使用次级面板底色，22px 正反面文字，安全居中和局部滚动兼容长内容。
+右上角主题按钮为 40px 方形月亮图标控件，与账户、语言按钮并列；夜间状态使用 selected 颜色与 `aria-pressed="true"`。theme.js 在样式表之前运行：优先读取 `powvy-habit-theme`，否则跟随系统；系统变化仅在尚未手动选择时生效。用户选择被记住，存储失败时仍切换并提示无法保存。
+
+品牌使用现有睡猫资产和 Powvy Habit 字标；猫是 Power 灵感的原创熟睡小角猫，不替换为字体图标。品牌变化不改变底层兼容标识。
+
+### Pagination / Dialogs
+
+分页条显示当前范围与总数，边界按钮禁用，状态通过礼貌播报区域宣布。详情使用原生 dialog，最大宽度 620px、最大高度为视口减 48px，正文最高 65dvh 并可滚动；关联标题，提供关闭按钮，保留长文本换行。
 
 ## Do's and Don'ts
 
 ### Do:
 
-- Do 保留中性浅色、细描边、系统字体和左侧导航。
-- Do 根据真实可用高度分页，提供完整文本和键盘访问路径。
-- Do 在紧凑屏幕切换编辑与记录，允许英文页签自然换行。
-- Do 保留低高度页面滚动和长内容局部滚动的可访问性例外。
-- Do 将选中状态、焦点和禁用状态同时表达为语义与视觉反馈。
+- Do 使用当前主题的语义变量，保持日夜两套状态一致。
+- Do 保留睡猫品牌、左侧栏、墨线框和网点留白。
+- Do 根据可用高度分页，并保留完整文本、键盘焦点和局部滚动。
+- Do 保留低高度滚动例外、中英文标签及可访问名称。
 
 ### Don't:
 
-- Don't 重新引入漫画、Chainsaw Man 或 Power 角色装饰。
-- Don't 用超大宣传标题、装饰插画或额外卡片层级挤占操作区域。
-- Don't 为满足无滚动外观而隐藏必要内容或裁掉操作。
-- Don't 将此文件中的预览色阶当作新增应用颜色令牌。
+- Don't 恢复纯白画布、蓝色主强调或旧的干净 SaaS 视觉。
+- Don't 把网点铺进表单文字与长内容，或用大插画挤占工作空间。
+- Don't 为无滚动外观裁掉必要内容，或将左侧栏改为底部导航。
+- Don't 因品牌改名迁移兼容性相关的数据键、协议或应用标识。
+- Don't 将 sidecar 的预览色阶当作新增应用令牌。
 

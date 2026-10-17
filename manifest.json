@@ -1,12 +1,12 @@
 {
-  "name": "Powy",
-  "short_name": "Powy",
-  "description": "Powy · 简洁的个人工作台",
+  "name": "Powvy Habit",
+  "short_name": "Powvy Habit",
+  "description": "Powvy Habit · 简洁的个人工作台",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f5f6f8",
-  "theme_color": "#f5f6f8",
+  "background_color": "#ded9cd",
+  "theme_color": "#ded9cd",
   "lang": "zh-CN",
   "categories": [
     "productivity",
@@ -15,16 +15,10 @@
   ],
   "icons": [
     {
-      "src": "app-icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
       "src": "app-icon.png",
       "sizes": "1024x1024",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }

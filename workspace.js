@@ -54,6 +54,7 @@ function pageWindow(total, requested, capacity) {
     pageModes.set(current,mode);modePanel().dataset.compact=mode;refreshChrome();paginateAll();
   });
   function refreshChrome(){
+    const themeButton=$('themeToggle');themeButton.title=text('夜间模式','Night mode');themeButton.setAttribute('aria-label',themeButton.title);PowvyTheme.refresh();
     const route=routes[current];$('workspaceTitle').textContent=route[zh()?0:1];$('workspaceSubtitle').textContent=route[zh()?2:3];
     for(const button of nav.querySelectorAll('button')){
       const key=button.dataset.route||button.dataset.v;
@@ -61,7 +62,7 @@ function pageWindow(total, requested, capacity) {
       if(label){button.querySelector('span').textContent=label;button.title=label;button.setAttribute('aria-label',label);}
       button.classList.toggle('active',key===current);if(key===current)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
     }
-    foot.textContent=text('Powy · 你的个人工作台','Powy · Your personal workspace');
+    foot.textContent=text('Powvy Habit · 你的个人工作台','Powvy Habit · Your personal workspace');
     compact.hidden=!['today','pool','goals','focus','nutrition','journal'].includes(current);
     const mode=pageModes.get(current)||'entry';
     compact.querySelectorAll('button').forEach(button=>{button.textContent=button.dataset.mode==='entry'?text('编辑 / 操作','Edit / actions'):text('记录 / 数据','Records / data');button.setAttribute('aria-pressed',String(button.dataset.mode===mode));});

@@ -11,13 +11,12 @@ MANIFEST = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
 
 class ServiceWorkerContractTests(unittest.TestCase):
     def test_shell_cache_version_tracks_account_clarity_release(self):
-        self.assertIn("const VERSION = 'liangli-v24'", SW)
+        self.assertIn("const VERSION = 'liangli-v25'", SW)
 
     def test_manifest_uses_powy_brand(self):
-        self.assertEqual(MANIFEST["name"], "Powy")
-        self.assertEqual(MANIFEST["short_name"], "Powy")
-        self.assertEqual(MANIFEST["icons"][0]["src"], "app-icon.svg")
-        self.assertEqual(MANIFEST["icons"][1]["src"], "app-icon.png")
+        self.assertEqual(MANIFEST["name"], "Powvy Habit")
+        self.assertEqual(MANIFEST["short_name"], "Powvy Habit")
+        self.assertEqual(MANIFEST["icons"][0]["src"], "app-icon.png")
 
     def test_manifest_allows_ipad_rotation(self):
         self.assertNotIn("orientation", MANIFEST)
@@ -28,7 +27,7 @@ class ServiceWorkerContractTests(unittest.TestCase):
 
     def test_versioned_manifest_request_is_precached_exactly(self):
         assets = SW.split("const ASSETS =", 1)[1].split("];", 1)[0]
-        self.assertIn("'./manifest.json?v=24'", assets)
+        self.assertIn("'./manifest.json?v=25'", assets)
         self.assertNotIn("'./manifest.json',", assets)
 
     def test_cross_origin_api_requests_are_never_cached(self):
@@ -36,7 +35,7 @@ class ServiceWorkerContractTests(unittest.TestCase):
         self.assertIn("if(url.origin!==self.location.origin)return", compact)
 
     def test_clean_assets_are_precached(self):
-        for file in ("workspace.css", "workspace.js", "app-icon.svg", "app-icon.png"):
+        for file in ("workspace.css", "workspace.js", "theme.js", "app-icon.png"):
             self.assertIn(file, SW)
         self.assertNotIn("assets/power-", SW)
 
@@ -65,8 +64,8 @@ class ServiceWorkerContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_manifest_uses_ink_palette(self):
-        self.assertEqual(MANIFEST["background_color"], "#f5f6f8")
-        self.assertEqual(MANIFEST["theme_color"], "#f5f6f8")
+        self.assertEqual(MANIFEST["background_color"], "#ded9cd")
+        self.assertEqual(MANIFEST["theme_color"], "#ded9cd")
 
 
 if __name__ == "__main__":

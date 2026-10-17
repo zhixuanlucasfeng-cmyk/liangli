@@ -4,24 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'">
-<meta name="theme-color" content="#f5f6f8">
-<meta name="description" content="Powy · 反假性自律的个人成长工具">
-<link rel="manifest" href="manifest.json?v=24">
-<link rel="icon" href="app-icon.svg">
-<link rel="apple-touch-icon" href="app-icon.svg">
+<meta name="theme-color" content="#ded9cd">
+<meta name="description" content="Powvy Habit · 反假性自律的个人成长工具">
+<link rel="manifest" href="manifest.json?v=25">
+<link rel="icon" href="app-icon.png">
+<link rel="apple-touch-icon" href="app-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Powy</title>
+<title>Powvy Habit</title>
+<script src="theme.js"></script>
 <link rel="stylesheet" href="workspace.css">
 </head>
 <body>
 <div class="app">
   <header>
-    <div class="logo"><img src="app-icon.svg" alt=""></div>
-    <div><h1 id="appName">Powy</h1><span class="sl" id="tagline">反假性自律</span></div>
+    <div class="logo"><img src="app-icon.png" alt=""></div>
+    <div><h1 id="appName">Powvy Habit</h1><span class="sl" id="tagline">反假性自律</span></div>
     <button type="button" class="account-avatar" id="accountAvatar" onclick="openAccountPanel()" data-aria-i="accountTitle" aria-label="账号"><span class="avatar-fallback" id="avatarFallback">◉</span><img class="profile-avatar" id="profileAvatar" alt="" hidden></button>
     <button class="langbtn" onclick="toggleLang()" id="langBtn">EN</button>
+    <button type="button" class="theme-toggle" id="themeToggle" aria-label="夜间模式" title="夜间模式" aria-pressed="false" onclick="PowvyTheme.toggle()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 13.2A8.6 8.6 0 0110.8 3.5 8.7 8.7 0 1020.5 13.2Z"/></svg></button>
   </header>
 
   <main>
@@ -422,7 +424,7 @@
     <section class="account-recovery" id="coreRecoveryList"><h3 data-i="recoveryTitle">本机恢复备份</h3><div class="account-recovery-list" id="coreRecoveryItems"></div></section>
     <section class="appearance-settings" aria-labelledby="appearanceTitle">
       <h3 id="appearanceTitle" data-i="appearanceTitle">个人外观</h3>
-      <div class="appearance-preview"><img id="appearanceAvatarPreview" src="app-icon.svg" alt=""><p class="muted" data-i="appearanceLocalHint">头像和壁纸只保存在这台设备。</p></div>
+      <div class="appearance-preview"><img id="appearanceAvatarPreview" src="app-icon.png" alt=""><p class="muted" data-i="appearanceLocalHint">头像和壁纸只保存在这台设备。</p></div>
       <div class="appearance-actions">
         <button type="button" class="btn ghost" onclick="document.getElementById('avatarFile').click()" data-i="chooseAvatar">选择头像</button>
         <button type="button" class="btn ghost" onclick="document.getElementById('wallpaperFile').click()" data-i="chooseWallpaper">选择壁纸</button>
@@ -543,7 +545,7 @@ tagline:"Anti-fake-productivity",loadTitle:"Today's energy load",
    addTask:"Add a task",taskPh:"What do you want to get done today?",energyLabel:"Estimated energy cost",taskMore:"More options",taskLess:"Hide options",
    startTime:"Start time",endTime:"End time",studyHelper:"Study helper",helperNone:"None",helperPomodoro:"Pomodoro",helperFlashcards:"Flashcards",helperQuiz:"Self quiz",helperChecklist:"Step checklist",timeOrderError:"End time must be later than start time",openHelper:"Open study helper",taskPomos:"pomodoros",helperComing:"This study helper is being connected",
    flashcardsTitle:"FLASHCARDS",openFlashcardsDirect:"OPEN FLASHCARDS",flashcardsLocal:"On this device",decksTitle:"Decks",deckNamePh:"Deck name",createDeck:"New deck",cardFrontPh:"Front: question or prompt",cardBackPh:"Back: answer",addCard:"Add card",startReview:"Start review",cardFrontLabel:"Front",cardBackLabel:"Back",showAnswer:"Show answer",gradeAgain:"Again",gradeHard:"Hard",gradeGood:"Good",gradeEasy:"Easy",flashcardKeys:"Space to flip · 1–4 to grade",backToDecks:"Back to decks",closeFlashcards:"Close Flashcards",deleteDeck:"Delete deck",deleteCard:"Delete card",cardsCount:"cards",dueCount:"due",emptyDecks:"No decks yet. Make one for a subject.",emptyCards:"This deck has no cards yet.",reviewDone:"This review is complete.",deckNameNeeded:"Name the deck first",cardSidesNeeded:"Fill in both front and back",flashcardStoreError:"The local card library could not open",exportJson:"Export JSON",exportCsv:"Export CSV",importCards:"Import",confirmImport:"Import now",cancelImport:"Cancel",importReady:"Ready to import",importDone:"Cards imported",importInvalid:"The import file is invalid",importCollision:"duplicate IDs will be copied as new cards",selectDeckFirst:"Select a deck first",contentTooLong:"Deck names are limited to 120 characters and card sides to 10,000",syncNotConfigured:"Account sync is not configured. Cards remain safe on this device.",syncSignIn:"Sign in or create an account to sync data across devices.",emailPh:"Email",passwordPh:"Sign-in password",newPasswordPh:"At least 6 characters",signIn:"Sign in",signUp:"Sign up",signOut:"Sign out",syncNow:"Sync now",copyLocalCards:"Copy on-device cards to this account",copyLocalDone:"On-device cards copied to the account",signedInAs:"Signed in",authCheckEmail:"Check your email to finish signing up",authResetSent:"If this email is registered, a password reset message was sent. Check your inbox and spam folder.",authInvalidEmail:"Enter a valid email address",authWeakPassword:"Password must be at least 6 characters",authAlreadyRegistered:"This email is already registered. Sign in instead",authInvalidCredentials:"Incorrect email or password",authRateLimited:"Too many attempts. Try again later",authNetworkError:"Network connection failed. Check your connection",authServerError:"The account server returned an error (500). Try again shortly",authError:"Account action failed. Try again later",syncLocal:"On this device",syncWaiting:"Waiting to sync",syncing:"Syncing",syncDone:"Synced",syncFailed:"Sync failed",
-   accountWelcomeTitle:"Account & sync",accountWelcomeBody:"Optional: sign in to sync tasks, growth, goals, focus, and mood. Nutrition and Wallet stay on this device.",continueOnDevice:"Continue on this device",openAccount:"Sign up / sign in",accountTitle:"Account & sync",closeAccount:"Close account",emailLabel:"Email",passwordLabel:"Password",confirmPasswordLabel:"Confirm password",confirmPasswordPh:"Enter the same password again",showPassword:"Show password",createAccount:"Create account",recoverPassword:"Forgot password",signedInTitle:"Account signed in",changePassword:"Change password",authPasswordsMismatch:"The passwords do not match",accountCreated:"Account created. You are signed in. Choose what to sync next.",resetPasswordTitle:"Set a new password",newPasswordLabel:"New password",resetPasswordPh:"At least 6 characters",updatePassword:"Save new password",passwordUpdated:"Password updated. You can keep using Powy.",firstLoginTitle:"Choose account data",firstLoginBody:"This account has no cloud data yet. Choose what to keep.",uploadThisDevice:"Upload this device",startEmpty:"Start with an empty account",startEmptyWarning:"This creates empty synced data for this account. Your local recovery backup stays here.",confirmStartEmpty:"Confirm start empty",cancel:"Cancel",recoveryTitle:"Local recovery backups",restoreToDevice:"Restore to this device",noRecoveries:"No recovery backups yet",recoveryCounts:"Tasks {tasks} · Growth {growth} · Goals {goals} · Focus {focus} · Mood {mood}",accountLocal:"On this device",accountUnavailable:"Account sync is not configured. Your data stays on this device.",accountFirstLoginFailed:"Cloud data could not be read. Your current device data is unchanged.",accountRecoveryFailed:"A recovery backup could not be created. Your current device data is unchanged.",accountChoiceFailed:"Account setup failed. Your current device data is unchanged.",
+   accountWelcomeTitle:"Account & sync",accountWelcomeBody:"Optional: sign in to sync tasks, growth, goals, focus, and mood. Nutrition and Wallet stay on this device.",continueOnDevice:"Continue on this device",openAccount:"Sign up / sign in",accountTitle:"Account & sync",closeAccount:"Close account",emailLabel:"Email",passwordLabel:"Password",confirmPasswordLabel:"Confirm password",confirmPasswordPh:"Enter the same password again",showPassword:"Show password",createAccount:"Create account",recoverPassword:"Forgot password",signedInTitle:"Account signed in",changePassword:"Change password",authPasswordsMismatch:"The passwords do not match",accountCreated:"Account created. You are signed in. Choose what to sync next.",resetPasswordTitle:"Set a new password",newPasswordLabel:"New password",resetPasswordPh:"At least 6 characters",updatePassword:"Save new password",passwordUpdated:"Password updated. You can keep using Powvy Habit.",firstLoginTitle:"Choose account data",firstLoginBody:"This account has no cloud data yet. Choose what to keep.",uploadThisDevice:"Upload this device",startEmpty:"Start with an empty account",startEmptyWarning:"This creates empty synced data for this account. Your local recovery backup stays here.",confirmStartEmpty:"Confirm start empty",cancel:"Cancel",recoveryTitle:"Local recovery backups",restoreToDevice:"Restore to this device",noRecoveries:"No recovery backups yet",recoveryCounts:"Tasks {tasks} · Growth {growth} · Goals {goals} · Focus {focus} · Mood {mood}",accountLocal:"On this device",accountUnavailable:"Account sync is not configured. Your data stays on this device.",accountFirstLoginFailed:"Cloud data could not be read. Your current device data is unchanged.",accountRecoveryFailed:"A recovery backup could not be created. Your current device data is unchanged.",accountChoiceFailed:"Account setup failed. Your current device data is unchanged.",
    eLight:"Light 10",eMid:"Medium 25",eHeavy:"Heavy 45",addToday:"Add to today",todayTasks:"Today's tasks",
    poolTitle:"Growth pool",poolDesc:"Park sudden ideas here without forcing yourself to act now. Turn them into tasks when you actually have energy to spare.",
    ideaPh:"e.g. I want to learn some psychology…",save:"Save",myIdeas:"My ideas",toTask:"Make a task",
@@ -667,7 +669,7 @@ function applyAppearanceBlob(mode,blob){
   if(mode==='avatar'){
     const avatar=document.getElementById('profileAvatar'),preview=document.getElementById('appearanceAvatarPreview');
     if(blob){avatarObjectUrl=URL.createObjectURL(blob);avatar.src=avatarObjectUrl;preview.src=avatarObjectUrl;avatar.hidden=false;document.getElementById('avatarFallback').hidden=true;}
-    else{avatar.removeAttribute('src');avatar.hidden=true;document.getElementById('avatarFallback').hidden=false;preview.src='app-icon.svg';}
+    else{avatar.removeAttribute('src');avatar.hidden=true;document.getElementById('avatarFallback').hidden=false;preview.src='app-icon.png';}
   }else{
     if(blob){wallpaperObjectUrl=URL.createObjectURL(blob);document.querySelector('.app').style.setProperty('--profile-wallpaper',`url("${wallpaperObjectUrl}")`);}
     else document.querySelector('.app').style.removeProperty('--profile-wallpaper');
@@ -2256,7 +2258,7 @@ function setLifeImportStatus(message){
 function exportLifeData(){
   const blob=new Blob([serializeLifeData()],{type:'application/json'});
   const url=URL.createObjectURL(blob),link=document.createElement('a');
-  link.href=url;link.download=`liangli-life-${localDayKey()}.json`;link.click();
+  link.href=url;link.download=`powvy-habit-life-${localDayKey()}.json`;link.click();
   setTimeout(()=>URL.revokeObjectURL(url),0);
 }
 function previewLifeImport(file){
@@ -2794,7 +2796,7 @@ async function exportFlashcardsJson(){
   const cardGroups=await Promise.all(decks.map(deck=>store.listCards(deck.id)));
   const reviews=await store.listReviews();
   if(store!==ActiveFlashcardStore)return;
-  downloadFlashcardFile(`liangli-flashcards-${localDayKey()}.json`,'application/json;charset=utf-8',serializeDecks(decks,cardGroups.flat(),reviews));
+  downloadFlashcardFile(`powvy-habit-flashcards-${localDayKey()}.json`,'application/json;charset=utf-8',serializeDecks(decks,cardGroups.flat(),reviews));
 }
 async function exportFlashcardsCsv(){
   const store=ActiveFlashcardStore;

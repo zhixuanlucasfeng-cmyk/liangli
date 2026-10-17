@@ -308,9 +308,9 @@ assert.equal(elements.get('accountSignUp').disabled,true,'registration remains u
 
 class WorkspaceUIContractTests(unittest.TestCase):
     def test_user_visible_brand_is_powy_while_storage_protocol_stays_compatible(self):
-        self.assertIn('<title>Powy</title>', HTML)
-        self.assertIn('<div class="logo"><img src="app-icon.svg" alt=""></div>', HTML)
-        self.assertIn('<h1 id="appName">Powy</h1>', HTML)
+        self.assertIn('<title>Powvy Habit</title>', HTML)
+        self.assertIn('<div class="logo"><img src="app-icon.png" alt=""></div>', HTML)
+        self.assertIn('<h1 id="appName">Powvy Habit</h1>', HTML)
         self.assertNotIn('量力', HTML)
         self.assertIn('LiangliAccountSync', HTML)
         self.assertIn('liangli-flashcards-v1', HTML)
@@ -338,9 +338,9 @@ class WorkspaceUIContractTests(unittest.TestCase):
     def test_document_declares_a_favicon(self):
         self.assertRegex(
             HTML,
-            r'<link\s+rel="icon"\s+href="app-icon\.svg">',
+            r'<link\s+rel="icon"\s+href="app-icon\.png">',
         )
-        self.assertIn('<link rel="manifest" href="manifest.json?v=24">', HTML)
+        self.assertIn('<link rel="manifest" href="manifest.json?v=25">', HTML)
 
     def test_standalone_mode_has_standard_and_apple_metadata(self):
         self.assertIn('<meta name="mobile-web-app-capable" content="yes">', HTML)
@@ -746,7 +746,7 @@ class WorkspaceUIContractTests(unittest.TestCase):
         self.assertIn("@media(prefers-reduced-motion:reduce)", (ROOT / "workspace.css").read_text())
 
     def test_theme_color_matches_clean_workspace(self):
-        self.assertIn('<meta name="theme-color" content="#f5f6f8">', HTML)
+        self.assertIn('<meta name="theme-color" content="#ded9cd">', HTML)
 
     def test_interactive_choices_and_rendered_actions_are_semantic(self):
         self.assertIn('id="energyPick" role="radiogroup" aria-labelledby="energyLabel"', HTML)

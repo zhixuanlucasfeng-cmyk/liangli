@@ -1,4 +1,8 @@
-# Powy — 项目上下文
+# Powvy Habit — 项目上下文
+
+## 最新视觉要求（优先于全部历史说明）
+
+用户已改为 Powvy Habit 品牌、帕瓦特征的睡猫图标、更强的校园漫画纸页/墨线视觉及夜间模式。保留左侧导航、分页、原有功能与存储兼容性。`theme.js` 在绘制前应用主题，右上角切换并保存偏好。图标为 `app-icon.png`；生成提示见 `docs/sleeping-cat-logo-prompt.txt`，不要恢复旧的 P 字母图标。`docs/habit-theme-direction.md` 记录本次方向。
 
 ## 2026-10 桌面新版（优先于下方旧版视觉说明）
 

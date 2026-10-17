@@ -37,7 +37,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - uses: actions/upload-artifact@v4
         with:
-          name: Powy-${{ matrix.platform }}-${{ matrix.arch }}
+          name: Powvy Habit-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
             dist/*.dmg
             dist/*.exe
@@ -60,4 +60,4 @@ jobs:
       - name: Publish preview downloads
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" installers/* --title "Powy $GITHUB_REF_NAME — clean desktop preview" --notes-file docs/desktop-release.md --prerelease --verify-tag
+        run: gh release create "$GITHUB_REF_NAME" installers/* --title "Powvy Habit $GITHUB_REF_NAME — campus manga and night mode" --notes-file docs/desktop-release.md --prerelease --verify-tag

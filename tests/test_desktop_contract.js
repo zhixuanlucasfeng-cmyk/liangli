@@ -4,7 +4,6 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 assert(!html.includes('id="companionStage"'), 'Character stage must be removed, not hidden');
-assert(!html.includes('powy-power'), 'No character icons may ship in UI');
 assert(html.includes('workspace.css'), 'Clean workspace stylesheet is loaded');
 assert(html.includes('workspace.js'), 'Viewport pagination is loaded');
 const desktop = fs.readFileSync(path.join(root, 'desktop/main.cjs'), 'utf8');

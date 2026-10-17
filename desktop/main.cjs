@@ -1,16 +1,19 @@
 const {app,BrowserWindow,protocol,session,Menu,dialog}=require('electron');
 const path=require('node:path');
-const {readFileSync}=require('node:fs');
+const {readFileSync,mkdirSync}=require('node:fs');
 const root=path.resolve(__dirname,'..');
-const allowed=new Set(['index.html','workspace.css','workspace.js','account-sync.js','app-icon.svg','app-icon.png','manifest.json']);
+const allowed=new Set(['index.html','workspace.css','workspace.js','account-sync.js','theme.js','app-icon.png','manifest.json']);
 protocol.registerSchemesAsPrivileged([{scheme:'powy',privileges:{standard:true,secure:true,supportFetchAPI:true,corsEnabled:true}}]);
-app.setName('Powy');
-// Test runs get their own isolated profile; production always uses Electron's durable userData.
-if(process.env.POWY_TEST_PROFILE&&!app.isPackaged)app.setPath('userData',process.env.POWY_TEST_PROFILE);
+// Keep the existing data directory across renames; create it on clean installs.
+// Development smoke tests use an isolated profile and never touch this directory.
+const profile=process.env.POWY_TEST_PROFILE&&!app.isPackaged?process.env.POWY_TEST_PROFILE:
+  app.commandLine.hasSwitch('user-data-dir')?null:path.join(app.getPath('appData'),'Powy');
+if(profile){mkdirSync(profile,{recursive:true});app.setPath('userData',profile);app.setPath('sessionData',profile);}
+app.setName('Powvy Habit');
 let window;
 function isAppPage(url){try{const parsed=new URL(url);return parsed.protocol==='powy:'&&parsed.host==='app';}catch{return false;}}
 function createWindow(){
-  window=new BrowserWindow({width:1360,height:860,minWidth:900,minHeight:700,backgroundColor:'#f5f6f8',title:'Powy',icon:path.join(root,'app-icon.png'),show:false,
+  window=new BrowserWindow({width:1360,height:860,minWidth:900,minHeight:700,backgroundColor:'#191c1d',title:'Powvy Habit',icon:path.join(root,'app-icon.png'),show:false,
     webPreferences:{sandbox: true,nodeIntegration: false,contextIsolation: true,webSecurity:true,allowRunningInsecureContent:false}});
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   window.webContents.on('will-navigate',(event,url)=>{if(!isAppPage(url))event.preventDefault();});
@@ -40,7 +43,7 @@ else{
       callback({cancel:!permitted});
     });
     const template=[...(process.platform==='darwin'?[{role:'appMenu'}]:[]),{role:'editMenu'},{label:'View',submenu:[{role:'reload'},{role:'resetZoom'},{role:'zoomIn'},{role:'zoomOut'},{role:'togglefullscreen'}]},
-      {label:'Help',submenu:[{label:'About Powy',click:()=>dialog.showMessageBox(window,{type:'info',title:'Powy',message:`Powy ${app.getVersion()}`,detail:'Preview build · 本机钱包与饮食数据不会自动迁移。请在「数据备份」中导出/导入。账号同步为可选功能。'})}]}];
+      {label:'Help',submenu:[{label:'About Powvy Habit',click:()=>dialog.showMessageBox(window,{type:'info',title:'Powvy Habit',message:`Powvy Habit ${app.getVersion()}`,detail:'Preview build · 本机钱包与饮食数据不会自动迁移。请在「数据备份」中导出/导入。账号同步为可选功能。'})}]}];
     Menu.setApplicationMenu(Menu.buildFromTemplate(template));createWindow();
     app.on('activate',()=>{if(!BrowserWindow.getAllWindows().length)createWindow();});
   });

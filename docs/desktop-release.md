@@ -1,6 +1,8 @@
-# Powy · Clean desktop preview
+# Powvy Habit · Campus manga + night mode preview
 
-中文：全新的简洁工作台，左侧导航，分页记录；移除 Power / 电锯人元素。保留任务、目标、专注、钱包、饮食、日记、卡片和可选账号同步。
+中文：统一改名为 Powvy Habit，换上红角浅粉金毛的睡猫图标，使用校园漫画纸色、墨线分镜与网点视觉。右上角月亮按钮切换夜间模式；首次跟随系统，手动选择后记住偏好。保留左侧导航、分页、任务、目标、专注、钱包、饮食、日记、卡片和可选账号同步。
+
+Upgrading from Powy: the existing desktop data directory, app ID and local origin remain unchanged. Visible branding, installer names and icons are now Powvy Habit. Quit the old app before opening the new app. Keep a backup before upgrading. The original website and repository URLs are unchanged.
 
 ## Download / 下载
 
@@ -8,7 +10,7 @@
 - Intel Mac: `mac-x64.dmg`
 - Windows x64: `win-x64.exe`
 
-macOS: open the DMG and drag Powy into Applications. Windows: run the installer and choose your destination. These are **unsigned preview builds, not notarized releases**. macOS Gatekeeper or Windows SmartScreen may warn or block launch. Only proceed with an artifact downloaded from this repository and verified against SHA256SUMS.txt; do not disable system-wide protection. Apple silicon builds receive only local/ad-hoc signing where required, not Developer ID signing.
+macOS: open the DMG and drag Powvy Habit into Applications. Windows: run the installer and choose your destination. These are **unsigned preview builds, not notarized releases**. macOS Gatekeeper or Windows SmartScreen may warn or block launch. Only proceed with an artifact downloaded from this repository and verified against SHA256SUMS.txt; do not disable system-wide protection. Mac builds receive only local/ad-hoc signing, not Developer ID signing.
 
 这是未签名、未经公证的预览版本，系统可能拦截。请只使用本仓库的下载文件并核对校验值，不要关闭系统级安全保护。
 
