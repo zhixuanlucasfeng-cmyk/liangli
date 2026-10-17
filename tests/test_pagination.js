@@ -1,0 +1,11 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+assert(fs.existsSync('workspace.js'), 'Pagination controller must exist');
+const code = fs.readFileSync('workspace.js','utf8').split('/* Workspace DOM */')[0];
+const context={};vm.createContext(context);vm.runInContext(code,context);
+assert.deepEqual({...context.pageWindow(21,2,5)}, {page:2,pages:5,start:10,end:15});
+assert.deepEqual({...context.pageWindow(4,8,5)}, {page:0,pages:1,start:0,end:4});
+assert.deepEqual({...context.pageWindow(0,8,0)}, {page:0,pages:1,start:0,end:0});
+assert.deepEqual({...context.pageWindow(13,-1,4)}, {page:0,pages:4,start:0,end:4});
+console.log('Pagination bounds passed');

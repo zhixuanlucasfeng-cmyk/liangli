@@ -27,3 +27,7 @@ build/
 # Codex/Superpowers 本地工作区与设计会话
 .worktrees/
 .superpowers/
+.impeccable/review/
+.impeccable/mocks/
+__pycache__/
+*.pyc

@@ -209,6 +209,8 @@ const elements = Object.fromEntries([
   'expenseSpentAt', 'expenseCategory', 'expenseTimeline', 'walletCycleEnd',
   'budgetCarryForward', 'budgetRechargeTotal', 'walletFormStatus', 'saveExpenseButton',
   'budgetCycleForm', 'walletActiveCycle', 'walletEmptyState', 'walletExpenseAvailability',
+  'walletCycleSpent', 'walletCycleRemaining', 'walletCategoryChoices', 'walletRecentCategories',
+  'walletRecentChoices', 'walletCategoryFilter', 'walletCategoryBreakdown', 'walletFilterStatus',
 ].map(id => [id, element()]));
 
 const storage = new Map();

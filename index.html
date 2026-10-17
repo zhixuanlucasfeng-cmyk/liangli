@@ -4,370 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'">
-<meta name="theme-color" content="#0b0c0f">
+<meta name="theme-color" content="#f5f6f8">
 <meta name="description" content="Powy · 反假性自律的个人成长工具">
-<link rel="manifest" href="manifest.json?v=14">
-<link rel="icon" href="powy-power-192.png">
-<link rel="apple-touch-icon" href="powy-power-192.png">
+<link rel="manifest" href="manifest.json?v=24">
+<link rel="icon" href="app-icon.svg">
+<link rel="apple-touch-icon" href="app-icon.svg">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Powy</title>
-<style>
-:root{
-  --ink:#0b0c0f;--ink-soft:#17181d;--panel:#202127;
-  --paper:#ede6d8;--paper-dim:#c9c0b1;--muted:#9f988e;
-  --blood:#d92d45;--power-pink:#ff5f8f;--warning:#f1c84b;
-  --line:#050608;--focus:#ffd769;
-  --bg:var(--ink);--card:var(--ink-soft);--card2:var(--panel);
-  --txt:var(--paper);--sub:var(--muted);--accent:var(--blood);--accent2:var(--power-pink);
-  --ok:#2f9c68;--warn:var(--warning);--danger:var(--blood);--r:0;
-  --safe-b:env(safe-area-inset-bottom,0px);
-}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;padding:0}
-.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
-body{background:#05060a;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft Yahei",sans-serif;color:var(--txt);display:flex;justify-content:center;min-height:100dvh}
-.app{width:100%;max-width:440px;min-height:100dvh;background:var(--bg);display:flex;flex-direction:column;position:relative;box-shadow:0 0 60px rgba(0,0,0,.6)}
-header{padding:calc(16px + env(safe-area-inset-top,0px)) 16px 10px;display:flex;align-items:center;gap:10px}
-.logo{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex:none}
-header h1{font-size:19px;margin:0}
-header .sl{color:var(--sub);font-size:11px;display:block;margin-top:1px}
-.langbtn{margin-left:auto;background:var(--card2);border:1px solid var(--line);color:var(--sub);border-radius:20px;padding:5px 12px;font-size:12px;cursor:pointer}
-main{flex:1;overflow-y:auto;padding:4px 14px calc(96px + var(--safe-b));-webkit-overflow-scrolling:touch}
-.view{display:none}.view.active{display:block;animation:panelCut .24s steps(3,end)}
-@keyframes panelCut{from{opacity:.15;transform:translateY(7px) scale(.985)}55%{opacity:.72;transform:translateY(-1px) scale(1.004)}to{opacity:1;transform:none}}
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:15px;margin-bottom:12px}
-.card h2{font-size:14px;margin:0 0 11px;font-weight:600}
-.muted{color:var(--sub);font-size:12.5px;line-height:1.6}
-.gauge{height:13px;border-radius:10px;background:var(--card2);overflow:hidden}
-.gauge>span{display:block;height:100%;border-radius:10px;transition:width .4s,background .3s}
-.gh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
-.gh b{font-size:25px}
-.warnbox{margin-top:10px;background:rgba(255,92,92,.12);border:1px solid rgba(255,92,92,.35);color:#ffb3b3;padding:9px 12px;border-radius:11px;font-size:12.5px;line-height:1.5;display:none}
-.warnbox.show{display:block}
-.companion-stage{width:100%;height:170px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--card2);border:0;border-radius:11px;margin-bottom:6px;padding:0;position:relative;color:inherit;font:inherit;cursor:pointer}
-.companion-poster,.companion-video{position:absolute;inset:0;margin:auto;width:170px;height:170px;display:block;object-fit:contain;background:transparent}
-.companion-poster{z-index:0}
-.companion-poster.is-visible{z-index:2}
-.companion-video{z-index:1;opacity:0;transition:opacity .15s ease}
-.companion-video.is-active{opacity:1}
-.companion-stage .manga-decor{z-index:3}
-.companion-picker{display:flex;gap:6px;max-width:260px;margin:0 auto 12px;padding:3px;background:var(--card2);border:1px solid var(--line);border-radius:12px}
-.companion-picker button{min-height:36px;flex:1;border:0;border-radius:9px;background:transparent;color:var(--sub);font:inherit;font-size:12px;cursor:pointer;padding:7px 9px}
-.companion-picker button[aria-pressed="true"]{background:rgba(255,138,92,.18);color:#ffdcc2;box-shadow:inset 0 0 0 1px rgba(255,138,92,.45)}
-.item{display:flex;align-items:center;gap:9px;padding:10px 11px;background:var(--card2);border-radius:11px;margin-bottom:7px}
-.item:last-child{margin-bottom:0}
-.chk{width:21px;height:21px;border-radius:7px;border:2px solid var(--line);background:transparent;flex:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff}
-.item.done .chk{background:var(--ok);border-color:var(--ok)}
-.item.done .t{text-decoration:line-through;color:var(--sub)}
-.t{flex:1;font-size:13.5px;word-break:break-word;line-height:1.4}
-.tag{font-size:10.5px;color:var(--sub);background:rgba(255,255,255,.06);padding:2px 7px;border-radius:20px;flex:none}
-.x{border:0;background:transparent;color:var(--sub);cursor:pointer;font:inherit;font-size:17px;padding:0 3px;flex:none;line-height:1}
-.row{display:flex;gap:8px;margin-top:10px}
-input,textarea,select{background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:10px 11px;font-size:14px;width:100%;outline:none;font-family:inherit}
-input:focus,textarea:focus{border-color:var(--accent)}
-textarea{resize:vertical;min-height:76px;line-height:1.5}
-.btn{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;font-weight:600;border-radius:10px;padding:10px 15px;font-size:13.5px;cursor:pointer;flex:none;white-space:nowrap;font-family:inherit}
-.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt);font-weight:500}
-.btn.sm{padding:6px 11px;font-size:11.5px}
-.btn.full{width:100%}
-.pick{display:flex;gap:6px;margin-top:8px}
-.pick button{flex:1;text-align:center;padding:8px 0;background:var(--card2);border:1px solid var(--line);border-radius:10px;color:var(--txt);font:inherit;font-size:11.5px;cursor:pointer}
-.pick button.sel{border-color:var(--accent);background:rgba(255,138,92,.15);color:#ffdcc2}
-.task-more{width:100%;margin-top:10px}
-.flashcard-quick-open{display:block;width:100%;min-height:52px;margin:0 0 16px;background:var(--warning);color:var(--ink);border:3px solid var(--line);border-radius:0;box-shadow:5px 5px 0 var(--blood);font:900 16px/1 Impact,"Arial Black",sans-serif;letter-spacing:.06em;transform:rotate(-.4deg)}
-.flashcard-quick-open:active{transform:translate(3px,3px) rotate(-.4deg);box-shadow:2px 2px 0 var(--blood)}
-.task-schedule{margin-top:10px;padding:12px;background:#fff8e8;border:2px dashed var(--line)}
-.task-schedule[hidden]{display:none}
-.task-time-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.task-field label{display:block;margin-bottom:4px;color:#5f5a54;font-size:11px;font-weight:900}
-.task-field+.task-field{margin-top:9px}
-.task-time-row .task-field+.task-field{margin-top:0}
-.task-meta{display:block;margin-top:4px;color:#625d55;font-size:10px;font-weight:800;line-height:1.35}
-.nutrition-target{display:grid;grid-template-columns:minmax(0,1fr) 118px;gap:10px;align-items:end}
-.nutrition-field label,.food-mode-label{display:block;margin-bottom:5px;color:#5f5a54;font-size:11px;font-weight:900}
-.food-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
-.food-mode label{display:flex;align-items:center;gap:7px;min-height:44px;padding:8px 10px;background:#fffdf6;border:2px solid var(--line);font-size:12px;font-weight:900;cursor:pointer}
-.food-mode input{width:auto;min-height:auto;margin:0;box-shadow:none}
-.food-estimate-controls{padding:10px;border:2px dashed var(--line);background:#fff8e8}
-.food-estimate-controls[hidden]{display:none}
-.food-estimate-status,.food-form-status{min-height:1.5em;margin-top:7px;color:#5f5a54;font-size:11px;font-weight:800;line-height:1.45}
-.nutrition-date-nav{display:grid;grid-template-columns:44px 1fr 44px;gap:8px;align-items:center;margin-bottom:10px}
-.nutrition-date-nav strong{text-align:center;font-size:13px}
-.nutrition-summary{padding:10px;margin-bottom:10px;background:var(--warning);border:2px solid var(--line);font-size:12px;font-weight:900;line-height:1.45}
-.calorie-stats{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:7px;background:transparent;padding:0;border:0}
-.calorie-stat{display:grid;gap:3px;align-content:center;min-height:82px;padding:9px;background:#fffdf6;border:3px solid var(--line);text-align:center}
-.calorie-stat.primary{background:var(--warning);box-shadow:3px 3px 0 var(--line)}
-.calorie-stat b{font:900 23px/1 Impact,"Arial Black",sans-serif;font-variant-numeric:tabular-nums}.calorie-stat.primary b{font-size:32px}.calorie-stat small{font-size:10px}.calorie-stat.is-negative{background:var(--blood);color:#fff}
-.food-entry{display:grid;grid-template-columns:1fr auto;gap:8px;padding:11px;margin-bottom:8px;background:#fffdf6;border:2px solid var(--line)}
-.food-entry-main{min-width:0}
-.food-entry-name{font-size:13px;font-weight:900;overflow-wrap:anywhere}
-.food-entry-meta{margin-top:4px;color:#5f5a54;font-size:11px;font-weight:700;overflow-wrap:anywhere}
-.food-entry-actions{display:flex;gap:4px;align-items:center}
-.food-action{display:grid;place-items:center;min-width:44px;min-height:44px;padding:5px;background:var(--paper);border:2px solid var(--line);color:var(--ink);font:inherit;font-weight:900;cursor:pointer}
-.ring{width:180px;height:180px;margin:4px auto 12px;position:relative}
-.ring svg{transform:rotate(-90deg)}
-.ring .tm{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.ring .tm b{font-size:38px;font-variant-numeric:tabular-nums}
-.ring .tm small{color:var(--sub);font-size:11.5px;margin-top:2px}
-.tctl{display:flex;gap:9px;justify-content:center}
-.stats{display:flex;gap:8px}
-.stat{flex:1;background:var(--card2);border-radius:11px;padding:11px 6px;text-align:center}
-.stat b{font-size:21px;display:block}
-.stat small{color:var(--sub);font-size:10.5px}
-.bars{display:flex;align-items:flex-end;gap:7px;height:100px;margin-top:13px}
-.bars .b{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end}
-.bars .b i{width:100%;background:linear-gradient(180deg,var(--accent),var(--accent2));border-radius:5px 5px 0 0;min-height:3px;transition:height .5s}
-.bars .b span{font-size:9.5px;color:var(--sub)}
-.goal{background:var(--card2);border-radius:11px;padding:12px;margin-bottom:8px}
-.goal .gt{display:flex;align-items:center;gap:8px;margin-bottom:9px}
-.goal .gt b{font-size:13.5px;flex:1;font-weight:500}
-.gbar{height:7px;border-radius:6px;background:rgba(255,255,255,.07);overflow:hidden;margin-bottom:7px}
-.gbar>span{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .4s}
-.gfoot{display:flex;align-items:center;gap:8px}
-.gfoot small{color:var(--sub);font-size:11px;flex:1}
-.step{width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.07);border:none;color:var(--txt);font-size:15px;cursor:pointer;line-height:1;flex:none;font-family:inherit}
-.log{background:var(--card2);border-radius:11px;padding:12px;margin-bottom:8px;position:relative}
-.log .lh{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.log .lh b{font-size:12px;color:var(--sub);font-weight:500}
-.mood{font-size:15px}
-.log p{margin:0;font-size:13.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
-.moodpick{display:flex;gap:6px;margin-top:9px}
-.moodpick button{flex:1;text-align:center;padding:7px 2px;background:var(--card2);border:1px solid var(--line);border-radius:10px;color:var(--txt);font:inherit;font-size:17px;cursor:pointer}
-.moodpick button span{display:block;font-size:9px;line-height:1.2;margin-top:2px}
-.moodpick button.sel{border-color:var(--accent);background:rgba(255,138,92,.15)}
-.empty{color:var(--sub);font-size:12.5px;text-align:center;padding:16px 0;line-height:1.6}
-nav{position:absolute;bottom:0;left:0;right:0;background:rgba(15,17,21,.94);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;padding:7px 4px calc(9px + var(--safe-b))}
-nav button{flex:1;background:none;border:none;color:var(--sub);font-size:10px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:3px 0;font-family:inherit}
-nav button svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-nav button.active{color:var(--accent)}
-.toast{position:fixed;bottom:calc(100px + var(--safe-b));left:50%;transform:translateX(-50%) translateY(12px);background:var(--card2);border:1px solid var(--line);color:var(--txt);padding:10px 18px;border-radius:22px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:99}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-.hint{background:rgba(255,138,92,.08);border:1px solid rgba(255,138,92,.25);color:#ffdcc2;padding:10px 12px;border-radius:11px;font-size:12px;line-height:1.55;margin-bottom:12px}
-
-/* ============ cinematic manga visual system ============ */
-body{
-  background:
-    radial-gradient(circle at 18% 12%,rgba(255,95,143,.13),transparent 24%),
-    repeating-linear-gradient(118deg,#050608 0 3px,#0b0c0f 3px 13px);
-}
-.app{background-color:var(--ink);background-image:var(--profile-wallpaper,none);background-size:cover;background-position:center;background-attachment:fixed;box-shadow:0 0 0 3px var(--line),0 0 70px rgba(217,45,69,.16)}
-header{position:relative;border-bottom:3px solid var(--line);background:var(--paper);color:var(--ink);overflow:hidden}
-header::after{content:"";position:absolute;right:-22px;top:-46px;width:120px;height:150px;background:repeating-radial-gradient(circle,var(--line) 0 1px,transparent 1px 5px);opacity:.16;transform:rotate(-16deg);pointer-events:none}
-.logo{border:3px solid var(--line);border-radius:50% 44% 48% 38%;background:var(--blood);color:#fff;box-shadow:3px 3px 0 var(--line);transform:rotate(-5deg)}
-.logo img{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
-header h1{font-family:"Kaiti SC","STKaiti","Segoe Print",cursive;font-weight:900;letter-spacing:.08em}
-header .sl{color:#4c4a48;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
-.langbtn{position:relative;z-index:1;min-height:44px;background:var(--warning);border:3px solid var(--line);border-radius:0;color:var(--ink);font-weight:900;box-shadow:3px 3px 0 var(--line)}
-.account-avatar{position:relative;z-index:1;min-width:44px;min-height:44px;padding:0;background:var(--paper);border:3px solid var(--line);color:var(--ink);font:900 19px/1 inherit;box-shadow:3px 3px 0 var(--line);cursor:pointer}
-.profile-avatar{position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);object-fit:cover;border-radius:50%}.profile-avatar[hidden]{display:none}.avatar-fallback{display:grid;place-items:center}
-.appearance-settings{margin-top:12px;padding:10px;background:#fff8e8;border:2px dashed var(--line)}.appearance-settings h3{margin:0 0 8px}.appearance-preview{display:flex;align-items:center;gap:10px;margin-bottom:8px}.appearance-preview img{width:64px;height:64px;object-fit:cover;border:3px solid var(--line);border-radius:50%}.appearance-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}.appearance-status{min-height:1.5em;margin-top:8px;font-size:11px;font-weight:800}
-.account-overlay{position:fixed;inset:0;z-index:70;display:flex;align-items:flex-end;justify-content:center;background:rgba(5,6,8,.82);padding:12px}
-.account-overlay[hidden]{display:none}.account-shell{width:100%;max-width:440px;max-height:calc(100dvh - 24px);overflow:auto;background:var(--paper);color:var(--ink);border:4px solid var(--line);box-shadow:7px 7px 0 var(--blood);padding:16px}
-.account-shell h2{margin:0;font-family:Impact,"Arial Black",sans-serif;letter-spacing:.04em}.account-head{display:flex;align-items:center;gap:8px}.account-head .btn{margin-left:auto;min-width:44px;padding:0;font-size:24px}.account-status{min-height:1.5em;margin:10px 0;padding:8px;background:#fffdf6;border:2px solid var(--line);font-size:12px;font-weight:800}.account-fields{display:grid;gap:8px}.account-fields label{display:grid;gap:4px;font-size:12px;font-weight:900}.account-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.account-actions .full{grid-column:1/-1}.account-choice,.account-recovery{margin-top:12px;padding:10px;background:#fff8e8;border:2px dashed var(--line)}.account-choice[hidden],.account-recovery[hidden]{display:none}.account-recovery-list{display:grid;gap:7px}.account-recovery-item{display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center;padding:8px;background:#fffdf6;border:2px solid var(--line);font-size:11px;font-weight:800}.account-welcome{align-items:center}.account-welcome .account-shell{max-width:390px}.account-confirm-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
-.account-auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}.account-auth-tabs .btn[aria-pressed="true"]{background:var(--blood);color:#fff}.account-fields label[hidden]{display:none}.account-password-toggle{display:flex!important;grid-template-columns:auto 1fr!important;align-items:center;gap:8px!important}.account-password-toggle input{width:18px;height:18px}.account-signed-in{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;padding:14px;background:#effbe9;border:3px solid var(--line);box-shadow:4px 4px 0 #5ea344}.account-signed-in[hidden],.account-fields[hidden]{display:none}.account-signed-check{display:grid;place-items:center;width:48px;height:48px;border:3px solid var(--line);border-radius:50%;background:#78c850;font:900 28px/1 sans-serif}.account-signed-copy h3,.account-signed-copy p{margin:0}.account-signed-copy p{margin-top:4px;overflow-wrap:anywhere;font-size:12px;font-weight:800}.account-signed-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:4px}.account-signed-actions .full{grid-column:1/-1}
-main{padding:14px 12px calc(104px + var(--safe-b));background:linear-gradient(90deg,rgba(11,12,15,.82) 0 49%,rgba(40,40,44,.82) 50%,rgba(11,12,15,.82) 51%)}
-.manga-panel{
-  position:relative;background:var(--paper);color:var(--ink);
-  border:3px solid var(--line);box-shadow:5px 6px 0 var(--line);
-  padding:16px;margin:0 4px 18px;overflow:hidden;border-radius:0;
-}
-.manga-panel:nth-of-type(even){transform:rotate(.55deg)}
-.manga-title{font-family:"Kaiti SC","STKaiti","Segoe Print",cursive;font-size:18px;font-weight:900;line-height:1.15;letter-spacing:.04em;text-transform:uppercase}
-.card h2.manga-title{font-size:18px;font-weight:900}
-.manga-title::after{content:"";display:block;width:42px;height:5px;margin-top:6px;background:var(--blood);clip-path:polygon(0 20%,100% 0,92% 100%,4% 72%)}
-.manga-decor{pointer-events:none;position:absolute;inset:0;z-index:0}
-.manga-panel>*:not(.manga-decor){position:relative;z-index:1}
-.manga-view .muted{color:#5f5a54;font-weight:600}
-.manga-view input,.manga-view textarea,.manga-view select{background:#fffdf6;border:2px solid var(--line);border-radius:0;color:var(--ink);box-shadow:inset 3px 3px 0 rgba(11,12,15,.08)}
-.manga-view input:focus,.manga-view textarea:focus{border-color:var(--blood)}
-button,input,textarea,select{min-height:44px}
-:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
-.btn{min-height:44px;background:var(--blood);border:3px solid var(--line);border-radius:0;color:#fff;font-weight:900;box-shadow:3px 3px 0 var(--line);transition:transform .12s,box-shadow .12s}
-.btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--line)}
-.btn.ghost{background:var(--paper);border:2px solid var(--line);color:var(--ink);box-shadow:2px 2px 0 var(--line)}
-.btn.sm{min-height:44px}
-.row{align-items:stretch}
-.manga-view .row>*{min-width:0}
-.item{background:#fffdf6;border:2px solid var(--line);border-radius:0;box-shadow:2px 2px 0 rgba(11,12,15,.22)}
-.chk{width:44px;height:44px;border:2px solid var(--line);border-radius:50% 42% 47% 39%;color:#fff;font-weight:900}
-.item.done .chk{background:var(--blood);border-color:var(--line)}
-.tag{background:var(--warning);border:1px solid var(--line);border-radius:0;color:var(--ink);font-weight:900}
-.x{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;color:var(--ink);font-weight:900}
-.empty{color:#5f5a54;border:2px dashed #6a655e;background:rgba(255,255,255,.3)}
-
-/* Today: close-up hero, warning tape gauge, overload impact burst. */
-.today-view .hero-panel{padding:0 0 16px;background:var(--ink-soft);color:var(--paper)}
-.today-view .hero-panel>*:not(.manga-decor){margin-left:16px;margin-right:16px}
-.today-view .hero-panel .companion-stage{margin-left:0;margin-right:0}
-.hero-rays{background:repeating-conic-gradient(from 12deg at 50% 35%,transparent 0 7deg,rgba(255,255,255,.08) 7deg 9deg);opacity:.7}
-.companion-stage{height:clamp(280px,58vw,360px);background:#191c22;border:0;border-bottom:3px solid var(--line);border-radius:0;margin-bottom:10px;isolation:isolate}
-.companion-stage .companion-poster,.companion-stage .companion-video{width:100%;height:100%;object-fit:cover;object-position:center 34%;filter:none;image-rendering:auto;transform:translateZ(0)}
-.companion-stage[data-companion="human"][data-state="idle"] .companion-poster,.companion-stage[data-companion="human"][data-state="idle"] .companion-video{object-position:center 46%}
-.companion-stage[data-companion="human"][data-state="exhausted"] .companion-poster,.companion-stage[data-companion="human"][data-state="exhausted"] .companion-video{object-position:center 50%}
-.companion-stage[data-companion="cat"] .companion-poster,.companion-stage[data-companion="cat"] .companion-video{object-position:center 45%}
-.companion-picker{background:var(--paper);border:2px solid var(--line);border-radius:0}
-.companion-picker button{min-height:44px;border-radius:0;color:var(--ink);font-weight:900}
-.companion-picker button[aria-pressed="true"]{background:var(--power-pink);color:var(--ink);box-shadow:inset 0 0 0 2px var(--line)}
-.today-view .gh .muted{color:var(--paper-dim)}
-.gauge{height:20px;border:3px solid var(--line);border-radius:0;background:repeating-linear-gradient(135deg,var(--warning) 0 12px,var(--ink) 12px 18px);padding:2px}
-.gauge>span{border-radius:0;mix-blend-mode:screen}
-.warnbox{position:relative;background:var(--warning);border:3px solid var(--line);border-radius:0;color:var(--ink);font-weight:900;box-shadow:4px 4px 0 var(--blood)}
-.warnbox.bursting{animation:overloadHit .38s steps(2,end) 1}
-.warnbox.show::before{content:"!";position:absolute;right:-3px;top:-34px;width:52px;height:52px;display:grid;place-items:center;background:var(--blood);color:#fff;border:3px solid var(--line);clip-path:polygon(50% 0,62% 25%,86% 8%,80% 36%,100% 44%,76% 57%,93% 82%,64% 74%,52% 100%,42% 74%,12% 92%,20% 61%,0 50%,25% 39%,9% 13%,39% 27%);font-size:25px}
-@keyframes overloadHit{0%{transform:scale(.82) rotate(-2deg)}55%{transform:scale(1.04) rotate(1deg)}100%{transform:scale(1)}}
-.task-entry-panel::after{content:"";position:absolute;right:-28px;bottom:-36px;width:110px;height:110px;border:18px double rgba(217,45,69,.12);border-radius:50%;pointer-events:none}
-.pick button,.moodpick button{min-height:44px;display:grid;place-items:center;background:#fffdf6;border:2px solid var(--line);border-radius:0;color:var(--ink);font-weight:800}
-.pick button.sel,.moodpick button.sel{border-color:var(--line);background:var(--warning);color:var(--ink);box-shadow:3px 3px 0 var(--line)}
-.pick button,.moodpick button{position:relative}
-.pick button.sel::after,.moodpick button.sel::after{content:"✓";position:absolute;right:3px;top:1px;font-size:11px;font-weight:1000}
-
-/* Pool: a deterministic wall of torn notes. */
-.pool-grid{background:repeating-linear-gradient(0deg,transparent 0 18px,rgba(11,12,15,.08) 18px 19px)}
-.pool-entry-panel .row{flex-direction:column}
-.pool-entry-panel .row .btn{width:100%}
-.pool-view #ideaList{padding:10px 4px}
-.pool-view .torn-note{position:relative;padding:16px 10px;background:#fff9c9;clip-path:polygon(0 3%,8% 0,19% 3%,31% 0,46% 2%,61% 0,74% 3%,88% 0,100% 3%,98% 96%,87% 100%,72% 97%,58% 100%,43% 97%,29% 100%,14% 97%,1% 100%);transform-origin:center;box-shadow:none}
-.pool-view .torn-note:nth-child(3n+1){transform:rotate(-1.4deg);background:#fff3a8}
-.pool-view .torn-note:nth-child(3n+2){transform:rotate(.9deg);background:#f8dce5}
-.pool-view .torn-note:nth-child(3n+3){transform:rotate(-.35deg);background:#dce9e5}
-
-/* Goals: chapter cards with segmented ink progress. */
-.chapter-decor{background:linear-gradient(135deg,rgba(11,12,15,.06) 25%,transparent 25% 75%,rgba(217,45,69,.06) 75%)}
-.goals-view .chapter-card{position:relative;background:#fffdf6;border:3px solid var(--line);border-radius:0;padding:28px 12px 12px;box-shadow:4px 4px 0 var(--blood)}
-.goals-view .chapter-card::before{content:"CHAPTER";position:absolute;left:-3px;top:-3px;padding:4px 9px;background:var(--ink);color:var(--paper);font-size:9px;font-weight:900;letter-spacing:.18em}
-.goal-entry-panel .row{flex-wrap:wrap}
-.goal-entry-panel #goalTarget,.goal-entry-panel #goalUnit{flex:1 1 calc(50% - 4px)!important}
-.goal-entry-panel .row .btn{width:100%}
-.gbar{height:14px;border:2px solid var(--line);border-radius:0;background:repeating-linear-gradient(90deg,var(--paper-dim) 0 16px,var(--line) 16px 18px);padding:2px}
-.gbar>span{border-radius:0;background:repeating-linear-gradient(90deg,var(--ink) 0 14px,var(--blood) 14px 16px)}
-.step{width:44px;height:44px;border:2px solid var(--line);border-radius:0;background:var(--warning);color:var(--ink);font-weight:900;box-shadow:2px 2px 0 var(--line)}
-
-/* Focus: title-card timer and clapperboard controls. */
-.focus-view .timer-panel{background:var(--ink-soft);color:var(--paper);padding-top:18px}
-.focus-view .timer-panel .manga-title::after{background:var(--power-pink)}
-.timer-panel{isolation:isolate}
-.pomo-burst{position:absolute;inset:22% 4% auto;z-index:4;display:grid;place-items:center;min-height:92px;background:var(--warning);border:4px solid var(--line);color:var(--ink);font-family:"Kaiti SC","STKaiti","Segoe Print",cursive;font-size:38px;font-weight:900;letter-spacing:.1em;opacity:0;pointer-events:none;transform:scale(.3) rotate(-8deg)}
-.pomo-burst.is-bursting{animation:pomoInkBurst .45s steps(4,end) both}
-@keyframes pomoInkBurst{0%{opacity:0;transform:scale(.3) rotate(-8deg)}28%{opacity:1;transform:scale(1.12) rotate(3deg)}72%{opacity:1;transform:scale(.98) rotate(-1deg)}100%{opacity:0;transform:scale(1.08) rotate(0)}}
-.chapter-number{position:absolute;right:10px;top:6px;font-size:18px;font-weight:1000;letter-spacing:.08em}
-.load-state{display:inline-block;margin-left:7px;padding:2px 7px;background:var(--warning);border:1px solid var(--line);color:var(--ink);font-size:11px;font-weight:900;vertical-align:middle}
-.focus-view .ring{width:100%;height:190px;margin:0 auto 14px;border:3px solid var(--paper);background:repeating-linear-gradient(135deg,rgba(237,230,216,.08) 0 7px,transparent 7px 16px)}
-.focus-view .ring svg{position:absolute;inset:5px;margin:auto;opacity:.18}
-.focus-view .ring .tm b{font-family:"Arial Narrow","Roboto Condensed",Impact,sans-serif;font-size:64px;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.04em;text-shadow:4px 4px 0 var(--blood)}
-.focus-view .ring .tm small{color:var(--paper-dim);font-weight:900;letter-spacing:.16em;text-transform:uppercase}
-.clapper-controls{gap:4px;padding:8px;background:repeating-linear-gradient(135deg,var(--paper) 0 15px,var(--ink) 15px 29px);border:3px solid var(--line)}
-.clapper-controls .btn{flex:1}
-.stats{gap:5px}
-.stat{background:var(--ink);border:2px solid var(--line);border-radius:0;color:var(--paper);padding:13px 4px}
-.stat b{font-family:Impact,"Arial Black",sans-serif;color:var(--warning)}
-.stat small{color:var(--paper-dim)}
-.bars .b i{border:2px solid var(--line);border-bottom:0;border-radius:0;background:repeating-linear-gradient(135deg,var(--blood) 0 7px,var(--power-pink) 7px 11px)}
-.bars .b span{color:var(--ink);font-weight:900}
-
-/* Life: three inked panels share one compact tab strip. */
-.life-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:0 4px 16px}
-.life-tab{min-height:44px;padding:7px 3px;background:var(--paper);border:3px solid var(--line);color:var(--ink);font:inherit;font-size:12px;font-weight:900;cursor:pointer;box-shadow:2px 2px 0 var(--line)}
-.life-tab[aria-selected="true"]{background:#ff7f6b;color:var(--ink);transform:translate(2px,2px);box-shadow:none}
-.life-panel[hidden]{display:none}
-.life-shell-panel{min-height:150px;background:repeating-linear-gradient(135deg,var(--paper) 0 17px,#fff8e8 17px 34px)}
-.wallet-field label{display:block;margin:0 0 5px;color:#5f5a54;font-size:11px;font-weight:900}
-.wallet-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
-.wallet-grid .wallet-wide{grid-column:1/-1}
-.wallet-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:11px}
-.wallet-stat{padding:10px;background:#fffdf6;border:2px solid var(--line)}
-.wallet-stat small{display:block;color:#5f5a54;font-size:10px;font-weight:900}
-.wallet-stat b{display:block;margin-top:3px;font-size:17px;overflow-wrap:anywhere}
-.wallet-stat.wallet-today{grid-column:1/-1;background:var(--warning)}
-.wallet-stat.wallet-today.is-negative{background:#ff8f83;color:var(--ink)}
-.wallet-negative-note{margin-top:8px;padding:9px;background:#ffe0d9;border-left:5px solid #ff6f61;color:#5f3c38;font-size:11px;font-weight:800;line-height:1.45}
-.wallet-form-status,.wallet-expense-availability{min-height:1.5em;margin-top:8px;color:#5f5a54;font-size:11px;font-weight:800;line-height:1.45}
-.wallet-expense-panel :disabled{cursor:not-allowed;opacity:.58}
-.expense-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:11px;margin-bottom:8px;background:#fffdf6;border:2px solid var(--line)}
-.expense-entry-main{min-width:0}.expense-entry-name{font-size:13px;font-weight:900;overflow-wrap:anywhere}
-.expense-entry-meta{margin-top:4px;color:#5f5a54;font-size:11px;font-weight:700;overflow-wrap:anywhere}
-.expense-entry-actions{display:flex;gap:4px;align-items:center}
-.wallet-cycle-end{background:var(--warning);border:3px solid var(--line);padding:12px;margin-top:12px}
-.wallet-cycle-end[hidden],.wallet-active-cycle[hidden],.wallet-empty-state[hidden]{display:none}
-.wallet-cycle-end h3{margin:0 0 6px;font-size:15px}.wallet-cycle-end p{margin:0 0 9px;font-size:11px;line-height:1.45;font-weight:700}
-.wallet-carry{display:flex;align-items:center;gap:8px;padding:8px;background:#fffdf6;border:2px solid var(--line);font-size:11px;font-weight:900}
-.wallet-carry input{width:auto;min-height:auto;margin:0;box-shadow:none}
-.wallet-renew-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}.wallet-renew-actions .wallet-pause{grid-column:1/-1}
-
-/* Journal: level film frames; the written copy never tilts. */
-.film-decor{background:radial-gradient(circle at 8px 8px,var(--ink) 0 3px,transparent 4px) 0 0/24px 24px;opacity:.08}
-.journal-view .log{position:relative;margin:12px 4px;padding:18px 16px 18px 26px;background:#fffdf6;border:3px solid var(--line);border-radius:0;box-shadow:4px 4px 0 var(--line);transform:none}
-.journal-view .log::before{content:"";position:absolute;left:5px;top:4px;bottom:4px;width:9px;background:repeating-linear-gradient(180deg,var(--ink) 0 7px,transparent 7px 14px)}
-.journal-view .log::after{content:"";position:absolute;right:5px;top:4px;bottom:4px;width:9px;background:repeating-linear-gradient(180deg,var(--ink) 0 7px,transparent 7px 14px)}
-.journal-view .log p,.journal-view .log .lh{position:relative;z-index:1;transform:none;color:var(--ink)}
-.journal-view .journal-list-panel{transform:none}
-.hint{background:var(--warning);border:2px solid var(--line);border-radius:0;color:var(--ink);font-weight:700}
-
-nav{background:var(--paper);border-top:3px solid var(--line);padding-top:5px}
-nav button{min-height:54px;color:#4a4742;font-weight:800;transition:transform .12s,background .12s}
-nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) rotate(-1deg);border:2px solid var(--line);box-shadow:3px 3px 0 var(--line)}
-.toast{background:var(--warning);border:3px solid var(--line);border-radius:0;color:var(--ink);font-weight:900;box-shadow:4px 4px 0 var(--line)}
-
-/* Flashcards: full-screen manga study room, with stable geometry for recall. */
-.flashcard-overlay{position:fixed;inset:0;z-index:50;background:rgba(5,6,8,.92);display:flex;justify-content:center}
-.flashcard-overlay[hidden]{display:none}
-.flashcard-shell{width:100%;max-width:440px;height:100dvh;overflow-y:auto;background:var(--ink);padding:calc(12px + env(safe-area-inset-top,0px)) 14px calc(24px + env(safe-area-inset-bottom,0px))}
-.flashcard-head{position:sticky;top:-12px;z-index:3;display:flex;align-items:center;gap:8px;padding:10px 0;background:var(--ink);border-bottom:3px solid var(--paper)}
-.flashcard-head h2{margin:0;font-family:Impact,"Arial Black",sans-serif;font-size:25px;letter-spacing:.04em;text-transform:uppercase}
-.sync-badge{margin-left:auto;padding:5px 8px;border:2px solid var(--line);background:var(--warning);color:var(--ink);font-size:11px;font-weight:900}
-.flashcard-close{width:44px;padding:0;font-size:24px}
-.flashcard-panel{margin-top:14px;padding:14px;background:var(--paper);color:var(--ink);border:3px solid var(--line);box-shadow:5px 5px 0 var(--blood)}
-.flashcard-panel h3{margin:0 0 10px;font-family:Impact,"Arial Black",sans-serif;letter-spacing:.04em}
-.flashcard-form{display:grid;gap:8px}.flashcard-form textarea{min-height:82px}
-.flashcard-tools{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px}.flashcard-tools .btn{padding:7px 3px;font-size:11px;white-space:normal}
-.import-preview{margin-top:10px;padding:10px;border:2px dashed var(--blood);background:#fffdf6}.import-preview .row{display:grid;grid-template-columns:1fr 1fr}
-.deck-list{display:grid;gap:8px;margin-top:10px}
-.deck-row{display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center;padding:10px;border:2px solid var(--line);background:#fffdf6}
-.deck-row button:first-child{text-align:left;background:transparent;border:0;font:inherit;color:var(--ink);cursor:pointer}
-.deck-row small{display:block;color:#686058;margin-top:3px}
-.card-list{display:grid;gap:6px;margin-top:10px}.card-list-item{padding:9px;border-left:6px solid var(--blood);background:#fffdf6;white-space:pre-wrap}
-.review-panel{text-align:center}.review-card{min-height:260px;display:flex;flex-direction:column;justify-content:center;padding:24px 18px;background:#fffdf6;border:4px solid var(--line);box-shadow:7px 7px 0 var(--power-pink);cursor:pointer}
-.review-side-label{font-size:11px;font-weight:900;letter-spacing:.18em;color:#756d64;text-transform:uppercase}
-.review-face{font-size:24px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}.review-back{margin-top:22px;padding-top:20px;border-top:3px dashed var(--blood)}
-.review-grades{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:14px}.review-grades button{white-space:normal;padding:8px 4px}.review-grades small{display:block;font-weight:600;margin-top:2px}
-.keyboard-help{text-align:center;margin:12px 0 0;font-size:11px;color:#6d655d}.flash-empty{padding:18px 8px;text-align:center;color:#6d655d}
-.flashcard-account{margin-top:12px;padding:10px;border:2px solid var(--paper);background:var(--panel)}.flashcard-account p{margin:0 0 8px}.account-fields{display:grid;grid-template-columns:1fr;gap:7px}.account-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.account-actions .btn{padding:6px 3px;font-size:11px;white-space:normal}
-
-@media (min-width:390px){
-  .focus-view .ring .tm b{font-size:72px}
-}
-@media (min-width:768px){
-  body{display:block;background:var(--ink)}
-  .app{max-width:none;width:100%;min-height:100dvh;box-shadow:none;background-color:rgba(11,12,15,.86);background-image:var(--profile-wallpaper,none);background-size:cover;background-position:center;background-attachment:fixed}
-  header{padding-left:max(28px,env(safe-area-inset-left));padding-right:max(28px,env(safe-area-inset-right))}
-  main{padding-left:28px;padding-right:28px}
-  .view.active{width:100%;max-width:1280px;margin:0 auto}
-  .today-view.active,.pool-view.active,.goals-view.active,.focus-view.active{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
-  .manga-panel{margin-left:0;margin-right:0}
-  .today-view .hero-panel .companion-stage{height:clamp(320px,34vw,420px)}
-  .life-panel:not([hidden]){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
-  .life-backup-panel{grid-column:1/-1}
-  .account-shell{max-width:720px}.flashcard-shell{max-width:none;padding-left:clamp(28px,8vw,120px);padding-right:clamp(28px,8vw,120px)}
-  nav{padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}
-}
-@media (min-width:1024px) and (orientation:landscape){
-  #lifeNutrition{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px}
-  #lifeWallet,#lifeJournal{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px}
-  main{padding-left:clamp(32px,5vw,72px);padding-right:clamp(32px,5vw,72px)}
-}
-@media (prefers-reduced-motion:reduce){
-  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
-  .manga-panel{transform:none}
-  .pool-view .torn-note{transform:none}
-  nav button.active{transform:none}
-}
-</style>
+<link rel="stylesheet" href="workspace.css">
 </head>
 <body>
 <div class="app">
   <header>
-    <div class="logo"><img src="powy-power-192.png" alt=""></div>
+    <div class="logo"><img src="app-icon.svg" alt=""></div>
     <div><h1 id="appName">Powy</h1><span class="sl" id="tagline">反假性自律</span></div>
     <button type="button" class="account-avatar" id="accountAvatar" onclick="openAccountPanel()" data-aria-i="accountTitle" aria-label="账号"><span class="avatar-fallback" id="avatarFallback">◉</span><img class="profile-avatar" id="profileAvatar" alt="" hidden></button>
     <button class="langbtn" onclick="toggleLang()" id="langBtn">EN</button>
@@ -375,20 +26,8 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
 
   <main>
     <!-- ========== 今日 ========== -->
-    <section class="view manga-view today-view active" id="v-today">
-      <div class="card manga-panel hero-panel">
-        <div class="manga-decor hero-rays" aria-hidden="true"></div>
-        <button type="button" class="companion-stage manga-stage" id="companionStage" data-aria-i="companionReact" aria-label="戳一下伙伴" onclick="triggerCompanionReaction()">
-          <img id="companionPoster" class="companion-poster" alt="">
-          <video class="companion-video is-active" muted loop playsinline aria-hidden="true"></video>
-          <video class="companion-video" muted loop playsinline aria-hidden="true"></video>
-          <div class="manga-decor" aria-hidden="true"></div>
-        </button>
-        <span id="companionStatus" class="sr-only" aria-live="polite"></span>
-        <div class="companion-picker" id="companionPicker" role="group" aria-label="Companion">
-          <button type="button" data-companion="cat" aria-pressed="true" onclick="setCompanion('cat')"><span data-i="companionCat">Power 猫</span></button>
-          <button type="button" data-companion="human" aria-pressed="false" onclick="setCompanion('human')"><span data-i="companionHuman">人形 Power</span></button>
-        </div>
+    <section class="view today-view active" id="v-today">
+      <div class="card hero-panel">
         <div class="gh">
           <span class="muted" data-i="loadTitle">今日精力负荷</span>
           <b><span id="loadUsed">0</span><span class="muted" style="font-size:13px"> / <span id="loadMax">100</span></span><span id="loadState" class="load-state">待命</span></b>
@@ -397,9 +36,9 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
         <div class="warnbox" id="loadWarn" data-i="loadWarn"></div>
       </div>
 
-      <div class="card manga-panel task-entry-panel">
+      <div class="card task-entry-panel">
         <button type="button" class="btn flashcard-quick-open" id="flashcardsQuickOpen" onclick="openFlashcards()" data-i="openFlashcardsDirect">FLASHCARDS · 卡片学习</button>
-        <h2 class="manga-title" data-i="addTask">添加任务</h2>
+        <h2 class="" data-i="addTask">添加任务</h2>
         <input id="taskName" data-ph="taskPh" placeholder="今天想完成什么？">
         <div class="muted" id="energyLabel" style="margin-top:11px" data-i="energyLabel">预估精力消耗</div>
         <div class="pick" id="energyPick" role="radiogroup" aria-labelledby="energyLabel">
@@ -433,34 +72,32 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
         <div class="row"><button class="btn full" onclick="addTask()" data-i="addToday">加入今日</button></div>
       </div>
 
-      <div class="card manga-panel task-list-panel">
-        <h2 class="manga-title" data-i="todayTasks">今日任务</h2>
+      <div class="card task-list-panel">
+        <h2 class="" data-i="todayTasks">今日任务</h2>
         <div id="taskList"></div>
       </div>
     </section>
 
     <!-- ========== 成长池 ========== -->
-    <section class="view manga-view pool-view" id="v-pool">
-      <div class="card manga-panel pool-entry-panel">
-        <div class="manga-decor pool-grid" aria-hidden="true"></div>
-        <h2 class="manga-title" data-i="poolTitle">成长池</h2>
+    <section class="view pool-view" id="v-pool">
+      <div class="card pool-entry-panel">
+        <h2 class="" data-i="poolTitle">成长池</h2>
         <p class="muted" data-i="poolDesc">突然冒出来的想法先存这儿，不逼自己马上做。等状态好、精力有富余时，再一键转成今日任务。</p>
         <div class="row">
           <input id="ideaName" data-ph="ideaPh" placeholder="比如：想学一点心理学…">
           <button class="btn" onclick="addIdea()" data-i="save">存起来</button>
         </div>
       </div>
-      <div class="card manga-panel pool-list-panel">
-        <h2 class="manga-title" data-i="myIdeas">我的想法</h2>
+      <div class="card pool-list-panel">
+        <h2 class="" data-i="myIdeas">我的想法</h2>
         <div id="ideaList"></div>
       </div>
     </section>
 
     <!-- ========== 目标 ========== -->
-    <section class="view manga-view goals-view" id="v-goals">
-      <div class="card manga-panel goal-entry-panel">
-        <div class="manga-decor chapter-decor" aria-hidden="true"></div>
-        <h2 class="manga-title" data-i="addGoal">新目标</h2>
+    <section class="view goals-view" id="v-goals">
+      <div class="card goal-entry-panel">
+        <h2 class="" data-i="addGoal">新目标</h2>
         <input id="goalName" data-ph="goalPh" placeholder="比如：读完 12 本书">
         <div class="row">
           <input id="goalTarget" type="number" min="1" value="10" style="flex:1" inputmode="numeric">
@@ -468,38 +105,34 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
           <button class="btn" onclick="addGoal()" data-i="create">创建</button>
         </div>
       </div>
-      <div class="card manga-panel goal-list-panel">
-        <h2 class="manga-title" data-i="myGoals">我的目标</h2>
+      <div class="card goal-list-panel">
+        <h2 class="" data-i="myGoals">我的目标</h2>
         <div id="goalList"></div>
       </div>
     </section>
 
     <!-- ========== 专注 ========== -->
-    <section class="view manga-view focus-view" id="v-focus">
-      <div class="card manga-panel timer-panel">
-        <div class="manga-decor timer-decor" aria-hidden="true"></div>
+    <section class="view focus-view" id="v-focus">
+      <div class="card timer-panel">
         <div class="pomo-burst" id="pomoBurst" aria-live="polite"><span data-i="pomoBurst">啪！完成</span></div>
-        <h2 class="manga-title" data-i="pomo">番茄钟</h2>
+        <h2 class="" data-i="pomo">番茄钟</h2>
         <div style="text-align:center">
           <div class="ring">
             <svg width="180" height="180" viewBox="0 0 180 180">
-              <circle cx="90" cy="90" r="80" stroke="#22262e" stroke-width="11" fill="none"/>
-              <circle id="ringFg" cx="90" cy="90" r="80" stroke="url(#gr)" stroke-width="11" fill="none"
+              <circle cx="90" cy="90" r="80" stroke="#e6e9ef" stroke-width="11" fill="none"/>
+              <circle id="ringFg" cx="90" cy="90" r="80" stroke="var(--accent)" stroke-width="11" fill="none"
                       stroke-linecap="round" stroke-dasharray="502.4" stroke-dashoffset="0"/>
-              <defs><linearGradient id="gr" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stop-color="#ff8a5c"/><stop offset="1" stop-color="#ffb26b"/>
-              </linearGradient></defs>
             </svg>
             <div class="tm"><b id="clock">25:00</b><small id="clabel" data-i="ready">准备开始</small></div>
           </div>
-          <div class="tctl clapper-controls">
+          <div class="tctl">
             <button class="btn" id="startBtn" onclick="toggleTimer()" data-i="start">开始专注</button>
             <button class="btn ghost" onclick="resetTimer()" data-i="reset">重置</button>
           </div>
         </div>
       </div>
-      <div class="card manga-panel dashboard-panel">
-        <h2 class="manga-title" data-i="dash">数据看板</h2>
+      <div class="card dashboard-panel">
+        <h2 class="" data-i="dash">数据看板</h2>
         <div class="stats">
           <div class="stat"><b id="stFocus">0</b><small data-i="sFocus">今日专注(分)</small></div>
           <div class="stat"><b id="stPomo">0</b><small data-i="sPomo">番茄数</small></div>
@@ -511,7 +144,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
     </section>
 
     <!-- ========== 生活 ========== -->
-    <section class="view manga-view life-view" id="v-life">
+    <section class="view life-view" id="v-life">
       <h2 class="sr-only" id="lifeHubTitle" data-i="navLife">生活</h2>
       <div class="life-tabs" role="tablist" aria-labelledby="lifeHubTitle">
         <button type="button" class="life-tab" id="lifeTabNutrition" role="tab" aria-selected="true" aria-controls="lifeNutrition" tabindex="0" onclick="setLifeTab('nutrition')" onkeydown="handleLifeTabKeydown(event)" data-i="nutritionTitle">营养</button>
@@ -519,8 +152,8 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
         <button type="button" class="life-tab" id="lifeTabJournal" role="tab" aria-selected="false" aria-controls="lifeJournal" tabindex="-1" onclick="setLifeTab('journal')" onkeydown="handleLifeTabKeydown(event)" data-i="journalTitle">记录</button>
       </div>
 
-      <section class="card manga-panel" id="lifeBackupPanel" aria-labelledby="lifeBackupTitle">
-        <h2 class="manga-title" id="lifeBackupTitle" data-i="lifeBackupTitle">生活数据备份</h2>
+      <section class="card" id="lifeBackupPanel" aria-labelledby="lifeBackupTitle">
+        <h2 class="" id="lifeBackupTitle" data-i="lifeBackupTitle">生活数据备份</h2>
         <p class="hint" data-i="lifeBackupHint">导出或导入营养与钱包数据；不会包含任务、账号或卡片。</p>
         <div class="row">
           <button type="button" class="btn ghost" id="lifeExportButton" onclick="exportLifeData()" data-i="exportLifeData">导出生活数据</button>
@@ -538,8 +171,8 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
       </section>
 
       <section class="life-panel" id="lifeNutrition" role="tabpanel" aria-labelledby="lifeTabNutrition" tabindex="0">
-        <div class="card manga-panel nutrition-entry-panel">
-          <h2 class="manga-title" data-i="nutritionTitle">营养</h2>
+        <div class="card nutrition-entry-panel">
+          <h2 class="" data-i="nutritionTitle">营养</h2>
           <div class="nutrition-target">
             <div class="nutrition-field">
               <label for="calorieTarget" data-i="calorieTargetLabel">每日热量目标</label>
@@ -578,7 +211,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
           <div class="food-form-status" id="foodFormStatus" role="status" aria-live="polite"></div>
           <div class="row"><button type="button" class="btn full" id="saveFoodButton" onclick="addFoodEntry()" data-i="saveFood">保存食物</button></div>
         </div>
-        <div class="card manga-panel nutrition-timeline-panel">
+        <div class="card nutrition-timeline-panel">
           <div class="nutrition-date-nav">
             <button type="button" class="food-action" id="nutritionPrevDate" onclick="shiftNutritionDay(-1)" data-aria-i="previousDate" aria-label="前一天">‹</button>
             <strong id="nutritionDateLabel"></strong>
@@ -594,8 +227,8 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
       </section>
 
       <section class="life-panel" id="lifeWallet" role="tabpanel" aria-labelledby="lifeTabWallet" tabindex="0" hidden>
-        <div class="card manga-panel wallet-cycle-panel">
-          <h2 class="manga-title" data-i="walletTitle">钱包</h2>
+        <div class="card wallet-cycle-panel">
+          <h2 class="" data-i="walletTitle">钱包</h2>
           <div class="wallet-grid" id="budgetCycleForm">
             <div class="wallet-field wallet-wide">
               <label for="budgetTotalAmount" data-i="budgetTotalLabel">周期总金额</label>
@@ -630,17 +263,20 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
         <div class="wallet-empty-state empty" id="walletEmptyState" data-i="walletNoCycle">还没有进行中的预算周期。</div>
 
         <div class="wallet-active-cycle" id="walletActiveCycle" hidden>
-          <div class="card manga-panel wallet-summary-panel">
-            <h2 class="manga-title" data-i="walletSummaryTitle">本周期</h2>
+          <div class="card wallet-summary-panel">
+            <h2 class="" data-i="walletSummaryTitle">本周期</h2>
             <div class="muted" id="walletCycleDates"></div>
             <div class="wallet-summary">
               <div class="wallet-stat"><small data-i="walletTotalLabel">总额</small><b id="walletTotal"></b></div>
               <div class="wallet-stat"><small data-i="walletSavedLabel">建议储蓄</small><b id="walletSaved"></b></div>
               <div class="wallet-stat"><small data-i="walletSpendableLabel">可用零花钱</small><b id="walletSpendable"></b></div>
+              <div class="wallet-stat"><small data-i="walletCycleSpentLabel">本周期已花</small><b id="walletCycleSpent"></b></div>
+              <div class="wallet-stat"><small data-i="walletCycleRemainingLabel">本周期剩余</small><b id="walletCycleRemaining"></b></div>
               <div class="wallet-stat"><small data-i="walletSpentLabel">今日已花</small><b id="walletSpent"></b></div>
               <div class="wallet-stat wallet-today" id="walletTodayCard"><small data-i="walletTodayLabel">今日剩余</small><b id="walletToday"></b></div>
             </div>
             <div class="wallet-negative-note" id="walletNegativeNote" hidden data-i="walletNegativeNote">今天暂时超出额度也没关系，这个差额会平静地结转到下一天。</div>
+            <p class="muted" data-i="walletCycleScope">周期剩余 = 可用零花钱 − 本周期所有已记录消费；不含预留储蓄，包含上期结转。</p>
 
             <section class="wallet-cycle-end" id="walletCycleEnd" hidden>
               <h3 data-i="walletCycleEndTitle">这个周期已经结束</h3>
@@ -658,30 +294,45 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
             </section>
           </div>
 
-          <div class="card manga-panel wallet-expense-panel">
-            <h2 class="manga-title" data-i="expenseTitle">记一笔消费</h2>
+          <div class="card wallet-expense-panel">
+            <h2 class="" data-i="expenseTitle">记一笔消费</h2>
             <p class="wallet-expense-availability" id="walletExpenseAvailability" role="status" aria-live="polite"></p>
             <div class="wallet-field"><label for="expenseName" data-i="expenseNameLabel">消费名称</label><input id="expenseName" aria-describedby="walletExpenseAvailability" maxlength="500" data-ph="expenseNamePh" placeholder="例如：午餐"></div>
             <div class="wallet-grid" style="margin-top:9px">
               <div class="wallet-field"><label for="expenseAmount" data-i="expenseAmountLabel">金额</label><input id="expenseAmount" aria-describedby="walletExpenseAvailability" type="text" inputmode="decimal" maxlength="14" data-ph="moneyAmountPh" placeholder="例如：25.00"></div>
-              <div class="wallet-field"><label for="expenseCategory" data-i="expenseCategoryLabel">分类（可选）</label><input id="expenseCategory" aria-describedby="walletExpenseAvailability" maxlength="120" data-ph="expenseCategoryPh" placeholder="例如：餐饮"></div>
+              <div class="wallet-field"><label for="expenseCategory" data-i="expenseCategoryLabel">分类（可选）</label><input id="expenseCategory" aria-describedby="walletExpenseAvailability" maxlength="120" data-ph="expenseCategoryPh" placeholder="例如：餐饮" oninput="renderWalletCategoryChoices()"></div>
               <div class="wallet-field wallet-wide"><label for="expenseSpentAt" data-i="expenseTimeLabel">消费时间</label><input id="expenseSpentAt" aria-describedby="walletExpenseAvailability" type="datetime-local"></div>
+            </div>
+            <div id="walletCategoryChoices" class="wallet-category-choices" role="group" data-aria-i="walletQuickCategories" aria-label="常用分类"></div>
+            <div id="walletRecentCategories" hidden>
+              <small class="muted" data-i="walletRecentLabel">最近使用</small>
+              <div id="walletRecentChoices" class="wallet-category-choices" role="group" data-aria-i="walletRecentLabel" aria-label="最近使用"></div>
             </div>
             <div class="row"><button type="button" class="btn full" id="saveExpenseButton" aria-describedby="walletExpenseAvailability" onclick="addExpense()" data-i="saveExpense">保存消费</button></div>
           </div>
 
-          <div class="card manga-panel wallet-timeline-panel">
-            <h2 class="manga-title" data-i="expenseTimelineTitle">消费时间线</h2>
+          <div class="card wallet-insights-panel">
+            <h2 class="" data-i="walletCategoryTitle">钱花在哪里</h2>
+            <p class="muted" data-i="walletCategoryScope">按本周期全部消费统计，百分比为该分类占总消费的比例。</p>
+            <div id="walletCategoryBreakdown"></div>
+          </div>
+
+          <div class="card wallet-timeline-panel">
+            <h2 class="" data-i="expenseTimelineTitle">消费时间线</h2>
+            <div class="wallet-field wallet-filter">
+              <label for="walletCategoryFilter" data-i="walletFilterLabel">按分类查看</label>
+              <select id="walletCategoryFilter" onchange="setWalletCategoryFilter(this.value)"></select>
+            </div>
+            <div id="walletFilterStatus" class="muted wallet-filter-status" role="status" aria-live="polite"></div>
             <div id="expenseTimeline"></div>
           </div>
         </div>
       </section>
 
       <section class="life-panel journal-view" id="lifeJournal" role="tabpanel" aria-labelledby="lifeTabJournal" tabindex="0" hidden>
-        <div class="card manga-panel journal-entry-panel">
-          <div class="manga-decor film-decor" aria-hidden="true"></div>
+        <div class="card journal-entry-panel">
           <div class="hint" data-i="jHint">这些记录只存在你自己的手机上，没有人能看到。诚实地写，才对你有用。</div>
-          <h2 class="manga-title" data-i="jTitle">今天做了什么</h2>
+          <h2 class="" data-i="jTitle">今天做了什么</h2>
           <textarea id="logText" data-ph="logPh" placeholder="不用写得漂亮。做了什么、什么感觉，随便记两句就行…"></textarea>
           <div class="muted" id="moodLabel" style="margin-top:10px" data-i="moodLabel">今天状态如何</div>
           <div class="moodpick" id="moodPick" role="radiogroup" aria-labelledby="moodLabel">
@@ -693,8 +344,8 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
           </div>
           <div class="row"><button class="btn full" onclick="addLog()" data-i="saveLog">保存记录</button></div>
         </div>
-        <div class="card manga-panel journal-list-panel">
-          <h2 class="manga-title" data-i="history">历史记录</h2>
+        <div class="card journal-list-panel">
+          <h2 class="" data-i="history">历史记录</h2>
           <div id="logList"></div>
         </div>
       </section>
@@ -771,7 +422,7 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
     <section class="account-recovery" id="coreRecoveryList"><h3 data-i="recoveryTitle">本机恢复备份</h3><div class="account-recovery-list" id="coreRecoveryItems"></div></section>
     <section class="appearance-settings" aria-labelledby="appearanceTitle">
       <h3 id="appearanceTitle" data-i="appearanceTitle">个人外观</h3>
-      <div class="appearance-preview"><img id="appearanceAvatarPreview" src="powy-power-192.png" alt=""><p class="muted" data-i="appearanceLocalHint">头像和壁纸只保存在这台设备。</p></div>
+      <div class="appearance-preview"><img id="appearanceAvatarPreview" src="app-icon.svg" alt=""><p class="muted" data-i="appearanceLocalHint">头像和壁纸只保存在这台设备。</p></div>
       <div class="appearance-actions">
         <button type="button" class="btn ghost" onclick="document.getElementById('avatarFile').click()" data-i="chooseAvatar">选择头像</button>
         <button type="button" class="btn ghost" onclick="document.getElementById('wallpaperFile').click()" data-i="chooseWallpaper">选择壁纸</button>
@@ -854,7 +505,9 @@ nav button.active{background:var(--blood);color:#fff;transform:translateY(-5px) 
 const SUPABASE_URL='https://rczhmavbzppssffgdnoh.supabase.co';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjemhtYXZienBwc3NmZmdkbm9oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1OTk4ODcsImV4cCI6MjEwMjE3NTg4N30.DRokVb4HR5zt215tz911HBNZl6iJ-WDlU3jrwYUGobw';
 const I18N={
- zh:{tagline:"反假性自律",loadTitle:"今日精力负荷",companionCat:'Power 猫',companionHuman:'人形 Power',companionReact:'戳一下伙伴',
+ zh:{
+   walletCycleSpentLabel:"本周期已花",walletCycleRemainingLabel:"本周期剩余",walletCycleScope:"周期剩余 = 可用零花钱 − 本周期所有已记录消费；不含预留储蓄，包含上期结转。",walletQuickCategories:"常用分类",walletRecentLabel:"最近使用",walletCategoryTitle:"钱花在哪里",walletCategoryScope:"按本周期全部消费统计，百分比为该分类占总消费的比例。",walletFilterLabel:"按分类查看",walletAllCategories:"全部分类",walletUncategorized:"未分类",walletFilterCount:"显示 {count} 笔消费",walletFilterEmpty:"这个分类还没有消费记录。",walletCatFood:"餐饮",walletCatTransport:"交通",walletCatStudy:"学习",walletCatEntertainment:"娱乐",walletCatShopping:"购物",walletCatOther:"其他",
+tagline:"反假性自律",loadTitle:"今日精力负荷",
    companionIdle:'待命',companionContent:'状态良好',companionStrained:'开始费劲',companionTired:'有些疲惫',companionExhausted:'精力耗尽',
    loadWarn:"⚠️ 已超出今日承载范围。别急着加 —— 把非必要的任务放进成长池吧。",
    addTask:"添加任务",taskPh:"今天想完成什么？",energyLabel:"预估精力消耗",taskMore:"更多安排",taskLess:"收起安排",
@@ -882,7 +535,9 @@ const I18N={
    emptyGoal:"还没有目标。目标是方向，不是压力。",emptyLog:"还没有记录。从今天开始吧。",
    savedLog:"记录已保存",movedTask:"已移到今日任务",newDayReset:"新的一天，精力已经重新归零。昨天没做完的事放回成长池了。",days:["一","二","三","四","五","六","日"],
    overload:"负荷已超载，这条先进成长池了"},
- en:{tagline:"Anti-fake-productivity",loadTitle:"Today's energy load",companionCat:'Power Cat',companionHuman:'Human Power',companionReact:'Tap companion',
+ en:{
+   walletCycleSpentLabel:"Spent this cycle",walletCycleRemainingLabel:"Left this cycle",walletCycleScope:"Cycle balance = spending allowance minus all logged cycle expenses; excludes reserved savings and includes opening carry.",walletQuickCategories:"Quick categories",walletRecentLabel:"Recently used",walletCategoryTitle:"Where the money went",walletCategoryScope:"All logged expenses in this cycle. Each percentage is the category's share of total spending.",walletFilterLabel:"Filter by category",walletAllCategories:"All categories",walletUncategorized:"Uncategorized",walletFilterCount:"Showing {count} expenses",walletFilterEmpty:"No expenses in this category yet.",walletCatFood:"Food",walletCatTransport:"Transport",walletCatStudy:"Study",walletCatEntertainment:"Entertainment",walletCatShopping:"Shopping",walletCatOther:"Other",
+tagline:"Anti-fake-productivity",loadTitle:"Today's energy load",
    companionIdle:'Idle',companionContent:'Feeling good',companionStrained:'Feeling the load',companionTired:'Getting tired',companionExhausted:'Exhausted',
    loadWarn:"⚠️ You're over today's capacity. Don't push — move the non-essential ones to your Growth Pool.",
    addTask:"Add a task",taskPh:"What do you want to get done today?",energyLabel:"Estimated energy cost",taskMore:"More options",taskLess:"Hide options",
@@ -1012,7 +667,7 @@ function applyAppearanceBlob(mode,blob){
   if(mode==='avatar'){
     const avatar=document.getElementById('profileAvatar'),preview=document.getElementById('appearanceAvatarPreview');
     if(blob){avatarObjectUrl=URL.createObjectURL(blob);avatar.src=avatarObjectUrl;preview.src=avatarObjectUrl;avatar.hidden=false;document.getElementById('avatarFallback').hidden=true;}
-    else{avatar.removeAttribute('src');avatar.hidden=true;document.getElementById('avatarFallback').hidden=false;preview.src='powy-power-192.png';}
+    else{avatar.removeAttribute('src');avatar.hidden=true;document.getElementById('avatarFallback').hidden=false;preview.src='app-icon.svg';}
   }else{
     if(blob){wallpaperObjectUrl=URL.createObjectURL(blob);document.querySelector('.app').style.setProperty('--profile-wallpaper',`url("${wallpaperObjectUrl}")`);}
     else document.querySelector('.app').style.removeProperty('--profile-wallpaper');
@@ -2726,7 +2381,7 @@ function go(v,el){
   document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
   document.querySelector('main').scrollTop=0;
-  setTodayMediaActive(v==='today');
+
 }
 function toast(msg){
   const el=document.getElementById('toast');
@@ -2735,227 +2390,10 @@ function toast(msg){
 }
 
 /* ============ 负荷 + 任务 ============ */
-let companionRequestId=0;
-const companionLayers=[...document.querySelectorAll('.companion-video')];
-let activeCompanionLayer=0;
-let pendingCompanionSrc='';
-let companionSwapTimer=null;
 let previousOverloaded=false;
-let companionMediaActive=true;
-let currentCompanion='cat';
-let currentCompanionState='idle';
-let companionReactionPlaying=false;
-let companionReactionTimer=null;
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
-const companionStateKeys={
-  idle:'companionIdle',content:'companionContent',
-  strained:'companionStrained',tired:'companionTired',exhausted:'companionExhausted'
-};
-
-function companionMediaSrc(companion,state,extension){
-  return `assets/power-${companion}/${state}.${extension}`;
-}
-function stopLayer(layer){
-  layer.pause();
-  if(layer.hasAttribute('src')){
-    layer.removeAttribute('src');
-    layer.load();
-  }
-  layer.classList.remove('is-active');
-  delete layer.dataset.companionSrc;
-  delete layer._companionRequestId;
-}
-function resumeCompanionLayer(layer,restart=false){
-  const poster=document.getElementById('companionPoster');
-  if(restart){
-    try{layer.currentTime=0;}catch(e){}
-  }
-  let playback;
-  try{playback=Promise.resolve(layer.play());}
-  catch(e){poster.classList.add('is-visible');return;}
-  playback.then(()=>poster.classList.remove('is-visible'))
-    .catch(()=>poster.classList.add('is-visible'));
-}
-function cancelCompanionTransition(){
-  clearTimeout(companionSwapTimer);
-  companionSwapTimer=null;
-  clearTimeout(companionReactionTimer);
-  companionReactionTimer=null;
-  pendingCompanionSrc='';
-  const pendingIndex=activeCompanionLayer===0?1:0;
-  const pending=companionLayers[pendingIndex];
-  if(pending._companionRequestId!==undefined||
-    pending.hasAttribute('src')||pending.classList.contains('is-active')){
-    stopLayer(pending);
-  }
-}
-function requestCompanion(companion,state){
-  currentCompanion=companion;
-  currentCompanionState=state;
-  const stage=document.getElementById('companionStage');
-  stage.dataset.companion=companion;
-  stage.dataset.state=state;
-  const poster=document.getElementById('companionPoster');
-  const posterSrc=companionMediaSrc(companion,state,'webp');
-  if(poster.getAttribute('src')!==posterSrc)poster.src=posterSrc;
-  document.getElementById('companionStatus').textContent=
-    `${T(companion==='human'?'companionHuman':'companionCat')} · ${T(companionStateKeys[state])}`;
-  if(companionReactionPlaying)return;
-  const requestId=++companionRequestId;
-  cancelCompanionTransition();
-
-  if(!companionMediaActive){
-    poster.classList.add('is-visible');
-    companionLayers.forEach(stopLayer);
-    activeCompanionLayer=0;
-    return;
-  }
-
-  if(reducedMotion.matches){
-    poster.classList.add('is-visible');
-    companionLayers.forEach(stopLayer);
-    activeCompanionLayer=0;
-    return;
-  }
-
-  const videoSrc=companionMediaSrc(companion,state,'mp4');
-  const active=companionLayers[activeCompanionLayer];
-  if(active.dataset.companionSrc===videoSrc&&active.classList.contains('is-active')){
-    if(active.paused)resumeCompanionLayer(active);
-    else poster.classList.remove('is-visible');
-    return;
-  }
-
-  pendingCompanionSrc=videoSrc;
-  const nextIndex=activeCompanionLayer===0?1:0;
-  const next=companionLayers[nextIndex];
-  stopLayer(next);
-  next.loop=true;
-  next._companionRequestId=requestId;
-  next.dataset.companionSrc=videoSrc;
-  next.src=videoSrc;
-  next.load();
-  next.addEventListener('canplay',async()=>{
-    if(requestId!==companionRequestId)return;
-    if(next._companionRequestId!==requestId)return;
-    try{
-      await next.play();
-    }catch(e){
-      if(requestId!==companionRequestId)return;
-      if(next._companionRequestId!==requestId)return;
-      pendingCompanionSrc='';
-      poster.classList.add('is-visible');
-      companionLayers.forEach(stopLayer);
-      activeCompanionLayer=0;
-      return;
-    }
-    if(requestId!==companionRequestId)return;
-    if(next._companionRequestId!==requestId)return;
-    poster.classList.remove('is-visible');
-    next.classList.add('is-active');
-    const old=companionLayers[activeCompanionLayer];
-    companionSwapTimer=setTimeout(()=>{
-      if(requestId!==companionRequestId)return;
-      if(next._companionRequestId!==requestId)return;
-      stopLayer(old);
-      activeCompanionLayer=nextIndex;
-      pendingCompanionSrc='';
-      companionSwapTimer=null;
-    },150);
-  },{once:true});
-}
-function finishCompanionReaction(requestId){
-  if(!companionReactionPlaying||requestId!==companionRequestId)return;
-  companionReactionPlaying=false;
-  requestCompanion(currentCompanion,currentCompanionState);
-}
-function triggerCompanionReaction(){
-  if(companionReactionPlaying||!companionMediaActive||reducedMotion.matches)return;
-  if(currentCompanion==='human'){
-    const active=companionLayers[activeCompanionLayer];
-    const expectedSrc=companionMediaSrc(currentCompanion,currentCompanionState,'mp4');
-    if(active.dataset.companionSrc===expectedSrc&&active.classList.contains('is-active')){
-      resumeCompanionLayer(active,true);
-    }else{
-      requestCompanion(currentCompanion,currentCompanionState);
-    }
-    return;
-  }
-  companionReactionPlaying=true;
-  const requestId=++companionRequestId;
-  cancelCompanionTransition();
-  const nextIndex=activeCompanionLayer===0?1:0;
-  const next=companionLayers[nextIndex];
-  stopLayer(next);
-  next.loop=false;
-  next._companionRequestId=requestId;
-  next.dataset.companionSrc=companionMediaSrc(currentCompanion,'tap','mp4');
-  next.src=next.dataset.companionSrc;
-  next.addEventListener('error',()=>finishCompanionReaction(requestId),{once:true});
-  next.addEventListener('ended',()=>finishCompanionReaction(requestId),{once:true});
-  companionReactionTimer=setTimeout(()=>finishCompanionReaction(requestId),4000);
-  next.load();
-  let playPromise;
-  try{
-    playPromise=Promise.resolve(next.play());
-  }catch(e){
-    finishCompanionReaction(requestId);
-    return;
-  }
-  playPromise.catch(()=>finishCompanionReaction(requestId));
-  next.addEventListener('canplay',async()=>{
-    if(requestId!==companionRequestId||next._companionRequestId!==requestId)return;
-    try{
-      await playPromise;
-    }catch(e){
-      return;
-    }
-    if(requestId!==companionRequestId||next._companionRequestId!==requestId)return;
-    clearTimeout(companionReactionTimer);
-    companionReactionTimer=null;
-    document.getElementById('companionPoster').classList.remove('is-visible');
-    next.classList.add('is-active');
-    const old=companionLayers[activeCompanionLayer];
-    companionSwapTimer=setTimeout(()=>{
-      if(requestId!==companionRequestId||next._companionRequestId!==requestId)return;
-      stopLayer(old);
-      activeCompanionLayer=nextIndex;
-      pendingCompanionSrc='';
-      companionSwapTimer=null;
-    },150);
-  },{once:true});
-}
-function setTodayMediaActive(active){
-  if(companionMediaActive===active)return;
-  companionMediaActive=active;
-  if(!active){
-    companionReactionPlaying=false;
-    companionRequestId++;
-    cancelCompanionTransition();
-    companionLayers.forEach(stopLayer);
-    activeCompanionLayer=0;
-    document.getElementById('companionPoster').classList.add('is-visible');
-    return;
-  }
-  requestCompanion(currentCompanion,currentCompanionState);
-}
-function companionStateForEnergy(used){
-  if(used<20)return 'idle';
-  if(used<40)return 'content';
-  if(used<60)return 'strained';
-  if(used<80)return 'tired';
-  return 'exhausted';
-}
-function renderCompanion(state){
-  requestCompanion(S.companion,state);
-  document.querySelectorAll('[data-companion]').forEach(btn=>
-    btn.setAttribute('aria-pressed',String(btn.dataset.companion===S.companion)));
-}
-function setCompanion(companion){
-  S.companion=companion==='human'?'human':'cat';
-  DB.set('companion',S.companion);
-  renderLoad();
-}
+const companionStateKeys={idle:'companionIdle',content:'companionContent',strained:'companionStrained',tired:'companionTired',exhausted:'companionExhausted'};
+function companionStateForEnergy(used){return used<20?'idle':used<40?'content':used<60?'strained':used<80?'tired':'exhausted';}
 function renderLoad(){
   const used=S.tasks.filter(t=>t.dayKey===currentDayKey&&!t.done).reduce((s,t)=>s+t.energy,0);
   const max=S.loadMax, pct=Math.min(100,used/max*100);
@@ -2973,7 +2411,7 @@ function renderLoad(){
   }
   if(!overloaded)warning.classList.remove('bursting');
   previousOverloaded=overloaded;
-  renderCompanion(state);
+
 }
 document.getElementById('loadWarn').addEventListener('animationend',e=>{
   if(e.animationName==='overloadHit')e.currentTarget.classList.remove('bursting');
@@ -2987,7 +2425,7 @@ function renderTasks(){
       const timeLabel=t.startTime||t.endTime?`${t.startTime||'…'}–${t.endTime||'…'}`:'';
       const helperLabel=helperKey?T(helperKey):'';
       const meta=[timeLabel,helperLabel,t.pomodoroCount?`${t.pomodoroCount} ${T('taskPomos')}`:''].filter(Boolean).join(' · ');
-      return `<div class="item manga-task ${t.done?'done':''}">
+      return `<div class="item ${t.done?'done':''}">
         <button type="button" class="chk" aria-pressed="${t.done}" aria-label="${esc(T(t.done?'taskUndo':'taskDone'))}" onclick="toggleTask(${esc(JSON.stringify(t.id))})">${t.done?'✓':''}</button>
         <div class="t">${esc(t.name)}${meta?`<small class="task-meta">${esc(meta)}</small>`:''}</div>
         <div class="tag">⚡${t.energy}</div>
@@ -3484,7 +2922,7 @@ document.getElementById('energyPick').addEventListener('click',e=>{
 function renderIdeas(){
   const box=document.getElementById('ideaList');
   box.innerHTML = S.ideas.length
-    ? S.ideas.map(i=>`<div class="item torn-note">
+    ? S.ideas.map(i=>`<div class="item">
         <div class="t">${esc(i.name)}</div>
         <button class="btn ghost sm" onclick="promote(${esc(JSON.stringify(i.id))})">${T('toTask')}</button>
         <button type="button" class="x" aria-label="${esc(T('deleteIdea'))}" onclick="delIdea(${esc(JSON.stringify(i.id))})">×</button></div>`).join('')
@@ -3525,8 +2963,7 @@ function renderGoals(){
   box.innerHTML = S.goals.length
     ? S.goals.map((g,index)=>{
         const pct=Math.min(100,Math.round(g.cur/g.target*100));
-        return `<div class="goal chapter-card">
-          <span class="chapter-number">${esc(T('chapter'))} ${String(index+1).padStart(2,'0')}</span>
+        return `<div class="goal">
           <div class="gt"><b>${esc(g.name)}</b><button type="button" class="x" aria-label="${esc(T('deleteGoal'))}" onclick="delGoal(${esc(JSON.stringify(g.id))})">×</button></div>
           <div class="gbar"><span style="width:${pct}%"></span></div>
           <div class="gfoot">
@@ -3821,6 +3258,83 @@ function renderNutrition(){
 
 /* ============ 钱包 ============ */
 let editingExpenseId=null;
+let walletCategoryFilter=null,walletFilterCycleId=null;
+const WALLET_CATEGORIES=[
+  {value:'餐饮',key:'walletCatFood',english:'Food'},
+  {value:'交通',key:'walletCatTransport',english:'Transport'},
+  {value:'学习',key:'walletCatStudy',english:'Study'},
+  {value:'娱乐',key:'walletCatEntertainment',english:'Entertainment'},
+  {value:'购物',key:'walletCatShopping',english:'Shopping'},
+  {value:'其他',key:'walletCatOther',english:'Other'}
+];
+function walletCategoryKey(category){
+  const value=String(category??'').trim();
+  return WALLET_CATEGORIES.find(item=>item.value===value||item.english.toLowerCase()===value.toLowerCase())?.value??value;
+}
+function walletCategoryLabel(category){
+  const key=walletCategoryKey(category);
+  const preset=WALLET_CATEGORIES.find(item=>item.value===key);
+  return preset?T(preset.key):key||T('walletUncategorized');
+}
+function walletCycleInsights(cycle,expenses){
+  const groups=new Map();
+  let spentCents=0;
+  for(const expense of expenses){
+    if(expense.deletedAt!=null||!expenseBelongsToCycle(expense,cycle))continue;
+    spentCents=addLifeMoney(spentCents,expense.amountCents,'Cycle spending');
+    const category=walletCategoryKey(expense.category);
+    const group=groups.get(category)||{category,amountCents:0,count:0};
+    group.amountCents=addLifeMoney(group.amountCents,expense.amountCents,'Category spending');
+    group.count++;
+    groups.set(category,group);
+  }
+  return {spentCents,remainingCents:addLifeMoney(budgetSpendableCents(cycle),-spentCents,'Cycle balance'),
+    categories:[...groups.values()].sort((a,b)=>b.amountCents-a.amountCents||a.category.localeCompare(b.category))};
+}
+function recentWalletCategories(expenses){
+  const recent=[...expenses].filter(expense=>expense.deletedAt==null&&walletCategoryKey(expense.category))
+    .sort((a,b)=>Date.parse(b.updatedAt||b.createdAt||b.spentAt)-Date.parse(a.updatedAt||a.createdAt||a.spentAt));
+  return [...new Set(recent.map(expense=>walletCategoryKey(expense.category)))].slice(0,4);
+}
+function renderWalletCategoryChoices(){
+  const input=document.getElementById('expenseCategory');
+  const selected=walletCategoryKey(input.value);
+  const button=category=>`<button type="button" class="wallet-category-chip" data-category="${esc(category)}" aria-pressed="${category===selected}" ${input.disabled?'disabled':''} onclick="chooseExpenseCategory(this.dataset.category)">${esc(walletCategoryLabel(category))}</button>`;
+  document.getElementById('walletCategoryChoices').innerHTML=WALLET_CATEGORIES.map(item=>button(item.value)).join('');
+  const recent=recentWalletCategories(S.expenses);
+  document.getElementById('walletRecentCategories').hidden=!recent.length;
+  document.getElementById('walletRecentChoices').innerHTML=recent.map(button).join('');
+}
+function chooseExpenseCategory(category){
+  const input=document.getElementById('expenseCategory');
+  if(input.disabled)return;
+  const key=walletCategoryKey(category);
+  input.value=key?walletCategoryLabel(key):'';
+  renderWalletCategoryChoices();
+  input.focus();
+}
+function setWalletCategoryFilter(value){
+  try{walletCategoryFilter=JSON.parse(value);}catch(error){walletCategoryFilter=null;}
+  if(typeof walletCategoryFilter!=='string')walletCategoryFilter=null;
+  renderWallet();
+}
+function renderWalletInsights(cycle){
+  const report=walletCycleInsights(cycle,S.expenses);
+  document.getElementById('walletCycleSpent').textContent=formatCny(report.spentCents);
+  document.getElementById('walletCycleRemaining').textContent=formatCny(report.remainingCents);
+  if(walletFilterCycleId!==cycle.id){walletFilterCycleId=cycle.id;walletCategoryFilter=null;}
+  if(walletCategoryFilter!==null&&!report.categories.some(group=>group.category===walletCategoryFilter))walletCategoryFilter=null;
+  const options=[{value:null,label:T('walletAllCategories')},...report.categories.map(group=>({value:group.category,label:walletCategoryLabel(group.category)}))];
+  const filter=document.getElementById('walletCategoryFilter');
+  filter.innerHTML=options.map(option=>`<option value="${esc(JSON.stringify(option.value))}">${esc(option.label)}</option>`).join('');
+  filter.value=JSON.stringify(walletCategoryFilter);
+  document.getElementById('walletCategoryBreakdown').innerHTML=report.categories.length?report.categories.map(group=>{
+    const percentage=report.spentCents>0?group.amountCents/report.spentCents*100:0;
+    const label=walletCategoryLabel(group.category);
+    return `<div class="wallet-category-row"><div class="wallet-category-heading"><span>${esc(label)}</span><b>${esc(formatCny(group.amountCents))}</b></div>
+      <progress max="100" value="${percentage}" aria-label="${esc(label)}"></progress><small class="muted">${percentage.toFixed(1)}%</small></div>`;
+  }).join(''):`<div class="empty">${esc(T('expenseEmpty'))}</div>`;
+}
 
 function showWalletStatus(message){
   document.getElementById('walletFormStatus').textContent=message;
@@ -3995,19 +3509,22 @@ function setExpenseForEdit(id){
   document.getElementById('expenseCategory').value=expense.category||'';
   document.getElementById('saveExpenseButton').textContent=T('updateExpense');
   document.getElementById('expenseName').focus();
+  renderWalletCategoryChoices();
   return true;
 }
 function renderExpenseTimeline(cycle){
   const expenses=expensesForBudgetCycle(cycle)
     .filter(expense=>expense.deletedAt==null)
+    .filter(expense=>walletCategoryFilter===null||walletCategoryKey(expense.category)===walletCategoryFilter)
     .map((expense,index)=>({expense,index,time:new Date(expense.spentAt)}))
     .filter(item=>Number.isFinite(item.time.getTime()))
     .sort((a,b)=>a.time-b.time||a.index-b.index)
     .map(item=>item.expense);
+  document.getElementById('walletFilterStatus').textContent=T('walletFilterCount').replace('{count}',expenses.length);
   document.getElementById('expenseTimeline').innerHTML=expenses.length?expenses.map(expense=>{
     const serializedId=esc(JSON.stringify(expense.id));
     const when=currentLocalDateTimeValue(new Date(expense.spentAt)).replace('T',' ');
-    const category=expense.category?` · ${esc(expense.category)}`:'';
+    const category=` · ${esc(walletCategoryLabel(expense.category))}`;
     return `<article class="expense-entry">
       <div class="expense-entry-main"><div class="expense-entry-name">${esc(expense.name||'')}</div>
       <div class="expense-entry-meta">${esc(when)}${category} · ${esc(formatCny(expense.amountCents))}</div></div>
@@ -4015,7 +3532,7 @@ function renderExpenseTimeline(cycle){
         <button type="button" class="food-action" aria-label="${esc(`${T('editExpense')}: ${expense.name||''}`)}" onclick="setExpenseForEdit(${serializedId})">✎</button>
         <button type="button" class="food-action" aria-label="${esc(`${T('deleteExpense')}: ${expense.name||''}`)}" onclick="deleteExpense(${serializedId})">×</button>
       </div></article>`;
-  }).join(''):`<div class="empty">${esc(T('expenseEmpty'))}</div>`;
+  }).join(''):`<div class="empty">${esc(T(walletCategoryFilter===null?'expenseEmpty':'walletFilterEmpty'))}</div>`;
 }
 function renderWallet(){
   const startDate=document.getElementById('budgetStartDate');
@@ -4030,6 +3547,7 @@ function renderWallet(){
   empty.hidden=Boolean(cycle);
   endCard.hidden=true;
   if(!cycle){
+    walletCategoryFilter=null;walletFilterCycleId=null;
     setExpenseControlsDisabled(false,'');
     document.getElementById('expenseTimeline').innerHTML=`<div class="empty">${esc(T('expenseEmpty'))}</div>`;
     return true;
@@ -4055,6 +3573,8 @@ function renderWallet(){
   negativeNote.hidden=todayBalance>=0;
   endCard.hidden=!ended;
   setExpenseControlsDisabled(ended,ended?T('expenseCycleEnded'):'');
+  renderWalletCategoryChoices();
+  renderWalletInsights(cycle);
   renderExpenseTimeline(cycle);
   return true;
 }
@@ -4108,7 +3628,7 @@ function renewBudgetCycle(mode,carry){
 function renderLogs(){
   const box=document.getElementById('logList');
   box.innerHTML = S.logs.length
-    ? S.logs.slice().reverse().map(l=>`<div class="log film-frame">
+    ? S.logs.slice().reverse().map(l=>`<div class="log">
         <div class="lh"><span class="mood">${l.mood}</span><b>${l.date}</b>
         <button type="button" class="x" style="margin-left:auto" aria-label="${esc(T('deleteLog'))}" onclick="delLog(${esc(JSON.stringify(l.id))})">×</button></div>
         <p>${esc(l.text)}</p></div>`).join('')
@@ -4168,9 +3688,10 @@ window.addEventListener('storage',async event=>{
   if((session?.access_token||null)===(AccountClient.session?.access_token||null))return;
   await AccountClient.activate(session,false);if(session){scheduleCoreSync('login');manualFlashcardSync();}
 });
-if('serviceWorker' in navigator){
+if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }
 </script>
+<script src="workspace.js"></script>
 </body>
 </html>

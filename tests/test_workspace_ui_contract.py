@@ -306,10 +306,10 @@ assert.equal(elements.get('accountSignUp').disabled,true,'registration remains u
 """
 
 
-class MangaUIContractTests(unittest.TestCase):
+class WorkspaceUIContractTests(unittest.TestCase):
     def test_user_visible_brand_is_powy_while_storage_protocol_stays_compatible(self):
         self.assertIn('<title>Powy</title>', HTML)
-        self.assertIn('<div class="logo"><img src="powy-power-192.png" alt=""></div>', HTML)
+        self.assertIn('<div class="logo"><img src="app-icon.svg" alt=""></div>', HTML)
         self.assertIn('<h1 id="appName">Powy</h1>', HTML)
         self.assertNotIn('量力', HTML)
         self.assertIn('LiangliAccountSync', HTML)
@@ -335,33 +335,16 @@ class MangaUIContractTests(unittest.TestCase):
         self.assertIn('<label for="accountPassword"><span data-i="passwordLabel">', HTML)
         self.assertNotIn('<label for="accountEmail" data-i=', HTML)
 
-    def test_ipad_layout_fills_viewport_and_uses_landscape_columns(self):
-        compact = re.sub(r'\s+', '', HTML)
-        self.assertIn('@media(min-width:768px)', compact)
-        self.assertIn('.app{max-width:none;', compact)
-        self.assertIn('@media(min-width:1024px)and(orientation:landscape)', compact)
-        self.assertIn('#lifeNutrition{grid-template-columns:minmax(0,1fr)minmax(0,1fr)', compact)
-
     def test_document_declares_a_favicon(self):
         self.assertRegex(
             HTML,
-            r'<link\s+rel="icon"\s+href="powy-power-192\.png">',
+            r'<link\s+rel="icon"\s+href="app-icon\.svg">',
         )
-        self.assertIn('<link rel="manifest" href="manifest.json?v=14">', HTML)
+        self.assertIn('<link rel="manifest" href="manifest.json?v=24">', HTML)
 
     def test_standalone_mode_has_standard_and_apple_metadata(self):
         self.assertIn('<meta name="mobile-web-app-capable" content="yes">', HTML)
         self.assertIn('<meta name="apple-mobile-web-app-capable" content="yes">', HTML)
-
-    def test_companion_playback_behavior(self):
-        result = subprocess.run(
-            ["node", str(ROOT / "tests" / "test_companion_playback.js")],
-            capture_output=True,
-            check=False,
-            text=True,
-            timeout=5,
-        )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_daily_energy_uses_local_calendar_and_lifecycle_checks(self):
         compact = HTML.replace(" ", "")
@@ -404,7 +387,7 @@ class MangaUIContractTests(unittest.TestCase):
         self.assertIn('data-i="openFlashcardsDirect"', HTML)
         self.assertRegex(
             HTML,
-            r'<div class="card manga-panel task-entry-panel">\s*<button\b[^>]*id="flashcardsQuickOpen"',
+            r'<div class="card task-entry-panel">\s*<button\b[^>]*id="flashcardsQuickOpen"',
         )
 
     def test_flashcard_overlay_is_accessible_and_complete(self):
@@ -515,13 +498,9 @@ class MangaUIContractTests(unittest.TestCase):
                                 capture_output=True, timeout=5, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_all_five_views_have_manga_identity(self):
-        for view in ("today", "pool", "goals", "focus", "life"):
-            self.assertRegex(HTML, rf'<section class="view manga-view [^"]*" id="v-{view}"')
-
     def test_life_hub_has_three_accessible_panels(self):
         self.assertIn(
-            '<section class="view manga-view life-view" id="v-life">',
+            '<section class="view life-view" id="v-life">',
             HTML,
         )
         nav = re.search(r"<nav>([\s\S]*?)</nav>", HTML)
@@ -557,9 +536,6 @@ class MangaUIContractTests(unittest.TestCase):
 
         compact = HTML.replace(" ", "")
         for fragment in (
-            ".life-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))",
-            ".life-tab{min-height:44px",
-            '.life-tab[aria-selected="true"]{background:#ff7f6b',
             "functionsetLifeTab(tab,focus=true)",
             "if(v==='life')setLifeTab(activeLifeTab,false)",
         ):
@@ -752,82 +728,6 @@ class MangaUIContractTests(unittest.TestCase):
             catalog_keys(catalogs.group("en")),
         )
 
-    def test_growth_pool_entry_stacks_without_shrinking_touch_targets(self):
-        compact = HTML.replace(" ", "")
-        self.assertIn(".pool-entry-panel.row{flex-direction:column}", compact)
-        self.assertIn(".pool-entry-panel.row.btn{width:100%}", compact)
-        self.assertIn("button,input,textarea,select{min-height:44px}", compact)
-
-    def test_visual_tokens_exist(self):
-        compact = HTML.replace(" ", "")
-        for token in (
-            "--ink:#0b0c0f", "--paper:#ede6d8", "--blood:#d92d45",
-            "--power-pink:#ff5f8f", "--warning:#f1c84b"
-        ):
-            self.assertIn(token, compact)
-
-    def test_accessible_companion_stage_contract(self):
-        companion_videos = re.findall(
-            r'<video\b[^>]*\bclass="[^"]*\bcompanion-video\b[^"]*"', HTML
-        )
-        self.assertEqual(len(companion_videos), 2)
-        self.assertIn('id="companionPoster"', HTML)
-        self.assertIn('id="companionStatus"', HTML)
-        self.assertIn('aria-live="polite"', HTML)
-        stage = re.search(
-            r'<button\b[^>]*\bid="companionStage"[^>]*>', HTML
-        )
-        self.assertIsNotNone(stage)
-        self.assertIn('type="button"', stage.group(0))
-        self.assertIn('data-aria-i="companionReact"', stage.group(0))
-        self.assertIn('onclick="triggerCompanionReaction()"', stage.group(0))
-
-    def test_companion_video_matcher_allows_additional_classes(self):
-        fixture = (
-            '<video class="companion-video"></video>'
-            '<video class="companion-video is-active"></video>'
-        )
-        companion_videos = re.findall(
-            r'<video\b[^>]*\bclass="[^"]*\bcompanion-video\b[^"]*"', fixture
-        )
-        self.assertEqual(len(companion_videos), 2)
-
-    def test_playback_controller_is_race_safe(self):
-        compact = HTML.replace(" ", "")
-        for fragment in (
-            "letcompanionRequestId=0",
-            "constrequestId=++companionRequestId",
-            "if(requestId!==companionRequestId)return",
-            "canplay", "150", "stopLayer",
-        ):
-            self.assertIn(fragment, compact)
-
-    def test_media_paths_keep_stable_names(self):
-        self.assertIn("assets/power-${companion}/${state}.${extension}", HTML)
-
-    def test_companion_status_localizes_character_and_state(self):
-        compact = HTML.replace(" ", "")
-        for key in ("companionIdle", "companionContent", "companionStrained", "companionTired", "companionExhausted"):
-            self.assertEqual(len(re.findall(rf"\b{key}:", HTML)), 2)
-        self.assertIn("T(companion==='human'?'companionHuman':'companionCat')", compact)
-        self.assertIn("T(companionStateKeys[state])", compact)
-
-    def test_playback_invalidates_before_active_source_fast_path(self):
-        compact = HTML.replace(" ", "")
-        for fragment in (
-            "functioncancelCompanionTransition()",
-            "constrequestId=++companionRequestId",
-            "cancelCompanionTransition()",
-            "next._companionRequestId!==requestId",
-            "catch(e)",
-            "pendingCompanionSrc=''",
-            "stopLayer(next)",
-        ):
-            self.assertIn(fragment, compact)
-        self.assertNotIn(
-            "if(requestId!==companionRequestId)returnstopLayer(next)", compact
-        )
-
     def test_overload_animation_runs_only_on_state_entry(self):
         compact = HTML.replace(" ", "")
         for fragment in (
@@ -843,31 +743,10 @@ class MangaUIContractTests(unittest.TestCase):
         )
 
     def test_reduced_motion_css_contract(self):
-        self.assertIn("@media(prefers-reduced-motion:reduce)", HTML.replace(" ", ""))
+        self.assertIn("@media(prefers-reduced-motion:reduce)", (ROOT / "workspace.css").read_text())
 
-    def test_reduced_motion_playback_contract(self):
-        self.assertIn("matchMedia('(prefers-reduced-motion: reduce)')", HTML)
-
-    def test_manga_decorations_are_noninteractive(self):
-        self.assertIn(".manga-decor{pointer-events:none", HTML.replace(" ", ""))
-        self.assertIn('aria-hidden="true"', HTML)
-
-    def test_keyframes_do_not_animate_clip_path(self):
-        keyframe_bodies = re.findall(
-            r"@keyframes\s+[\w-]+\s*\{((?:[^{}]|\{[^{}]*\})*)\}", HTML
-        )
-        self.assertTrue(keyframe_bodies)
-        for body in keyframe_bodies:
-            self.assertNotIn("clip-path", body)
-
-    def test_view_has_one_transition_definition(self):
-        view_transitions = re.findall(
-            r"\.view\.active\s*\{[^}]*\banimation\s*:", HTML
-        )
-        self.assertEqual(len(view_transitions), 1)
-
-    def test_theme_color_matches_manga_ink(self):
-        self.assertIn('<meta name="theme-color" content="#0b0c0f">', HTML)
+    def test_theme_color_matches_clean_workspace(self):
+        self.assertIn('<meta name="theme-color" content="#f5f6f8">', HTML)
 
     def test_interactive_choices_and_rendered_actions_are_semantic(self):
         self.assertIn('id="energyPick" role="radiogroup" aria-labelledby="energyLabel"', HTML)
@@ -893,12 +772,6 @@ class MangaUIContractTests(unittest.TestCase):
         self.assertIn("functiontriggerPomoBurst()", HTML.replace(' ', ''))
         self.assertRegex(HTML.replace(' ', ''), r"setTimeout\([^,]+,[1-4]\d\d\)")
         self.assertIn("if(reducedMotion.matches)return", HTML.replace(' ', ''))
-
-    def test_goal_cards_have_deterministic_visible_chapters(self):
-        compact = HTML.replace(' ', '')
-        self.assertIn("S.goals.map((g,index)=>", compact)
-        self.assertIn("String(index+1).padStart(2,'0')", compact)
-        self.assertIn('class="chapter-number"', HTML)
 
 
 if __name__ == "__main__":

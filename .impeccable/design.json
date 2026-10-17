@@ -1,0 +1,357 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-17T22:39:06.059Z",
+  "title": "Design System: Powy",
+  "extensions": {
+    "colorMeta": {
+      "bg": {
+        "role": "neutral",
+        "displayName": "bg",
+        "tonalRamp": [
+          "oklch(15.00% 0.00287 264.54)",
+          "oklch(26.43% 0.00287 264.54)",
+          "oklch(37.86% 0.00287 264.54)",
+          "oklch(49.29% 0.00287 264.54)",
+          "oklch(60.71% 0.00287 264.54)",
+          "oklch(72.14% 0.00287 264.54)",
+          "oklch(83.57% 0.00287 264.54)",
+          "oklch(95.00% 0.00287 264.54)"
+        ]
+      },
+      "card": {
+        "role": "neutral",
+        "displayName": "card",
+        "tonalRamp": [
+          "oklch(15.00% 0.00000 89.88)",
+          "oklch(26.43% 0.00000 89.88)",
+          "oklch(37.86% 0.00000 89.88)",
+          "oklch(49.29% 0.00000 89.88)",
+          "oklch(60.71% 0.00000 89.88)",
+          "oklch(72.14% 0.00000 89.88)",
+          "oklch(83.57% 0.00000 89.88)",
+          "oklch(95.00% 0.00000 89.88)"
+        ]
+      },
+      "card2": {
+        "role": "neutral",
+        "displayName": "card2",
+        "tonalRamp": [
+          "oklch(15.00% 0.00453 258.32)",
+          "oklch(26.43% 0.00453 258.32)",
+          "oklch(37.86% 0.00453 258.32)",
+          "oklch(49.29% 0.00453 258.32)",
+          "oklch(60.71% 0.00453 258.32)",
+          "oklch(72.14% 0.00453 258.32)",
+          "oklch(83.57% 0.00453 258.32)",
+          "oklch(95.00% 0.00453 258.32)"
+        ]
+      },
+      "txt": {
+        "role": "neutral",
+        "displayName": "txt",
+        "tonalRamp": [
+          "oklch(15.00% 0.02410 264.04)",
+          "oklch(26.43% 0.02410 264.04)",
+          "oklch(37.86% 0.02410 264.04)",
+          "oklch(49.29% 0.02410 264.04)",
+          "oklch(60.71% 0.02410 264.04)",
+          "oklch(72.14% 0.02410 264.04)",
+          "oklch(83.57% 0.02410 264.04)",
+          "oklch(95.00% 0.02410 264.04)"
+        ]
+      },
+      "sub": {
+        "role": "neutral",
+        "displayName": "sub",
+        "tonalRamp": [
+          "oklch(15.00% 0.03003 259.03)",
+          "oklch(26.43% 0.03003 259.03)",
+          "oklch(37.86% 0.03003 259.03)",
+          "oklch(49.29% 0.03003 259.03)",
+          "oklch(60.71% 0.03003 259.03)",
+          "oklch(72.14% 0.03003 259.03)",
+          "oklch(83.57% 0.03003 259.03)",
+          "oklch(95.00% 0.03003 259.03)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "line",
+        "tonalRamp": [
+          "oklch(15.00% 0.01213 259.82)",
+          "oklch(26.43% 0.01213 259.82)",
+          "oklch(37.86% 0.01213 259.82)",
+          "oklch(49.29% 0.01213 259.82)",
+          "oklch(60.71% 0.01213 259.82)",
+          "oklch(72.14% 0.01213 259.82)",
+          "oklch(83.57% 0.01213 259.82)",
+          "oklch(95.00% 0.01213 259.82)"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "accent",
+        "tonalRamp": [
+          "oklch(15.00% 0.19686 262.87)",
+          "oklch(26.43% 0.19686 262.87)",
+          "oklch(37.86% 0.19686 262.87)",
+          "oklch(49.29% 0.19686 262.87)",
+          "oklch(60.71% 0.19686 262.87)",
+          "oklch(72.14% 0.19686 262.87)",
+          "oklch(83.57% 0.19686 262.87)",
+          "oklch(95.00% 0.19686 262.87)"
+        ]
+      },
+      "ok": {
+        "role": "semantic",
+        "displayName": "ok",
+        "tonalRamp": [
+          "oklch(15.00% 0.09377 162.06)",
+          "oklch(26.43% 0.09377 162.06)",
+          "oklch(37.86% 0.09377 162.06)",
+          "oklch(49.29% 0.09377 162.06)",
+          "oklch(60.71% 0.09377 162.06)",
+          "oklch(72.14% 0.09377 162.06)",
+          "oklch(83.57% 0.09377 162.06)",
+          "oklch(95.00% 0.09377 162.06)"
+        ]
+      },
+      "warn": {
+        "role": "semantic",
+        "displayName": "warn",
+        "tonalRamp": [
+          "oklch(15.00% 0.11372 72.57)",
+          "oklch(26.43% 0.11372 72.57)",
+          "oklch(37.86% 0.11372 72.57)",
+          "oklch(49.29% 0.11372 72.57)",
+          "oklch(60.71% 0.11372 72.57)",
+          "oklch(72.14% 0.11372 72.57)",
+          "oklch(83.57% 0.11372 72.57)",
+          "oklch(95.00% 0.11372 72.57)"
+        ]
+      },
+      "danger": {
+        "role": "semantic",
+        "displayName": "danger",
+        "tonalRamp": [
+          "oklch(15.00% 0.16971 18.55)",
+          "oklch(26.43% 0.16971 18.55)",
+          "oklch(37.86% 0.16971 18.55)",
+          "oklch(49.29% 0.16971 18.55)",
+          "oklch(60.71% 0.16971 18.55)",
+          "oklch(72.14% 0.16971 18.55)",
+          "oklch(83.57% 0.16971 18.55)",
+          "oklch(95.00% 0.16971 18.55)"
+        ]
+      },
+      "sidebar": {
+        "role": "neutral",
+        "displayName": "sidebar",
+        "tonalRamp": [
+          "oklch(15.00% 0.00576 264.53)",
+          "oklch(26.43% 0.00576 264.53)",
+          "oklch(37.86% 0.00576 264.53)",
+          "oklch(49.29% 0.00576 264.53)",
+          "oklch(60.71% 0.00576 264.53)",
+          "oklch(72.14% 0.00576 264.53)",
+          "oklch(83.57% 0.00576 264.53)",
+          "oklch(95.00% 0.00576 264.53)"
+        ]
+      },
+      "nav-active": {
+        "role": "primary",
+        "displayName": "nav-active",
+        "tonalRamp": [
+          "oklch(15.00% 0.03006 267.20)",
+          "oklch(26.43% 0.03006 267.20)",
+          "oklch(37.86% 0.03006 267.20)",
+          "oklch(49.29% 0.03006 267.20)",
+          "oklch(60.71% 0.03006 267.20)",
+          "oklch(72.14% 0.03006 267.20)",
+          "oklch(83.57% 0.03006 267.20)",
+          "oklch(95.00% 0.03006 267.20)"
+        ]
+      },
+      "selected-text": {
+        "role": "primary",
+        "displayName": "selected-text",
+        "tonalRamp": [
+          "oklch(15.00% 0.16350 261.38)",
+          "oklch(26.43% 0.16350 261.38)",
+          "oklch(37.86% 0.16350 261.38)",
+          "oklch(49.29% 0.16350 261.38)",
+          "oklch(60.71% 0.16350 261.38)",
+          "oklch(72.14% 0.16350 261.38)",
+          "oklch(83.57% 0.16350 261.38)",
+          "oklch(95.00% 0.16350 261.38)"
+        ]
+      },
+      "selected-bg": {
+        "role": "primary",
+        "displayName": "selected-bg",
+        "tonalRamp": [
+          "oklch(15.00% 0.01733 264.49)",
+          "oklch(26.43% 0.01733 264.49)",
+          "oklch(37.86% 0.01733 264.49)",
+          "oklch(49.29% 0.01733 264.49)",
+          "oklch(60.71% 0.01733 264.49)",
+          "oklch(72.14% 0.01733 264.49)",
+          "oklch(83.57% 0.01733 264.49)",
+          "oklch(95.00% 0.01733 264.49)"
+        ]
+      },
+      "selected-border": {
+        "role": "primary",
+        "displayName": "selected-border",
+        "tonalRamp": [
+          "oklch(15.00% 0.10830 264.55)",
+          "oklch(26.43% 0.10830 264.55)",
+          "oklch(37.86% 0.10830 264.55)",
+          "oklch(49.29% 0.10830 264.55)",
+          "oklch(60.71% 0.10830 264.55)",
+          "oklch(72.14% 0.10830 264.55)",
+          "oklch(83.57% 0.10830 264.55)",
+          "oklch(95.00% 0.10830 264.55)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "页面标题",
+        "purpose": "工作区标题，紧凑断点降低字号。"
+      },
+      "title": {
+        "displayName": "面板标题",
+        "purpose": "工作面板的内容标题。"
+      },
+      "body": {
+        "displayName": "正文",
+        "purpose": "列表和常规文字。"
+      },
+      "label": {
+        "displayName": "标签",
+        "purpose": "字段标签与辅助说明。"
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "control-color",
+        "value": "background-color .15s, color .15s",
+        "purpose": "按钮颜色过渡；prefers-reduced-motion 时关闭。"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrow-desktop",
+        "value": "(max-width: 1050px)"
+      },
+      {
+        "name": "compact",
+        "value": "(max-width: 850px)"
+      },
+      {
+        "name": "phone",
+        "value": "(max-width: 500px)"
+      },
+      {
+        "name": "short",
+        "value": "(max-height: 800px)"
+      },
+      {
+        "name": "accessible-overflow",
+        "value": "(max-height: 650px)"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "主要按钮",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "提交或启动当前主要操作。",
+      "html": "<button class=\"ds-primary\">加入今日</button>",
+      "css": ".ds-primary{font:550 13px/1.5 -apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft Yahei\",sans-serif;min-height:40px;border:1px solid transparent;border-radius:7px;background:var(--accent,#245cd6);color:#fff;padding:9px 14px;cursor:pointer;transition:background-color .15s,color .15s}.ds-primary:hover:not(:disabled){filter:brightness(.97)}.ds-primary:focus-visible{outline:2px solid var(--focus,#245cd6);outline-offset:3px}.ds-primary:disabled{opacity:.48;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-primary{transition:none}}"
+    },
+    {
+      "name": "次要按钮",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "补充操作使用白底细边框。",
+      "html": "<button class=\"ds-ghost\">更多安排</button>",
+      "css": ".ds-ghost{font:550 13px/1.5 -apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft Yahei\",sans-serif;min-height:40px;border:1px solid var(--line,#dfe4ec);border-radius:7px;background:#fff;color:var(--txt,#202632);padding:9px 14px;cursor:pointer;transition:background-color .15s,color .15s}.ds-ghost:hover:not(:disabled){filter:brightness(.97)}.ds-ghost:focus-visible{outline:2px solid var(--focus,#245cd6);outline-offset:3px}.ds-ghost:disabled{opacity:.48;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-ghost{transition:none}}"
+    },
+    {
+      "name": "输入框",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "系统字体、可见标签与蓝色焦点。",
+      "html": "<label class=\"ds-field\">任务名称<input class=\"ds-input\" placeholder=\"今天想完成什么？\"></label>",
+      "css": ".ds-field{display:grid;gap:5px;font:12px/1.5 -apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft Yahei\",sans-serif;color:var(--sub,#606b7c)}.ds-input{font:14px/1.5 -apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft Yahei\",sans-serif;min-width:0;min-height:40px;background:#fff;border:1px solid var(--line,#dfe4ec);border-radius:7px;padding:9px 11px;color:var(--txt,#202632);caret-color:var(--accent,#245cd6)}.ds-input::placeholder{color:#667184}.ds-input:focus{outline:2px solid var(--focus,#245cd6);outline-offset:1px}"
+    },
+    {
+      "name": "侧栏当前项",
+      "kind": "nav",
+      "refersTo": "nav-active",
+      "description": "导航保持可访问名称，当前项用背景和语义标记。",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Workspace\"><button class=\"ds-nav-item\" aria-current=\"page\" aria-label=\"钱包\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"15\" rx=\"2\"/><path d=\"M3 8h18M16 12h5v4h-5z\"/></svg><span>钱包</span></button></nav>",
+      "css": ".ds-nav{padding:12px;background:#f0f2f6}.ds-nav-item{display:flex;align-items:center;gap:11px;width:100%;border:0;border-radius:8px;padding:11px 12px;background:#e1eaff;color:#184cac;font:650 13px/1.5 -apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft Yahei\",sans-serif;cursor:pointer}.ds-nav-item svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.ds-nav-item:hover{filter:brightness(.97)}.ds-nav-item:focus-visible{outline:2px solid var(--focus,#245cd6);outline-offset:3px}"
+    },
+    {
+      "name": "紧凑标签",
+      "kind": "chip",
+      "refersTo": "tag",
+      "description": "列表中的被动元信息。",
+      "html": "<span class=\"ds-tag\">25 精力</span>",
+      "css": ".ds-tag{display:inline-block;padding:3px 7px;background:var(--card2,#f5f7fa);color:var(--sub,#606b7c);border-radius:5px;font:11px/1.5 -apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft Yahei\",sans-serif;white-space:nowrap}"
+    },
+    {
+      "name": "工作面板",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "白色平面面板以细边框组织操作。",
+      "html": "<section class=\"ds-card\"><h2 class=\"ds-title\">今日任务</h2><p class=\"ds-muted\">为重要的事留一点空间。</p></section>",
+      "css": ".ds-card{background:var(--card,#fff);color:var(--txt,#202632);border:1px solid var(--line,#dfe4ec);border-radius:12px;padding:22px;min-width:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft Yahei\",sans-serif}.ds-title{font-size:15px;font-weight:650;margin:0 0 16px}.ds-muted{color:var(--sub,#606b7c);font-size:12px;line-height:1.6;margin:0}"
+    },
+    {
+      "name": "分页控件",
+      "kind": "custom",
+      "refersTo": "pager-button",
+      "description": "范围播报、上一页和下一页边界状态。",
+      "html": "<div class=\"ds-pager\"><span role=\"status\" aria-live=\"polite\">1–5 / 12 条</span><div class=\"ds-pager-controls\"><button disabled aria-label=\"上一页\">‹</button><button aria-label=\"下一页\">›</button></div></div>",
+      "css": ".ds-pager{display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--line,#dfe4ec);padding-top:14px;margin-top:12px;gap:12px;color:var(--sub,#606b7c);font:12px/1.5 -apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft Yahei\",sans-serif}.ds-pager-controls{display:flex;gap:6px}.ds-pager-controls button{font:inherit;min-width:36px;min-height:34px;border:1px solid var(--line,#dfe4ec);background:#fff;border-radius:6px;color:var(--txt,#202632);cursor:pointer}.ds-pager-controls button:hover:not(:disabled){filter:brightness(.97)}.ds-pager-controls button:focus-visible{outline:2px solid var(--focus,#245cd6);outline-offset:3px}.ds-pager-controls button:disabled{opacity:.48;cursor:not-allowed}"
+    },
+    {
+      "name": "复习卡",
+      "kind": "card",
+      "refersTo": "review-card",
+      "description": "完整长文本可局部滚动，安全居中保持起始内容可访问。",
+      "html": "<div class=\"ds-review\" tabindex=\"0\"><div class=\"ds-review-label\">正面</div><div class=\"ds-review-face\">今天学到了什么？</div></div>",
+      "css": ".ds-review{display:flex;flex-direction:column;justify-content:safe center;height:200px;overflow:auto;padding:28px;background:var(--card2,#f5f7fa);border-radius:12px;text-align:center;color:var(--txt,#202632);font:14px/1.5 -apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft Yahei\",sans-serif}.ds-review-label{font-size:12px;color:var(--sub,#606b7c);margin-bottom:12px}.ds-review-face{white-space:pre-wrap;overflow-wrap:anywhere;font-size:22px}.ds-review:focus-visible{outline:2px solid var(--focus,#245cd6);outline-offset:3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "安静的个人工作台",
+    "overview": "Powy 使用中性浅色画布、白色工作面板、石墨色文字和克制的蓝色交互状态。界面为日常操作服务：通过左侧导航进入工具，在有限视口中输入、检查和处理数据。\n\n用户已确定干净的侧栏应用方向，保留 Powy 名称，移除漫画、Chainsaw Man 和 Power 角色装饰。系统字体、细边框、适度圆角和紧凑密度延续这一方向。本文件记录已构建的界面，以 `workspace.css`、`workspace.js` 和 `index.html` 为事实来源；不增加新的品牌假设。",
+    "keyCharacteristics": [
+      "浅色中性底色，蓝色标记操作和选中状态。",
+      "左侧导航与工作面板构成稳定的操作空间。",
+      "长列表分页，完整文本按需展开。",
+      "中英文共用系统字体与组件结构。"
+    ],
+    "rules": [],
+    "dos": [
+      "Do 保留中性浅色、细描边、系统字体和左侧导航。",
+      "Do 根据真实可用高度分页，提供完整文本和键盘访问路径。",
+      "Do 在紧凑屏幕切换编辑与记录，允许英文页签自然换行。",
+      "Do 保留低高度页面滚动和长内容局部滚动的可访问性例外。",
+      "Do 将选中状态、焦点和禁用状态同时表达为语义与视觉反馈。"
+    ],
+    "donts": [
+      "Don't 重新引入漫画、Chainsaw Man 或 Power 角色装饰。",
+      "Don't 用超大宣传标题、装饰插画或额外卡片层级挤占操作区域。",
+      "Don't 为满足无滚动外观而隐藏必要内容或裁掉操作。",
+      "Don't 将此文件中的预览色阶当作新增应用颜色令牌。"
+    ]
+  }
+}

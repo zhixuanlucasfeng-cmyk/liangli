@@ -1,0 +1,27 @@
+{
+  "name": "powy-desktop",
+  "version": "1.0.0-preview.1",
+  "description": "A quiet personal workspace for tasks, focus and everyday life",
+  "author": "Powy",
+  "private": true,
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node scripts/test.cjs",
+    "test:desktop": "node tests/desktop-smoke.cjs && node tests/review-layout.cjs",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --publish never"
+  },
+  "devDependencies": {"electron":"44.9.0","electron-builder":"26.15.3","playwright":"1.64.1"},
+  "build": {
+    "appId": "com.powy.workspace",
+    "productName": "Powy",
+    "artifactName": "Powy-${version}-${os}-${arch}.${ext}",
+    "directories": {"output":"dist"},
+    "files": ["index.html","workspace.css","workspace.js","account-sync.js","app-icon.svg","app-icon.png","manifest.json","sw.js","desktop/**/*","package.json"],
+    "mac": {"target":["dmg"],"category":"public.app-category.productivity","identity":"-","icon":"app-icon.png"},
+    "win": {"target":["nsis"],"icon":"app-icon.png"},
+    "nsis": {"oneClick":false,"perMachine":false,"allowToChangeInstallationDirectory":true,"deleteAppDataOnUninstall":false},
+    "dmg": {"title":"Powy"}
+  }
+}
