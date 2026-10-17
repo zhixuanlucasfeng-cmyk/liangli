@@ -2,7 +2,7 @@ from pathlib import Path
 import unittest
 
 
-HTML = (Path(__file__).parents[1] / "index.html").read_text()
+HTML = (Path(__file__).parents[1] / "index.html").read_text(encoding="utf-8")
 
 
 class FlashcardStoreContractTests(unittest.TestCase):
