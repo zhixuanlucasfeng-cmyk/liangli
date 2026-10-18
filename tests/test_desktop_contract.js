@@ -1,0 +1,17 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '..');
+const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+assert(!html.includes('id="companionStage"'), 'Character stage must be removed, not hidden');
+assert(html.includes('workspace.css'), 'Clean workspace stylesheet is loaded');
+assert(html.includes('workspace.js'), 'Viewport pagination is loaded');
+const desktop = fs.readFileSync(path.join(root, 'desktop/main.cjs'), 'utf8');
+assert(desktop.includes('sandbox: true'));
+assert(desktop.includes('nodeIntegration: false'));
+assert(desktop.includes('contextIsolation: true'));
+assert(desktop.includes('setPermissionRequestHandler'));
+const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+assert.equal(pkg.build.win.target[0], 'nsis');
+assert.equal(pkg.build.mac.target[0], 'dmg');
+console.log('Desktop structure and security contract passed');

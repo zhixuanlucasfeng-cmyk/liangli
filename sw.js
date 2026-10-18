@@ -1,25 +1,10 @@
-/* Powy — service worker
+/* Powvy Habit — service worker
    改了 index.html 之后，把下面的版本号 +1，用户下次打开就会拿到新版本。 */
-const VERSION = 'liangli-v23';
+const VERSION = 'liangli-v25';
 const VIDEO_CACHE = 'liangli-video-v5';
 const ASSETS = [
-  './',
-  './index.html',
-  './account-sync.js',
-  './manifest.json?v=14',
-  './powy-power-192.png',
-  './powy-power-512.png',
-  './powy-power-maskable-512.png',
-  './assets/power-cat/idle.webp',
-  './assets/power-cat/content.webp',
-  './assets/power-cat/strained.webp',
-  './assets/power-cat/tired.webp',
-  './assets/power-cat/exhausted.webp',
-  './assets/power-human/idle.webp',
-  './assets/power-human/content.webp',
-  './assets/power-human/strained.webp',
-  './assets/power-human/tired.webp',
-  './assets/power-human/exhausted.webp'
+  './', './index.html', './account-sync.js', './workspace.css', './workspace.js',
+  './manifest.json?v=25', './theme.js', './app-icon.png'
 ];
 
 self.addEventListener('install', e => {

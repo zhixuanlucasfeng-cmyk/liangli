@@ -229,6 +229,8 @@
   function safeRedirect(){
     const location=accountRuntime.location||root.location;
     if(!location||typeof location.origin!=='string'||typeof location.pathname!=='string'||!location.pathname.startsWith('/'))throw new Error('Invalid recovery redirect');
+    // Email recovery completes in the existing HTTPS site; desktop users then sign in again.
+    if(location.origin==='powy://app')return 'https://zhixuanlucasfeng-cmyk.github.io/liangli/';
     return `${location.origin}${location.pathname}`;
   }
 

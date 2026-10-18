@@ -119,7 +119,7 @@ async function testInstallFailureKeepsPreviousWorkerActive() {
 async function testInstallUsesCurrentShellCacheWithAccountSyncModule() {
   const harness = createHarness();
   await dispatch(harness, 'install');
-  assert.deepEqual(harness.opened, ['liangli-v23']);
+  assert.deepEqual(harness.opened, ['liangli-v25']);
   assert.ok(
     harness.shellCache.installAssets.includes('./account-sync.js'),
     'the account sync module must be available to an offline shell',

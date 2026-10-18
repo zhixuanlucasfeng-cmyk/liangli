@@ -1,4 +1,20 @@
-# 量力 Liangli — 项目上下文
+# Powvy Habit — 项目上下文
+
+## 最新视觉要求（优先于全部历史说明）
+
+用户已改为 Powvy Habit 品牌、帕瓦特征的睡猫图标、更强的校园漫画纸页/墨线视觉及夜间模式。保留左侧导航、分页、原有功能与存储兼容性。`theme.js` 在绘制前应用主题，右上角切换并保存偏好。图标为 `app-icon.png`；生成提示见 `docs/sleeping-cat-logo-prompt.txt`，不要恢复旧的 P 字母图标。`docs/habit-theme-direction.md` 记录本次方向。
+
+## 2026-10 桌面新版（优先于下方旧版视觉说明）
+
+用户明确要求移除 Power / 电锯人与漫画视觉，改成简洁的左侧导航工作台，并发布 Mac/Windows 下载包。当前实现与设计以 README.md、PRODUCT.md、DESIGN.md 和 docs/desktop-plan.md 为准。
+
+- `workspace.css` 与 `workspace.js` 承载新界面；业务仍在 `index.html`，没有引入前端框架。
+- Electron/npm 仅用于用户要求的桌面打包，入口是 `desktop/main.cjs`；安装包只包含配置白名单文件。
+- 不恢复旧的伙伴素材、底部导航、漫画主题或媒体生成流程。历史说明仅说明旧架构。
+- `npm test` 运行现有业务回归；`npm run test:desktop` 检查视口、分页、重启存储和长卡片可访问性。
+- 本地钱包/饮食数据不进入同步。日记/心情与任务等属于已有可选核心同步范围，不能宣称登录后仍绝不上传。
+- 保留所有旧存储键和兼容行为；桌面和浏览器数据隔离，迁移必须显式导出/导入或使用既有账号同步。
+- 默认只在本开发分支产出安装包；发布桌面版本不自动更新 GitHub Pages 或生产数据库。
 
 > 这个文件是给 Claude Code 读的。每次会话开始会自动加载，不需要用户重复解释背景。
 
